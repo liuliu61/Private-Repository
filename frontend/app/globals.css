@@ -1,0 +1,23 @@
+@import 'tailwindcss';
+
+:root { background: #f4f7fb; color: #172033; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; font-family: Arial, 'Microsoft YaHei', sans-serif; }
+.login-shell { min-height: 100vh; display: grid; place-items: center; padding: 24px; background: linear-gradient(135deg, #eef4ff 0%, #f8fafc 55%, #e9f7f4 100%); }
+.login-card { width: min(100%, 430px); padding: 24px; border-radius: 8px; box-shadow: 0 16px 45px rgba(40, 64, 100, .12); }
+.brand-mark { width: 52px; height: 52px; display: grid; place-items: center; margin: 0 auto 16px; color: #fff; background: #1769aa; border-radius: 8px; font-size: 25px; font-weight: 700; }
+h1 { margin: 0; text-align: center; font-size: 25px; }
+.subtitle { margin: 8px 0 28px; color: #778198; text-align: center; }
+.hint { margin-top: 18px; color: #8b95a7; text-align: center; font-size: 12px; }
+.admin-shell { min-height: 100vh; }
+.system-brand { height: 64px; display: flex; align-items: center; gap: 10px; padding: 0 20px; font-weight: 700; color: #17324d; }
+.brand-mark.small { width: 34px; height: 34px; margin: 0; font-size: 18px; }
+.admin-header { display: flex; align-items: center; justify-content: space-between; background: #fff; border-bottom: 1px solid #eef1f5; padding: 0 28px; }
+.admin-header h4 { margin: 0; }
+.admin-content { padding: 28px; }
+.page-heading { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
+.page-heading h2 { margin-bottom: 0; }
+.dashboard-grid { margin-top: 16px; }
+.money-positive { color: #16a34a; }
+.money-negative { color: #dc2626; }
+@media (max-width: 760px) { .admin-content { padding: 16px; } .admin-header { padding: 0 12px; } .admin-header span { display: none; } }

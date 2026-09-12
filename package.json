@@ -1,0 +1,12 @@
+{
+  "name": "代理商财务记账与返点结算系统",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm --prefix backend run start:dev\" \"npm --prefix frontend run dev\"",
+    "build": "npm --prefix backend run build && npm --prefix frontend run build",
+    "db:generate": "npm --prefix backend run prisma:generate",
+    "db:migrate": "npm --prefix backend run prisma:migrate",
+    "db:seed": "npm --prefix backend run prisma:seed"
+  },
+  "devDependencies": { "concurrently": "^9.1.2" }
+}

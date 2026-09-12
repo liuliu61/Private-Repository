@@ -1,0 +1,1269 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum AccountType {
+  BANK
+  CASH
+  RECEIVABLE
+  CUSTOMER_PREPAY
+  REBATE_COST
+  REBATE_PAYABLE
+  REVENUE
+  COST
+}
+
+enum AccountStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum AccountNormalBalance {
+  DEBIT
+  CREDIT
+}
+
+enum VoucherStatus {
+  DRAFT
+  POSTED
+  VOIDED
+}
+
+enum TransactionType {
+  DEBIT
+  CREDIT
+}
+
+enum TransactionBusinessType {
+  RECEIPT
+  CUSTOMER_PAYMENT
+  CUSTOMER_REFUND
+  RECHARGE
+  DEDUCTION
+  SUPPLIER_PAYMENT
+  REFUND
+  REBATE
+  ADJUSTMENT
+  OTHER
+}
+
+enum CustomerStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum RebateRuleType {
+  FIXED_ADD
+  PRIVATE_DIVIDE
+}
+
+enum RebateRuleStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum RebateRecordStatus {
+  CALCULATING
+  PENDING_CONFIRMATION
+  CONFIRMED
+  SETTLED
+  CANCELLED
+}
+
+enum RebateCalculationMode {
+  ADD
+  DIVIDE
+  CASH_TO_CREDIT
+  CREDIT_TO_CASH
+}
+
+enum OrganizationType { PLATFORM PRIMARY_AGENT SECONDARY_AGENT }
+enum OrganizationStatus { ACTIVE DISABLED }
+enum ReconciliationStatus { DRAFT CHECKING PASSED FAILED CONFIRMED COMPLETED HAS_DIFFERENCE }
+enum FinancialAdjustmentType { INCOME EXPENSE }
+enum FinancialAdjustmentStatus { DRAFT APPROVED REJECTED EXECUTED }
+enum SupplierPlatform { DOUYIN KUAISHOU XIAOHONGSHU TENCENT OTHER }
+enum AdAssetStatus { ACTIVE DISABLED }
+enum PurchaseOrderStatus { DRAFT PENDING_CONFIRMATION CONFIRMED SETTLED CANCELLED PENDING_REVIEW APPROVED PROCESSING COMPLETED REJECTED }
+enum PurchaseOrderTransactionType { TRANSFER_IN TRANSFER_OUT }
+enum SettlementType { CUSTOMER SUPPLIER }
+enum SettlementStatus { DRAFT GENERATED CONFIRMED SETTLED COMPLETED CANCELLED }
+enum AuditResult { SUCCESS FAILURE }
+enum SupplierSettlementType { REBATE_ON_BASE PAYMENT_AFTER_REBATE CREDIT_AFTER_REBATE FIXED_PRICE OTHER }
+enum ProfitStatus { PROFIT BREAK_EVEN LOSS }
+enum SupplierAccountType { BANK CASH OTHER }
+enum PaymentStatus { PENDING PARTIAL PAID }
+enum PurchasePaymentType { CUSTOMER_PAYMENT SUPPLIER_PAYMENT }
+enum RefundStatus { PENDING APPROVED REJECTED REFUNDED CANCELLED }
+enum AccountUnit { CNY ACCOUNT_CREDIT }
+enum PromotionAccountOwnerType { CUSTOMER SUPPLIER }
+enum PromotionAccountUnit { ACCOUNT_CREDIT }
+enum PromotionTransactionBusinessType { CUSTOMER_CREDIT SUPPLIER_CREDIT ADJUSTMENT OTHER }
+enum CustomerWalletTransactionType { OPENING_BALANCE ADJUSTMENT_RED ADJUSTMENT_BLUE MANUAL_ADJUSTMENT RECEIVE_POSTING RECEIVE_REFUND }
+enum CustomerWalletType { FINANCE_V EXTERNAL_PROCUREMENT }
+enum BankTransactionDirection { INCOME EXPENSE }
+enum BankTransactionStatus { CONFIRMING UNPROCESSED MATCHED RECEIPT_CREATED RECEIPT_CONFIRMED IGNORED }
+enum ReceiveRecordStatus { PENDING_MATCH PENDING_CONFIRMATION CONFIRMED CANCELLED }
+enum ReceivePostingStatus { POSTED REVERSED }
+enum ReceiveInvoiceStatus { UNISSUED PARTIAL ISSUED }
+enum InvoiceStatus { DRAFT PROCESSING ISSUED VOIDED }
+
+model User {
+  id           String       @id @default(uuid()) @db.Uuid
+  username     String       @unique @db.VarChar(50)
+  passwordHash String       @map("password_hash") @db.VarChar(255)
+  displayName  String       @map("display_name") @db.VarChar(100)
+  status       UserStatus   @default(ACTIVE)
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  userRoles    UserRole[]
+  createdVouchers Voucher[] @relation("VoucherCreator")
+  operatedTransactions Transaction[] @relation("TransactionOperator")
+  createdFinancialAdjustments FinancialAdjustment[] @relation("FinancialAdjustmentCreator")
+  approvedFinancialAdjustments FinancialAdjustment[] @relation("FinancialAdjustmentApprover")
+  executedFinancialAdjustments FinancialAdjustment[] @relation("FinancialAdjustmentExecutor")
+  createdRebateRecords RebateRecord[] @relation("RebateRecordCreator")
+  confirmedRebateRecords RebateRecord[] @relation("RebateRecordConfirmer")
+  createdCustomerRebatePolicies CustomerRebatePolicy[] @relation("CustomerRebatePolicyCreator")
+  createdCustomerRebatePolicyVersions CustomerRebatePolicyVersion[] @relation("CustomerRebatePolicyVersionCreator")
+  createdSupplierRebatePolicies SupplierRebatePolicy[] @relation("SupplierRebatePolicyCreator")
+  updatedSupplierRebatePolicies SupplierRebatePolicy[] @relation("SupplierRebatePolicyUpdater")
+  createdSupplierRebatePolicyVersions SupplierRebatePolicyVersion[] @relation("SupplierRebatePolicyVersionCreator")
+  purchaseOrderCredits PurchaseOrderCredit[] @relation("PurchaseOrderCreditOperator")
+  promotionTransactions PromotionTransaction[] @relation("PromotionTransactionOperator")
+  createdPurchaseOrders PurchaseOrder[]
+  confirmedPurchaseOrders PurchaseOrder[] @relation("PurchaseOrderConfirmer")
+  organizations UserOrganization[]
+  auditLogs AuditLog[]
+  purchaseOrderPayments PurchaseOrderPayment[] @relation("PurchaseOrderPaymentOperator")
+  completedReconciliations Reconciliation[] @relation("ReconciliationCompleter")
+  createdReconciliations Reconciliation[] @relation("ReconciliationCreator")
+  createdSettlements Settlement[] @relation("SettlementCreator")
+  confirmedSettlements Settlement[] @relation("SettlementConfirmer")
+  refundApplicants Refund[] @relation("RefundApplicant")
+  refundApprovers Refund[] @relation("RefundApprover")
+  refundExecutors Refund[] @relation("RefundExecutor")
+  customerWalletTransactions CustomerWalletTransaction[] @relation("CustomerWalletTransactionOperator")
+  createdBankTransactions BankTransaction[] @relation("BankTransactionCreator")
+  createdReceiveRecords ReceiveRecord[] @relation("ReceiveRecordCreator")
+  confirmedReceiveRecords ReceiveRecord[] @relation("ReceiveRecordConfirmer")
+  createdReceivePostings ReceivePosting[] @relation("ReceivePostingCreator")
+  receiveServiceFees ReceiveServiceFee[] @relation("ReceiveServiceFeeOperator")
+  createdInvoices Invoice[] @relation("InvoiceCreator")
+  confirmedInvoices Invoice[] @relation("InvoiceConfirmer")
+  voidedInvoices Invoice[] @relation("InvoiceVoider")
+
+  @@map("users")
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  code        String           @unique @db.VarChar(50)
+  name        String           @db.VarChar(100)
+  description String?          @db.VarChar(255)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  userRoles   UserRole[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  code        String           @unique @db.VarChar(100)
+  name        String           @db.VarChar(100)
+  description String?          @db.VarChar(255)
+  createdAt   DateTime         @default(now()) @map("created_at")
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId String @map("user_id") @db.Uuid
+  roleId String @map("role_id") @db.Uuid
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String     @map("role_id") @db.Uuid
+  permissionId String     @map("permission_id") @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Account {
+  id              String               @id @default(uuid()) @db.Uuid
+  name            String               @db.VarChar(100)
+  accountCode     String               @unique @map("account_code") @db.VarChar(50)
+  accountType     AccountType          @map("account_type")
+  // 历史兼容字段，当前资金账户业务不使用该字段。
+  legacyBalanceSide AccountNormalBalance? @map("normal_balance")
+  currency        String               @default("CNY") @db.Char(3)
+  openingBalance  Decimal              @default(0) @map("opening_balance") @db.Decimal(20, 2)
+  currentBalance  Decimal              @default(0) @map("current_balance") @db.Decimal(20, 2)
+  status          AccountStatus        @default(ACTIVE)
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  voucherEntries  VoucherEntry[]
+  transactions    Transaction[]
+  rebateRecords   RebateRecord[]
+  reconciliations Reconciliation[]
+  invoices        Invoice[]
+  organizationId  String?              @map("organization_id") @db.Uuid
+  organization    Organization?        @relation(fields: [organizationId], references: [id])
+  purchaseOrders  PurchaseOrder[]      @relation("PurchaseOrderCashAccount")
+  financialAdjustments FinancialAdjustment[]
+  bankTransactions BankTransaction[]
+  receiveRecords ReceiveRecord[]
+
+  @@index([accountType])
+  @@index([status])
+  @@index([organizationId])
+  @@map("accounts")
+}
+
+model Voucher {
+  // 历史兼容模型，当前阶段不参与资金流水业务。
+  id          String        @id @default(uuid()) @db.Uuid
+  voucherNo   String        @unique @map("voucher_no") @db.VarChar(50)
+  voucherDate DateTime      @map("voucher_date") @db.Date
+  summary     String        @db.VarChar(255)
+  status      VoucherStatus @default(DRAFT)
+  createdBy   String        @map("created_by") @db.Uuid
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  creator     User          @relation("VoucherCreator", fields: [createdBy], references: [id])
+  entries     VoucherEntry[]
+  transactions Transaction[]
+
+  @@index([voucherDate])
+  @@index([status])
+  @@map("vouchers")
+}
+
+model VoucherEntry {
+  // 历史兼容模型，当前阶段不参与资金流水业务。
+  id           String   @id @default(uuid()) @db.Uuid
+  voucherId    String   @map("voucher_id") @db.Uuid
+  accountId    String   @map("account_id") @db.Uuid
+  debitAmount  Decimal  @default(0) @map("debit_amount") @db.Decimal(20, 2)
+  creditAmount Decimal  @default(0) @map("credit_amount") @db.Decimal(20, 2)
+  summary      String?  @db.VarChar(255)
+  sequence     Int
+  voucher      Voucher  @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  account      Account  @relation(fields: [accountId], references: [id])
+
+  @@unique([voucherId, sequence])
+  @@index([accountId])
+  @@map("voucher_entries")
+}
+
+model Transaction {
+  id              String                @id @default(uuid()) @db.Uuid
+  transactionNo   String                @unique @map("transaction_no") @db.VarChar(50)
+  accountId       String?               @map("account_id") @db.Uuid
+  supplierAccountId String?             @map("supplier_account_id") @db.Uuid
+  businessType    TransactionBusinessType @map("business_type")
+  businessNo      String                @map("business_no") @db.VarChar(100)
+  changeAmount    Decimal               @map("change_amount") @db.Decimal(20, 2)
+  balanceBefore   Decimal               @map("balance_before") @db.Decimal(20, 2)
+  balanceAfter    Decimal               @map("balance_after") @db.Decimal(20, 2)
+  occurredAt      DateTime              @default(now()) @map("occurred_at")
+  operatorId      String                @map("operator_id") @db.Uuid
+  remark          String?               @db.VarChar(255)
+  account         Account?              @relation(fields: [accountId], references: [id])
+  supplierAccount SupplierAccount?      @relation(fields: [supplierAccountId], references: [id])
+  operator        User                  @relation("TransactionOperator", fields: [operatorId], references: [id])
+  // 历史兼容字段，新的资金流水不关联凭证。
+  voucherId       String?               @map("voucher_id") @db.Uuid
+  voucher         Voucher?              @relation(fields: [voucherId], references: [id])
+  // 历史兼容字段，新的资金流水使用 changeAmount。
+  legacyAmount    Decimal?              @map("amount") @db.Decimal(20, 2)
+  legacyType      TransactionType?      @map("transaction_type")
+  adjustmentId String? @unique @map("adjustment_id") @db.Uuid
+  financialAdjustment FinancialAdjustment? @relation("FinancialAdjustmentTransaction", fields: [adjustmentId], references: [id])
+  receiveRecord ReceiveRecord? @relation("ReceiveRecordTransaction")
+
+  @@index([accountId, occurredAt])
+  @@index([businessType, occurredAt])
+  @@index([businessNo])
+  @@index([operatorId])
+  @@index([supplierAccountId, occurredAt])
+  @@index([voucherId])
+  @@map("transactions")
+}
+
+model Customer {
+  id           String         @id @default(uuid()) @db.Uuid
+  customerCode String         @unique @map("customer_code") @db.VarChar(50)
+  name         String         @db.VarChar(100)
+  fullName     String?        @map("full_name") @db.VarChar(100)
+  contact      String?        @db.VarChar(100)
+  phone        String?        @db.VarChar(50)
+  departmentId String?        @map("department_id") @db.VarChar(100)
+  agentId      String?        @map("agent_id") @db.Uuid
+  status       CustomerStatus @default(ACTIVE)
+  remark       String?        @db.VarChar(255)
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  agent        Organization?  @relation(fields: [agentId], references: [id])
+  rebateRecords RebateRecord[]
+  adAccounts   AdAccount[]
+  purchaseOrders PurchaseOrder[]
+  customerPolicies CustomerRebatePolicy[]
+  promotionAccounts PromotionAccount[]
+  refunds Refund[]
+  wallets CustomerWallet[]
+  matchedBankTransactions BankTransaction[] @relation("BankTransactionMatchedCustomer")
+  receiveRecords ReceiveRecord[]
+  receivePostings ReceivePosting[]
+  invoices Invoice[]
+  customerSettlements Settlement[] @relation("CustomerSettlements")
+
+  @@index([status])
+  @@index([agentId, status])
+  @@map("customers")
+}
+
+model RebateRule {
+  id            String          @id @default(uuid()) @db.Uuid
+  name          String          @db.VarChar(100)
+  version       Int             @default(1)
+  ruleType      RebateRuleType  @map("rule_type")
+  rate          Decimal         @db.Decimal(10, 4)
+  calculationMode RebateCalculationMode? @map("calculation_mode")
+  effectiveFrom DateTime        @map("effective_from") @db.Date
+  effectiveTo   DateTime?       @map("effective_to") @db.Date
+  status        RebateRuleStatus @default(ACTIVE)
+  remark        String?         @db.VarChar(255)
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  rebateRecords RebateRecord[]
+  purchaseOrders PurchaseOrder[]
+
+  @@index([ruleType, status])
+  @@index([effectiveFrom, effectiveTo])
+  @@map("rebate_rules")
+}
+
+model CustomerRebatePolicy {
+  id String @id @default(uuid()) @db.Uuid
+  name String @db.VarChar(100)
+  customerId String? @map("customer_id") @db.Uuid
+  adSubjectId String? @map("ad_subject_id") @db.Uuid
+  adAccountId String? @map("ad_account_id") @db.Uuid
+  status RebateRuleStatus @default(ACTIVE)
+  createdBy String? @map("created_by") @db.Uuid
+  remark String? @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  customer Customer? @relation(fields: [customerId], references: [id])
+  creator User? @relation("CustomerRebatePolicyCreator", fields: [createdBy], references: [id])
+  adSubject AdSubject? @relation(fields: [adSubjectId], references: [id])
+  adAccount AdAccount? @relation(fields: [adAccountId], references: [id])
+  versions CustomerRebatePolicyVersion[]
+  orders PurchaseOrder[] @relation("PurchaseOrderCustomerPolicy")
+  @@index([customerId, status])
+  @@index([adSubjectId, status])
+  @@index([adAccountId, status])
+  @@map("customer_rebate_policies")
+}
+
+model CustomerRebatePolicyVersion {
+  id String @id @default(uuid()) @db.Uuid
+  policyId String @map("policy_id") @db.Uuid
+  version Int
+  rebateType RebateRuleType @map("rebate_type")
+  rate Decimal @db.Decimal(10, 4)
+  calculationMode RebateCalculationMode? @map("calculation_mode")
+  effectiveFrom DateTime @map("effective_from")
+  effectiveTo DateTime? @map("effective_to")
+  status RebateRuleStatus @default(ACTIVE)
+  createdBy String? @map("created_by") @db.Uuid
+  remark String? @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  policy CustomerRebatePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  creator User? @relation("CustomerRebatePolicyVersionCreator", fields: [createdBy], references: [id])
+  orders PurchaseOrder[] @relation("PurchaseOrderCustomerPolicyVersion")
+  @@unique([policyId, version])
+  @@index([effectiveFrom, effectiveTo, status])
+  @@map("customer_rebate_policy_versions")
+}
+
+model SupplierRebatePolicy {
+  id String @id @default(uuid()) @db.Uuid
+  name String @db.VarChar(100)
+  supplierId String? @map("supplier_id") @db.Uuid
+  platform SupplierPlatform?
+  adSubjectId String? @map("ad_subject_id") @db.Uuid
+  adAccountId String? @map("ad_account_id") @db.Uuid
+  status RebateRuleStatus @default(ACTIVE)
+  createdBy String? @map("created_by") @db.Uuid
+  updatedBy String? @map("updated_by") @db.Uuid
+  remark String? @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+  creator User? @relation("SupplierRebatePolicyCreator", fields: [createdBy], references: [id])
+  updater User? @relation("SupplierRebatePolicyUpdater", fields: [updatedBy], references: [id])
+  adSubject AdSubject? @relation(fields: [adSubjectId], references: [id])
+  adAccount AdAccount? @relation(fields: [adAccountId], references: [id])
+  versions SupplierRebatePolicyVersion[]
+  orders PurchaseOrder[] @relation("PurchaseOrderSupplierPolicy")
+  @@index([supplierId, platform, status])
+  @@index([adSubjectId, status])
+  @@index([adAccountId, status])
+  @@map("supplier_rebate_policies")
+}
+
+model SupplierRebatePolicyVersion {
+  id String @id @default(uuid()) @db.Uuid
+  policyId String @map("policy_id") @db.Uuid
+  version Int
+  rebateType RebateRuleType @map("rebate_type")
+  rate Decimal @db.Decimal(10, 4)
+  calculationMode RebateCalculationMode? @map("calculation_mode")
+  settlementType SupplierSettlementType? @map("settlement_type")
+  effectiveFrom DateTime @map("effective_from")
+  effectiveTo DateTime? @map("effective_to")
+  status RebateRuleStatus @default(ACTIVE)
+  createdBy String? @map("created_by") @db.Uuid
+  remark String? @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  policy SupplierRebatePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
+  creator User? @relation("SupplierRebatePolicyVersionCreator", fields: [createdBy], references: [id])
+  orders PurchaseOrder[] @relation("PurchaseOrderSupplierPolicyVersion")
+  @@unique([policyId, version])
+  @@index([effectiveFrom, effectiveTo, status])
+  @@map("supplier_rebate_policy_versions")
+}
+
+model RebateRecord {
+  id              String                @id @default(uuid()) @db.Uuid
+  customerId      String                @map("customer_id") @db.Uuid
+  rebateRuleId    String                @map("rebate_rule_id") @db.Uuid
+  accountId       String?               @map("account_id") @db.Uuid
+  sourceAmount    Decimal               @map("source_amount") @db.Decimal(20, 2)
+  rebateRate      Decimal               @map("rebate_rate") @db.Decimal(10, 4)
+  paymentAmount   Decimal               @map("payment_amount") @db.Decimal(20, 2)
+  rebateAmount    Decimal               @map("rebate_amount") @db.Decimal(20, 2)
+  creditAmount    Decimal               @map("credit_amount") @db.Decimal(20, 2)
+  calculationMode RebateCalculationMode @map("calculation_mode")
+  status          RebateRecordStatus    @default(CALCULATING)
+  sourceDocumentNo String?              @map("source_document_no") @db.VarChar(100)
+  createdAt       DateTime              @default(now()) @map("created_at")
+  createdBy       String                @map("created_by") @db.Uuid
+  confirmedAt     DateTime?             @map("confirmed_at")
+  confirmedBy     String?               @map("confirmed_by") @db.Uuid
+  customer        Customer              @relation(fields: [customerId], references: [id])
+  rebateRule      RebateRule            @relation(fields: [rebateRuleId], references: [id])
+  account         Account?              @relation(fields: [accountId], references: [id])
+  creator         User                  @relation("RebateRecordCreator", fields: [createdBy], references: [id])
+  confirmer       User?                 @relation("RebateRecordConfirmer", fields: [confirmedBy], references: [id])
+
+  @@index([customerId, createdAt])
+  @@index([rebateRuleId])
+  @@index([accountId])
+  @@index([status])
+  @@map("rebate_records")
+}
+
+model Organization {
+  id String @id @default(uuid()) @db.Uuid
+  code String @unique @db.VarChar(50)
+  name String @db.VarChar(100)
+  type OrganizationType
+  parentId String? @map("parent_id") @db.Uuid
+  status OrganizationStatus @default(ACTIVE)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  parent Organization? @relation("OrganizationTree", fields: [parentId], references: [id])
+  children Organization[] @relation("OrganizationTree")
+  users UserOrganization[]
+  customers Customer[]
+  accounts Account[]
+  suppliers Supplier[]
+  promotionAccounts PromotionAccount[]
+  adSubjects AdSubject[]
+  purchaseOrders PurchaseOrder[]
+  settlements Settlement[]
+  reconciliations Reconciliation[]
+  auditLogs AuditLog[]
+  financialAdjustments FinancialAdjustment[]
+  refunds Refund[]
+  customerWallets CustomerWallet[]
+  bankTransactions BankTransaction[]
+  receiveRecords ReceiveRecord[]
+  receivePostings ReceivePosting[]
+  invoices Invoice[]
+  sourcingSetting SourcingSetting?
+  @@index([parentId])
+  @@index([type, status])
+  @@map("organizations")
+}
+
+model SourcingSetting {
+  id                String       @id @default(uuid()) @db.Uuid
+  organizationId    String       @unique @map("organization_id") @db.Uuid
+  useCustomerWallet Boolean      @default(false) @map("use_customer_wallet")
+  updatedBy         String?      @map("updated_by") @db.Uuid
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+  organization      Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("sourcing_settings")
+}
+
+model UserOrganization {
+  userId String @map("user_id") @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@id([userId, organizationId])
+  @@map("user_organizations")
+}
+
+model Reconciliation {
+  id String @id @default(uuid()) @db.Uuid
+  organizationId String? @map("organization_id") @db.Uuid
+  accountId String? @map("account_id") @db.Uuid
+  promotionAccountId String? @map("promotion_account_id") @db.Uuid
+  periodStart DateTime @map("period_start")
+  periodEnd DateTime @map("period_end")
+  openingBalance Decimal @map("opening_balance") @db.Decimal(20, 2)
+  incomeAmount Decimal @default(0) @map("income_amount") @db.Decimal(20, 2)
+  expenseAmount Decimal @default(0) @map("expense_amount") @db.Decimal(20, 2)
+  refundAmount Decimal @default(0) @map("refund_amount") @db.Decimal(20, 2)
+  adjustmentAmount Decimal @default(0) @map("adjustment_amount") @db.Decimal(20, 2)
+  calculatedBalance Decimal? @map("calculated_balance") @db.Decimal(20, 2)
+  systemBalance Decimal? @map("system_balance") @db.Decimal(20, 2)
+  totalReceipt Decimal @default(0) @map("total_receipt") @db.Decimal(20, 2)
+  totalRebate Decimal @default(0) @map("total_rebate") @db.Decimal(20, 2)
+  totalExpense Decimal @default(0) @map("total_expense") @db.Decimal(20, 2)
+  totalRefund Decimal @default(0) @map("total_refund") @db.Decimal(20, 2)
+  totalAdjustment Decimal @default(0) @map("total_adjustment") @db.Decimal(20, 2)
+  systemClosingBalance Decimal @map("system_closing_balance") @db.Decimal(20, 2)
+  actualClosingBalance Decimal? @map("actual_closing_balance") @db.Decimal(20, 2)
+  difference Decimal? @db.Decimal(20, 2)
+  profitAnomalyCount Int @default(0) @map("profit_anomaly_count")
+  profitAnomalies Json? @map("profit_anomalies")
+  status ReconciliationStatus @default(DRAFT)
+  createdBy String @map("created_by") @db.Uuid
+  confirmedBy String? @map("confirmed_by") @db.Uuid
+  confirmedAt DateTime? @map("confirmed_at")
+  completedBy String? @map("completed_by") @db.Uuid
+  completedAt DateTime? @map("completed_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  account Account? @relation(fields: [accountId], references: [id])
+  promotionAccount PromotionAccount? @relation(fields: [promotionAccountId], references: [id])
+  creator User @relation("ReconciliationCreator", fields: [createdBy], references: [id])
+  completer User? @relation("ReconciliationCompleter", fields: [completedBy], references: [id])
+  @@unique([accountId, periodStart, periodEnd])
+  @@unique([promotionAccountId, periodStart, periodEnd])
+  @@index([organizationId, status, periodStart, periodEnd])
+  @@index([promotionAccountId, periodStart, periodEnd])
+  @@index([periodStart, periodEnd])
+  @@map("reconciliations")
+}
+
+model Supplier {
+  id String @id @default(uuid()) @db.Uuid
+  name String @db.VarChar(100)
+  platform SupplierPlatform
+  contactName String? @map("contact_name") @db.VarChar(100)
+  contactPhone String? @map("contact_phone") @db.VarChar(50)
+  organizationId String? @map("organization_id") @db.Uuid
+  status AdAssetStatus @default(ACTIVE)
+  remark String? @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  purchaseOrders PurchaseOrder[]
+  supplierPolicies SupplierRebatePolicy[]
+  supplierAccounts SupplierAccount[]
+  promotionAccounts PromotionAccount[]
+  supplierSettlements Settlement[] @relation("SupplierSettlements")
+  @@index([organizationId, status])
+  @@map("suppliers")
+}
+
+model SupplierAccount {
+  id              String             @id @default(uuid()) @db.Uuid
+  supplierId      String             @map("supplier_id") @db.Uuid
+  accountName     String             @map("account_name") @db.VarChar(100)
+  accountType     SupplierAccountType @map("account_type")
+  currency        AccountUnit       @default(CNY)
+  currentBalance  Decimal            @default(0) @map("current_balance") @db.Decimal(20, 2)
+  status          AccountStatus      @default(ACTIVE)
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+  supplier        Supplier           @relation(fields: [supplierId], references: [id])
+  transactions    Transaction[]
+  purchaseOrders  PurchaseOrder[] @relation("PurchaseOrderSupplierAccount")
+
+  @@index([supplierId, status])
+  @@index([currency, status])
+  @@map("supplier_accounts")
+}
+
+model PromotionAccount {
+  id              String                    @id @default(uuid()) @db.Uuid
+  organizationId  String                    @map("organization_id") @db.Uuid
+  ownerType       PromotionAccountOwnerType @map("owner_type")
+  ownerId         String                    @map("owner_id") @db.Uuid
+  customerId      String?                   @map("customer_id") @db.Uuid
+  supplierId      String?                   @map("supplier_id") @db.Uuid
+  accountName     String                    @map("account_name") @db.VarChar(100)
+  unit            PromotionAccountUnit      @default(ACCOUNT_CREDIT)
+  currentBalance  Decimal                   @default(0) @map("current_balance") @db.Decimal(20, 2)
+  status          AccountStatus             @default(ACTIVE)
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
+  organization    Organization              @relation(fields: [organizationId], references: [id])
+  customer        Customer?                 @relation(fields: [customerId], references: [id])
+  supplier        Supplier?                 @relation(fields: [supplierId], references: [id])
+  transactions    PromotionTransaction[]
+  purchaseOrders  PurchaseOrder[]           @relation("PurchaseOrderCustomerPromotionAccount")
+  credits         PurchaseOrderCredit[]
+  reconciliations Reconciliation[]
+  financialAdjustments FinancialAdjustment[]
+
+  @@index([organizationId, status])
+  @@index([ownerType, ownerId, status])
+  @@index([customerId, status])
+  @@index([supplierId, status])
+  @@map("promotion_accounts")
+}
+
+model PromotionTransaction {
+  id                 String                            @id @default(uuid()) @db.Uuid
+  transactionNo      String                            @unique @map("transaction_no") @db.VarChar(50)
+  promotionAccountId String                            @map("promotion_account_id") @db.Uuid
+  unit               PromotionAccountUnit              @default(ACCOUNT_CREDIT)
+  businessType       PromotionTransactionBusinessType  @map("business_type")
+  businessNo         String                            @map("business_no") @db.VarChar(100)
+  changeAmount       Decimal                           @map("change_amount") @db.Decimal(20, 2)
+  balanceBefore      Decimal                           @map("balance_before") @db.Decimal(20, 2)
+  balanceAfter       Decimal                           @map("balance_after") @db.Decimal(20, 2)
+  occurredAt         DateTime                          @default(now()) @map("occurred_at")
+  operatorId         String                            @map("operator_id") @db.Uuid
+  adjustmentId       String?                           @unique @map("adjustment_id") @db.Uuid
+  remark             String?                           @db.VarChar(255)
+  promotionAccount   PromotionAccount                  @relation(fields: [promotionAccountId], references: [id])
+  operator           User                              @relation("PromotionTransactionOperator", fields: [operatorId], references: [id])
+  financialAdjustment FinancialAdjustment?              @relation("FinancialAdjustmentPromotionTransaction", fields: [adjustmentId], references: [id])
+
+  @@index([promotionAccountId, occurredAt])
+  @@index([businessType, occurredAt])
+  @@index([businessNo])
+  @@map("promotion_transactions")
+}
+
+model FinancialAdjustment {
+  id String @id @default(uuid()) @db.Uuid
+  adjustmentNo String @unique @map("adjustment_no") @db.VarChar(50)
+  organizationId String @map("organization_id") @db.Uuid
+  accountId String? @map("account_id") @db.Uuid
+  promotionAccountId String? @map("promotion_account_id") @db.Uuid
+  accountType AccountUnit @map("account_type")
+  type FinancialAdjustmentType
+  amount Decimal @db.Decimal(20, 2)
+  reason String @db.VarChar(255)
+  status FinancialAdjustmentStatus @default(DRAFT)
+  createdBy String @map("created_by") @db.Uuid
+  approvedBy String? @map("approved_by") @db.Uuid
+  executedBy String? @map("executed_by") @db.Uuid
+  approvedAt DateTime? @map("approved_at")
+  executedAt DateTime? @map("executed_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  organization Organization @relation(fields: [organizationId], references: [id])
+  account Account? @relation(fields: [accountId], references: [id])
+  promotionAccount PromotionAccount? @relation(fields: [promotionAccountId], references: [id])
+  creator User @relation("FinancialAdjustmentCreator", fields: [createdBy], references: [id])
+  approver User? @relation("FinancialAdjustmentApprover", fields: [approvedBy], references: [id])
+  executor User? @relation("FinancialAdjustmentExecutor", fields: [executedBy], references: [id])
+  transaction Transaction? @relation("FinancialAdjustmentTransaction")
+  promotionTransaction PromotionTransaction? @relation("FinancialAdjustmentPromotionTransaction")
+  @@index([organizationId, status, createdAt])
+  @@index([accountId, status])
+  @@index([promotionAccountId, status])
+  @@map("financial_adjustments")
+}
+
+model CustomerWallet {
+  id                 String        @id @default(uuid()) @db.Uuid
+  customerId         String        @map("customer_id") @db.Uuid
+  organizationId     String        @map("organization_id") @db.Uuid
+  walletName         String        @map("wallet_name") @db.VarChar(100)
+  walletType         CustomerWalletType @default(FINANCE_V) @map("wallet_type")
+  unit               AccountUnit   @default(ACCOUNT_CREDIT)
+  cashBalance        Decimal       @default(0) @map("cash_balance") @db.Decimal(20, 2)
+  groupBalance       Decimal       @default(0) @map("group_balance") @db.Decimal(20, 2)
+  creditLimit        Decimal       @default(0) @map("credit_limit") @db.Decimal(20, 2)
+  creditUsed         Decimal       @default(0) @map("credit_used") @db.Decimal(20, 2)
+  advanceOutstanding Decimal       @default(0) @map("advance_outstanding") @db.Decimal(20, 2)
+  status             AccountStatus @default(ACTIVE)
+  createdAt          DateTime      @default(now()) @map("created_at")
+  updatedAt          DateTime      @updatedAt @map("updated_at")
+  customer           Customer      @relation(fields: [customerId], references: [id])
+  organization       Organization  @relation(fields: [organizationId], references: [id])
+  transactions       CustomerWalletTransaction[]
+
+  @@index([organizationId, status])
+  @@unique([customerId, walletType])
+  @@index([unit, status])
+  @@index([customerId, organizationId, walletType])
+  @@index([advanceOutstanding])
+  @@map("customer_wallets")
+}
+
+model CustomerWalletTransaction {
+  id             String                        @id @default(uuid()) @db.Uuid
+  transactionNo  String                        @unique @map("transaction_no") @db.VarChar(60)
+  walletId       String                        @map("wallet_id") @db.Uuid
+  unit           AccountUnit                   @default(ACCOUNT_CREDIT)
+  businessType   CustomerWalletTransactionType @map("business_type")
+  businessNo     String?                       @map("business_no") @db.VarChar(100)
+  changeAmount   Decimal                       @map("change_amount") @db.Decimal(20, 2)
+  balanceBefore  Decimal                       @map("balance_before") @db.Decimal(20, 2)
+  balanceAfter   Decimal                       @map("balance_after") @db.Decimal(20, 2)
+  operatorId     String                        @map("operator_id") @db.Uuid
+  occurredAt     DateTime                      @default(now()) @map("occurred_at")
+  remark         String?                       @db.VarChar(255)
+  idempotencyKey String?                       @unique @map("idempotency_key") @db.VarChar(100)
+  wallet         CustomerWallet                @relation(fields: [walletId], references: [id])
+  operator       User                          @relation("CustomerWalletTransactionOperator", fields: [operatorId], references: [id])
+
+  @@index([walletId, occurredAt])
+  @@index([businessType, occurredAt])
+  @@index([businessNo])
+  @@index([operatorId])
+  @@map("customer_wallet_transactions")
+}
+
+model BankTransaction {
+  id                    String                   @id @default(uuid()) @db.Uuid
+  transactionNo         String                   @unique @map("transaction_no") @db.VarChar(60)
+  organizationId        String                   @map("organization_id") @db.Uuid
+  accountId             String                   @map("account_id") @db.Uuid
+  occurredAt            DateTime                 @map("occurred_at")
+  bookedAt              DateTime?                @map("booked_at")
+  direction             BankTransactionDirection
+  amount                Decimal                  @db.Decimal(20, 2)
+  currency              String                   @default("CNY") @db.Char(3)
+  counterpartyName      String?                  @map("counterparty_name") @db.VarChar(120)
+  counterpartyAccount   String?                  @map("counterparty_account") @db.VarChar(120)
+  summary               String?                  @db.VarChar(255)
+  remark                String?                  @db.VarChar(255)
+  source                String                   @db.VarChar(50)
+  externalTransactionId String?                  @map("external_transaction_id") @db.VarChar(150)
+  status                BankTransactionStatus    @default(UNPROCESSED)
+  matchedCustomerId     String?                  @map("matched_customer_id") @db.Uuid
+  matchedPurchaseOrderId String?                 @map("matched_purchase_order_id") @db.Uuid
+  createdBy             String                   @map("created_by") @db.Uuid
+  createdAt             DateTime                 @default(now()) @map("created_at")
+  updatedAt             DateTime                 @updatedAt @map("updated_at")
+  organization          Organization             @relation(fields: [organizationId], references: [id])
+  account               Account                  @relation(fields: [accountId], references: [id])
+  matchedCustomer       Customer?                @relation("BankTransactionMatchedCustomer", fields: [matchedCustomerId], references: [id])
+  matchedPurchaseOrder  PurchaseOrder?           @relation(fields: [matchedPurchaseOrderId], references: [id])
+  creator               User                     @relation("BankTransactionCreator", fields: [createdBy], references: [id])
+  receiveRecord         ReceiveRecord?
+
+  @@unique([accountId, externalTransactionId])
+  @@index([organizationId, occurredAt, status])
+  @@index([accountId, occurredAt])
+  @@index([direction, status])
+  @@index([counterpartyName])
+  @@map("bank_transactions")
+}
+
+model ReceiveRecord {
+  id                String             @id @default(uuid()) @db.Uuid
+  receiveNo         String             @unique @map("receive_no") @db.VarChar(60)
+  organizationId    String             @map("organization_id") @db.Uuid
+  customerId        String?            @map("customer_id") @db.Uuid
+  purchaseOrderId   String?            @map("purchase_order_id") @db.Uuid
+  accountId         String             @map("account_id") @db.Uuid
+  bankTransactionId String             @unique @map("bank_transaction_id") @db.Uuid
+  amount            Decimal            @db.Decimal(20, 2)
+  postedAmount      Decimal            @default(0) @map("posted_amount") @db.Decimal(20, 2)
+  refundedAmount    Decimal            @default(0) @map("refunded_amount") @db.Decimal(20, 2)
+  serviceFeeAmount  Decimal            @default(0) @map("service_fee_amount") @db.Decimal(20, 2)
+  walletCreditAmount Decimal           @default(0) @map("wallet_credit_amount") @db.Decimal(20, 2)
+  invoiceEligibleAmount Decimal        @default(0) @map("invoice_eligible_amount") @db.Decimal(20, 2)
+  invoiceStatus     ReceiveInvoiceStatus @default(UNISSUED) @map("invoice_status")
+  currency          String             @default("CNY") @db.Char(3)
+  receivedAt        DateTime           @map("received_at")
+  status            ReceiveRecordStatus @default(PENDING_MATCH)
+  transactionId     String?            @unique @map("transaction_id") @db.Uuid
+  createdBy         String             @map("created_by") @db.Uuid
+  confirmedBy       String?            @map("confirmed_by") @db.Uuid
+  confirmedAt       DateTime?          @map("confirmed_at")
+  remark            String?            @db.VarChar(255)
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  organization      Organization       @relation(fields: [organizationId], references: [id])
+  customer          Customer?          @relation(fields: [customerId], references: [id])
+  purchaseOrder     PurchaseOrder?     @relation(fields: [purchaseOrderId], references: [id])
+  account           Account            @relation(fields: [accountId], references: [id])
+  bankTransaction   BankTransaction    @relation(fields: [bankTransactionId], references: [id])
+  transaction       Transaction?       @relation("ReceiveRecordTransaction", fields: [transactionId], references: [id])
+  creator           User               @relation("ReceiveRecordCreator", fields: [createdBy], references: [id])
+  confirmer         User?              @relation("ReceiveRecordConfirmer", fields: [confirmedBy], references: [id])
+  invoices          Invoice[]
+  postings          ReceivePosting[]
+  serviceFeeDetails ReceiveServiceFee[]
+  refunds           Refund[]
+
+  @@index([organizationId, status, receivedAt])
+  @@index([customerId, receivedAt])
+  @@index([purchaseOrderId])
+  @@index([accountId, receivedAt])
+  @@map("receive_records")
+}
+
+model ReceivePosting {
+  id                 String              @id @default(uuid()) @db.Uuid
+  postingNo          String              @unique @map("posting_no") @db.VarChar(60)
+  organizationId     String              @map("organization_id") @db.Uuid
+  receiveRecordId    String              @map("receive_record_id") @db.Uuid
+  customerId         String              @db.Uuid
+  paymentAmount      Decimal             @map("payment_amount") @db.Decimal(20, 2)
+  refundAmount       Decimal             @default(0) @map("refund_amount") @db.Decimal(20, 2)
+  serviceFeeAmount   Decimal             @default(0) @map("service_fee_amount") @db.Decimal(20, 2)
+  walletCreditAmount Decimal             @map("wallet_credit_amount") @db.Decimal(20, 2)
+  invoiceEligibleAmount Decimal          @map("invoice_eligible_amount") @db.Decimal(20, 2)
+  status             ReceivePostingStatus @default(POSTED)
+  createdBy          String              @map("created_by") @db.Uuid
+  createdAt          DateTime            @default(now()) @map("created_at")
+  remark             String?             @db.VarChar(255)
+  organization       Organization        @relation(fields: [organizationId], references: [id])
+  receiveRecord      ReceiveRecord       @relation(fields: [receiveRecordId], references: [id])
+  customer           Customer             @relation(fields: [customerId], references: [id])
+  creator            User                @relation("ReceivePostingCreator", fields: [createdBy], references: [id])
+
+  @@index([organizationId, createdAt])
+  @@index([receiveRecordId, createdAt])
+  @@map("receive_postings")
+}
+
+model ReceiveServiceFee {
+  id             String        @id @default(uuid()) @db.Uuid
+  receiveRecordId String       @map("receive_record_id") @db.Uuid
+  businessType   String        @map("business_type") @db.VarChar(50)
+  amount         Decimal       @db.Decimal(20, 2)
+  remark         String?       @db.VarChar(255)
+  operatorId     String        @map("operator_id") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at")
+  receiveRecord  ReceiveRecord @relation(fields: [receiveRecordId], references: [id])
+  operator       User          @relation("ReceiveServiceFeeOperator", fields: [operatorId], references: [id])
+
+  @@index([receiveRecordId, createdAt])
+  @@map("receive_service_fees")
+}
+
+model Invoice {
+  id               String         @id @default(uuid()) @db.Uuid
+  invoiceNo        String         @unique @map("invoice_no") @db.VarChar(60)
+  invoiceNumber    String?        @unique @map("invoice_number") @db.VarChar(100)
+  organizationId   String         @map("organization_id") @db.Uuid
+  customerId       String         @map("customer_id") @db.Uuid
+  purchaseOrderId  String?        @map("purchase_order_id") @db.Uuid
+  receiveRecordId  String?        @map("receive_record_id") @db.Uuid
+  accountId        String?        @map("account_id") @db.Uuid
+  businessNo       String?        @map("business_no") @db.VarChar(100)
+  amount           Decimal        @db.Decimal(20, 2)
+  currency         String         @default("CNY") @db.Char(3)
+  invoiceDate      DateTime?      @map("invoice_date")
+  invoiceType      String?        @map("invoice_type") @db.VarChar(50)
+  invoiceTitle     String?        @map("invoice_title") @db.VarChar(150)
+  taxNumber        String?        @map("tax_number") @db.VarChar(100)
+  invoiceContent   String?        @map("invoice_content") @db.VarChar(255)
+  issuingEntity    String?        @map("issuing_entity") @db.VarChar(150)
+  contractNo       String?        @map("contract_no") @db.VarChar(100)
+  invoiceNature    String?        @map("invoice_nature") @db.VarChar(50)
+  redFlushStatus   String?        @map("red_flush_status") @db.VarChar(30)
+  recipientEmail   String?        @map("recipient_email") @db.VarChar(150)
+  status           InvoiceStatus  @default(DRAFT)
+  clientRequestId  String?        @unique @map("client_request_id") @db.VarChar(100)
+  createdBy        String         @map("created_by") @db.Uuid
+  confirmedBy      String?        @map("confirmed_by") @db.Uuid
+  confirmedAt      DateTime?      @map("confirmed_at")
+  voidedBy         String?        @map("voided_by") @db.Uuid
+  voidedAt         DateTime?      @map("voided_at")
+  voidReason       String?        @map("void_reason") @db.VarChar(255)
+  remark           String?        @db.VarChar(255)
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+  organization     Organization   @relation(fields: [organizationId], references: [id])
+  customer         Customer       @relation(fields: [customerId], references: [id])
+  purchaseOrder    PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  receiveRecord    ReceiveRecord? @relation(fields: [receiveRecordId], references: [id])
+  account          Account?       @relation(fields: [accountId], references: [id])
+  creator          User           @relation("InvoiceCreator", fields: [createdBy], references: [id])
+  confirmer        User?          @relation("InvoiceConfirmer", fields: [confirmedBy], references: [id])
+  voider           User?          @relation("InvoiceVoider", fields: [voidedBy], references: [id])
+
+  @@index([organizationId, status, createdAt])
+  @@index([customerId, status, createdAt])
+  @@index([purchaseOrderId])
+  @@index([receiveRecordId])
+  @@index([accountId])
+  @@index([businessNo])
+  @@map("invoices")
+}
+
+model AdSubject {
+  id String @id @default(uuid()) @db.Uuid
+  subjectCode String @map("subject_code") @db.VarChar(100)
+  name String @db.VarChar(100)
+  platform SupplierPlatform
+  organizationId String? @map("organization_id") @db.Uuid
+  status AdAssetStatus @default(ACTIVE)
+  remark String? @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  adAccounts AdAccount[]
+  customerPolicies CustomerRebatePolicy[]
+  supplierPolicies SupplierRebatePolicy[]
+  purchaseOrders PurchaseOrder[]
+  @@unique([platform, subjectCode])
+  @@map("ad_subjects")
+}
+
+model AdAccount {
+  id String @id @default(uuid()) @db.Uuid
+  externalId String @map("external_id") @db.VarChar(100)
+  name String @db.VarChar(100)
+  platform SupplierPlatform
+  subjectId String @map("subject_id") @db.Uuid
+  customerId String? @map("customer_id") @db.Uuid
+  status AdAssetStatus @default(ACTIVE)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  subject AdSubject @relation(fields: [subjectId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+  customerPolicies CustomerRebatePolicy[]
+  supplierPolicies SupplierRebatePolicy[]
+  purchaseOrders PurchaseOrder[]
+  @@unique([platform, externalId])
+  @@index([customerId])
+  @@map("ad_accounts")
+}
+
+model PurchaseOrder {
+  id String @id @default(uuid()) @db.Uuid
+  orderNo String @unique @map("order_no") @db.VarChar(50)
+  clientRequestId String? @unique @map("client_request_id") @db.VarChar(100)
+  organizationId String @map("organization_id") @db.Uuid
+  customerId String? @map("customer_id") @db.Uuid
+  supplierId String? @map("supplier_id") @db.Uuid
+  supplierAccountId String? @map("supplier_account_id") @db.Uuid
+  amount Decimal @db.Decimal(20, 2)
+  baseAmount Decimal @map("base_amount") @db.Decimal(20, 2)
+  customerPolicyId String? @map("customer_policy_id") @db.Uuid
+  customerPolicyVersionId String? @map("customer_policy_version_id") @db.Uuid
+  customerRebateType RebateRuleType? @map("customer_rebate_type")
+  customerRebateRate Decimal? @map("customer_rebate_rate") @db.Decimal(10, 4)
+  customerCalculationMode RebateCalculationMode? @map("customer_calculation_mode")
+  customerBaseAmount Decimal? @map("customer_base_amount") @db.Decimal(20, 2)
+  customerCashAmount Decimal? @map("customer_cash_amount") @db.Decimal(20, 2)
+  customerPaymentAmount Decimal? @map("customer_payment_amount") @db.Decimal(20, 2)
+  customerCreditAmount Decimal? @map("customer_credit_amount") @db.Decimal(20, 2)
+  customerRebateAmount Decimal? @map("customer_rebate_amount") @db.Decimal(20, 2)
+  platform SupplierPlatform?
+  transactionType PurchaseOrderTransactionType @default(TRANSFER_IN) @map("transaction_type")
+  businessType String? @map("business_type") @db.VarChar(50)
+  businessTime DateTime? @map("business_time")
+  inboundAccountId String? @map("inbound_account_id") @db.VarChar(100)
+  inboundAccountName String? @map("inbound_account_name") @db.VarChar(120)
+  outboundAccountId String? @map("outbound_account_id") @db.VarChar(100)
+  outboundAccountName String? @map("outbound_account_name") @db.VarChar(120)
+  adSubjectId String? @map("ad_subject_id") @db.Uuid
+  adAccountId String? @map("ad_account_id") @db.Uuid
+  supplierPolicyId String? @map("supplier_policy_id") @db.Uuid
+  supplierPolicyVersionId String? @map("supplier_policy_version_id") @db.Uuid
+  supplierRebateType RebateRuleType? @map("supplier_rebate_type")
+  supplierRebateRate Decimal? @map("supplier_rebate_rate") @db.Decimal(10, 4)
+  supplierCostRate Decimal? @map("supplier_cost_rate") @db.Decimal(10, 4)
+  supplierCalculationMode RebateCalculationMode? @map("supplier_calculation_mode")
+  supplierBaseAmount Decimal? @map("supplier_base_amount") @db.Decimal(20, 2)
+  supplierCashAmount Decimal? @map("supplier_cash_amount") @db.Decimal(20, 2)
+  supplierPaymentAmount Decimal? @map("supplier_payment_amount") @db.Decimal(20, 2)
+  supplierCreditAmount Decimal? @map("supplier_credit_amount") @db.Decimal(20, 2)
+  supplierRebateAmount Decimal? @map("supplier_rebate_amount") @db.Decimal(20, 2)
+  operatingFeeRate Decimal? @map("operating_fee_rate") @db.Decimal(10, 4)
+  operatingFeeAmount Decimal? @map("operating_fee_amount") @db.Decimal(20, 2)
+  supplierSettlementType SupplierSettlementType? @map("supplier_settlement_type")
+  grossProfit Decimal? @map("gross_profit") @db.Decimal(20, 2)
+  profitStatus ProfitStatus? @map("profit_status")
+  costDifference Decimal? @map("cost_difference") @db.Decimal(20, 2)
+  customerReceivable Decimal? @map("customer_receivable") @db.Decimal(20, 2)
+  customerPaidAmount Decimal @default(0) @map("customer_paid_amount") @db.Decimal(20, 2)
+  customerPaymentStatus PaymentStatus @default(PENDING) @map("customer_payment_status")
+  supplierPayable Decimal? @map("supplier_payable") @db.Decimal(20, 2)
+  supplierPaidAmount Decimal @default(0) @map("supplier_paid_amount") @db.Decimal(20, 2)
+  supplierPaymentStatus PaymentStatus @default(PENDING) @map("supplier_payment_status")
+  customerPromotionAccountId String? @map("customer_promotion_account_id") @db.Uuid
+  customerCreditedAmount Decimal @default(0) @map("customer_credited_amount") @db.Decimal(20, 2)
+  customerCreditStatus PaymentStatus @default(PENDING) @map("customer_credit_status")
+  cashAccountId String? @map("cash_account_id") @db.Uuid
+  paymentAmount Decimal @default(0) @map("payment_amount") @db.Decimal(20, 2)
+  rebateAmount Decimal @default(0) @map("rebate_amount") @db.Decimal(20, 2)
+  creditAmount Decimal @default(0) @map("credit_amount") @db.Decimal(20, 2)
+  ruleId String? @map("rule_id") @db.Uuid
+  ruleVersion String? @map("rule_version") @db.VarChar(50)
+  ruleType RebateRuleType? @map("rule_type")
+  rebateRate Decimal? @map("rebate_rate") @db.Decimal(10, 4)
+  status PurchaseOrderStatus @default(DRAFT)
+  remark String? @db.VarChar(255)
+  createdBy String @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  confirmedAt DateTime? @map("confirmed_at")
+  confirmedBy String? @map("confirmed_by") @db.Uuid
+  organization Organization @relation(fields: [organizationId], references: [id])
+  customer Customer? @relation(fields: [customerId], references: [id])
+  supplier Supplier? @relation(fields: [supplierId], references: [id])
+  supplierAccount SupplierAccount? @relation("PurchaseOrderSupplierAccount", fields: [supplierAccountId], references: [id])
+  customerPolicy CustomerRebatePolicy? @relation("PurchaseOrderCustomerPolicy", fields: [customerPolicyId], references: [id])
+  customerPolicyVersion CustomerRebatePolicyVersion? @relation("PurchaseOrderCustomerPolicyVersion", fields: [customerPolicyVersionId], references: [id])
+  adSubject AdSubject? @relation(fields: [adSubjectId], references: [id])
+  adAccount AdAccount? @relation(fields: [adAccountId], references: [id])
+  supplierPolicy SupplierRebatePolicy? @relation("PurchaseOrderSupplierPolicy", fields: [supplierPolicyId], references: [id])
+  supplierPolicyVersion SupplierRebatePolicyVersion? @relation("PurchaseOrderSupplierPolicyVersion", fields: [supplierPolicyVersionId], references: [id])
+  cashAccount Account? @relation("PurchaseOrderCashAccount", fields: [cashAccountId], references: [id])
+  customerPromotionAccount PromotionAccount? @relation("PurchaseOrderCustomerPromotionAccount", fields: [customerPromotionAccountId], references: [id])
+  confirmer User? @relation("PurchaseOrderConfirmer", fields: [confirmedBy], references: [id])
+  rebateRule RebateRule? @relation(fields: [ruleId], references: [id])
+  creator User @relation(fields: [createdBy], references: [id])
+  items PurchaseOrderItem[]
+  payments PurchaseOrderPayment[]
+  credits PurchaseOrderCredit[]
+  refunds Refund[]
+  settlementItems SettlementItem[]
+  receiveRecords ReceiveRecord[]
+  bankTransactions BankTransaction[]
+  invoices Invoice[]
+  @@index([organizationId, status])
+  @@index([customerId])
+  @@index([supplierId])
+  @@index([adSubjectId])
+  @@index([adAccountId])
+  @@index([customerPolicyId, customerPolicyVersionId])
+  @@index([supplierPolicyId, supplierPolicyVersionId])
+  @@index([createdAt, orderNo])
+  @@index([businessTime])
+  @@index([transactionType, businessTime])
+  @@index([businessType, businessTime])
+  @@index([inboundAccountId])
+  @@index([outboundAccountId])
+  @@map("purchase_orders")
+}
+
+model PurchaseOrderCredit {
+  id                    String            @id @default(uuid()) @db.Uuid
+  orderId               String            @map("order_id") @db.Uuid
+  promotionAccountId    String            @map("promotion_account_id") @db.Uuid
+  idempotencyKey        String            @map("idempotency_key") @db.VarChar(100)
+  businessNo            String            @map("business_no") @db.VarChar(100)
+  amount                Decimal           @db.Decimal(20, 2)
+  occurredAt            DateTime          @map("occurred_at")
+  promotionTransactionNo String           @map("promotion_transaction_no") @db.VarChar(50)
+  operatorId            String            @map("operator_id") @db.Uuid
+  remark                String?           @db.VarChar(255)
+  createdAt             DateTime          @default(now()) @map("created_at")
+  order                 PurchaseOrder     @relation(fields: [orderId], references: [id])
+  promotionAccount      PromotionAccount  @relation(fields: [promotionAccountId], references: [id])
+  operator              User              @relation("PurchaseOrderCreditOperator", fields: [operatorId], references: [id])
+
+  @@unique([orderId, idempotencyKey])
+  @@index([promotionAccountId, occurredAt])
+  @@index([businessNo])
+  @@map("purchase_order_credits")
+}
+
+model PurchaseOrderPayment {
+  id                    String             @id @default(uuid()) @db.Uuid
+  orderId               String             @map("order_id") @db.Uuid
+  paymentType           PurchasePaymentType @map("payment_type")
+  idempotencyKey        String             @map("idempotency_key") @db.VarChar(100)
+  businessNo            String             @map("business_no") @db.VarChar(100)
+  amount                Decimal            @db.Decimal(20, 2)
+  occurredAt            DateTime           @map("occurred_at")
+  companyTransactionNo  String?            @map("company_transaction_no") @db.VarChar(50)
+  supplierTransactionNo String?            @map("supplier_transaction_no") @db.VarChar(50)
+  operatorId            String             @map("operator_id") @db.Uuid
+  remark                String?            @db.VarChar(255)
+  createdAt             DateTime           @default(now()) @map("created_at")
+  order                 PurchaseOrder     @relation(fields: [orderId], references: [id])
+  operator              User               @relation("PurchaseOrderPaymentOperator", fields: [operatorId], references: [id])
+  refunds               Refund[]           @relation("RefundOriginalPayment")
+
+  @@unique([orderId, paymentType, idempotencyKey])
+  @@index([orderId, paymentType, occurredAt])
+  @@index([businessNo])
+  @@map("purchase_order_payments")
+}
+
+model Refund {
+  id                String        @id @default(uuid()) @db.Uuid
+  refundNo          String        @unique @map("refund_no") @db.VarChar(50)
+  organizationId    String        @map("organization_id") @db.Uuid
+  purchaseOrderId   String?       @map("purchase_order_id") @db.Uuid
+  receiveRecordId   String?       @map("receive_record_id") @db.Uuid
+  customerId        String        @map("customer_id") @db.Uuid
+  originalPaymentId String?       @map("original_payment_id") @db.Uuid
+  refundAmount      Decimal       @map("refund_amount") @db.Decimal(20, 2)
+  refundReason      String        @map("refund_reason") @db.VarChar(255)
+  status            RefundStatus  @default(PENDING)
+  idempotencyKey    String        @map("idempotency_key") @db.VarChar(100)
+  applicantId       String        @map("applicant_id") @db.Uuid
+  approvedBy        String?       @map("approved_by") @db.Uuid
+  approvedAt        DateTime?     @map("approved_at")
+  executedBy        String?       @map("executed_by") @db.Uuid
+  executedAt        DateTime?     @map("executed_at")
+  transactionNo     String?       @map("transaction_no") @db.VarChar(50)
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  purchaseOrder     PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  receiveRecord     ReceiveRecord? @relation(fields: [receiveRecordId], references: [id])
+  customer          Customer      @relation(fields: [customerId], references: [id])
+  originalPayment   PurchaseOrderPayment? @relation("RefundOriginalPayment", fields: [originalPaymentId], references: [id])
+  applicant         User          @relation("RefundApplicant", fields: [applicantId], references: [id])
+  approver          User?         @relation("RefundApprover", fields: [approvedBy], references: [id])
+  executor          User?         @relation("RefundExecutor", fields: [executedBy], references: [id])
+
+  @@unique([purchaseOrderId, idempotencyKey])
+  @@index([organizationId, status, createdAt])
+  @@index([purchaseOrderId, createdAt])
+  @@index([customerId, createdAt])
+  @@index([originalPaymentId])
+  @@map("refunds")
+}
+
+model PurchaseOrderItem {
+  id String @id @default(uuid()) @db.Uuid
+  orderId String @map("order_id") @db.Uuid
+  description String @db.VarChar(255)
+  amount Decimal @db.Decimal(20, 2)
+  quantity Decimal @default(1) @db.Decimal(20, 4)
+  createdAt DateTime @default(now()) @map("created_at")
+  order PurchaseOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  @@index([orderId])
+  @@map("purchase_order_items")
+}
+
+model Settlement {
+  id String @id @default(uuid()) @db.Uuid
+  settlementNo String @unique @map("settlement_no") @db.VarChar(50)
+  settlementType SettlementType @default(SUPPLIER) @map("settlement_type")
+  organizationId String @map("organization_id") @db.Uuid
+  customerId String? @map("customer_id") @db.Uuid
+  supplierId String? @map("supplier_id") @db.Uuid
+  periodStart DateTime @map("period_start")
+  periodEnd DateTime @map("period_end")
+  orderCount Int @default(0) @map("order_count")
+  totalAmount Decimal @default(0) @map("total_amount") @db.Decimal(20, 2)
+  totalRebate Decimal @default(0) @map("total_rebate") @db.Decimal(20, 2)
+  payableAmount Decimal @default(0) @map("payable_amount") @db.Decimal(20, 2)
+  customerCashAmount Decimal @default(0) @map("customer_cash_amount") @db.Decimal(20, 2)
+  customerPaidAmount Decimal @default(0) @map("customer_paid_amount") @db.Decimal(20, 2)
+  customerRefundAmount Decimal @default(0) @map("customer_refund_amount") @db.Decimal(20, 2)
+  netCustomerCashAmount Decimal @default(0) @map("net_customer_cash_amount") @db.Decimal(20, 2)
+  customerCreditAmount Decimal @default(0) @map("customer_credit_amount") @db.Decimal(20, 2)
+  supplierCashAmount Decimal @default(0) @map("supplier_cash_amount") @db.Decimal(20, 2)
+  supplierPaidAmount Decimal @default(0) @map("supplier_paid_amount") @db.Decimal(20, 2)
+  supplierCreditAmount Decimal @default(0) @map("supplier_credit_amount") @db.Decimal(20, 2)
+  supplierPayable Decimal @default(0) @map("supplier_payable") @db.Decimal(20, 2)
+  grossProfit Decimal? @map("gross_profit") @db.Decimal(20, 2)
+  realizedProfit Decimal? @map("realized_profit") @db.Decimal(20, 2)
+  status SettlementStatus @default(DRAFT)
+  createdBy String @map("created_by") @db.Uuid
+  confirmedBy String? @map("confirmed_by") @db.Uuid
+  confirmedAt DateTime? @map("confirmed_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  organization Organization @relation(fields: [organizationId], references: [id])
+  customer Customer? @relation("CustomerSettlements", fields: [customerId], references: [id])
+  supplier Supplier? @relation("SupplierSettlements", fields: [supplierId], references: [id])
+  creator User @relation("SettlementCreator", fields: [createdBy], references: [id])
+  confirmer User? @relation("SettlementConfirmer", fields: [confirmedBy], references: [id])
+  items SettlementItem[]
+  @@index([organizationId, settlementType, status, periodStart, periodEnd])
+  @@index([organizationId, settlementType, customerId, periodStart, periodEnd])
+  @@index([organizationId, settlementType, supplierId, periodStart, periodEnd])
+  @@index([customerId, periodStart, periodEnd])
+  @@index([supplierId, periodStart, periodEnd])
+  @@map("settlements")
+}
+
+model SettlementItem {
+  id String @id @default(uuid()) @db.Uuid
+  settlementId String @map("settlement_id") @db.Uuid
+  orderId String @map("order_id") @db.Uuid
+  settlementType SettlementType @default(SUPPLIER) @map("settlement_type")
+  customerId String? @map("customer_id") @db.Uuid
+  supplierId String? @map("supplier_id") @db.Uuid
+  amount Decimal @db.Decimal(20, 2)
+  paymentAmount Decimal @map("payment_amount") @db.Decimal(20, 2)
+  rebateAmount Decimal @map("rebate_amount") @db.Decimal(20, 2)
+  payableAmount Decimal @map("payable_amount") @db.Decimal(20, 2)
+  baseAmount Decimal? @map("base_amount") @db.Decimal(20, 2)
+  cashAmount Decimal? @map("cash_amount") @db.Decimal(20, 2)
+  creditAmount Decimal? @map("credit_amount") @db.Decimal(20, 2)
+  refundAmount Decimal @default(0) @map("refund_amount") @db.Decimal(20, 2)
+  grossProfit Decimal? @map("gross_profit") @db.Decimal(20, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+  settlement Settlement @relation(fields: [settlementId], references: [id], onDelete: Cascade)
+  order PurchaseOrder @relation(fields: [orderId], references: [id])
+  @@unique([settlementId, orderId])
+  @@unique([settlementType, orderId])
+  @@index([customerId, settlementType])
+  @@index([supplierId, settlementType])
+  @@map("settlement_items")
+}
+
+model AuditLog {
+  id String @id @default(uuid()) @db.Uuid
+  operatorId String @map("operator_id") @db.Uuid
+  organizationId String? @map("organization_id") @db.Uuid
+  actionType String @map("action_type") @db.VarChar(100)
+  businessType String? @map("business_type") @db.VarChar(100)
+  businessId String? @map("business_id") @db.VarChar(100)
+  beforeData Json? @map("before_data")
+  afterData Json? @map("after_data")
+  result AuditResult
+  remark String? @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  operator User @relation(fields: [operatorId], references: [id])
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  @@index([operatorId, createdAt])
+  @@index([organizationId, createdAt])
+  @@index([businessType, businessId])
+  @@map("audit_logs")
+}
