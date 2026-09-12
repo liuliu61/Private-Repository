@@ -581,6 +581,19 @@ export class CreateRechargePaymentApplicationDto {
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
 }
 
+export class RechargePaymentApplicationDetailDto {
+  @IsOptional() @IsString() @MaxLength(100) businessType?: string;
+  @Matches(positiveMoney, { message: '拆分金额格式不正确' }) amount!: string;
+  @IsOptional() @IsString() @MaxLength(255) remark?: string;
+}
+
+export class SubmitRechargePaymentApplicationDto {
+  @IsUUID('4', { message: '收款记录ID格式不正确' }) receiveRecordId!: string;
+  @IsArray({ message: '拆分明细格式不正确' }) @ArrayMinSize(1, { message: '至少需要一条补款明细' }) @ValidateNested({ each: true }) @Type(() => RechargePaymentApplicationDetailDto) details!: RechargePaymentApplicationDetailDto[];
+  @IsOptional() @IsString() @MaxLength(100) clientRequestId?: string;
+  @IsOptional() @IsString() @MaxLength(255) remark?: string;
+}
+
 export class UpdateRechargePaymentApplicationDto {
   @Matches(positiveMoney, { message: '申请金额格式不正确' }) amount!: string;
   @IsOptional() @IsString() @MaxLength(255) remark?: string;

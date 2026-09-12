@@ -226,10 +226,14 @@ README 不是业务规则的唯一来源，不能用来推翻实测结论。遇�
 
 ### 充值付款流程（第一阶段）
 
-- `GET /api/recharge-payment-applications`、`GET /api/recharge-payment-applications/:id`：查询充值付款申请及详情。
-- `POST /api/recharge-payment-applications`、`POST /api/recharge-payment-applications/:id`：创建和修改草稿申请。
-- `POST /api/recharge-payment-applications/:id/submit|cancel|approve|reject`：提交审核、取消草稿、审核通过或退回。
-- 当前阶段只记录申请与审核状态，不执行实际银行付款、钱包变动或资金流水。
+- 页面路由为 `/agent/fund/process/record`，列表没有“新建申请”按钮。
+- 唯一已验证入口是收款记录行操作“发起补款”，打开水单信息和拆分明细弹窗。
+- 弹窗只有“取消”和“提交”；取消不保存申请。待补款金额按已入 V 钱包金额显示，拆分明细新增时填入当前剩余可拆分金额，并以精确金额逻辑实时计算剩余值。
+- 业务类型依赖外部费用类型字典；当前没有可用字典时不硬编码业务类型。
+- 提交前通过 `RechargePaymentContractChecker` 检查付款方与我方收款主体的有效合同。当前二级系统没有合同主数据源，无法验证时直接阻止提交，不伪造合同存在。
+- `GET /api/recharge-payment-applications`、`GET /api/recharge-payment-applications/:id`：查询申请及详情；`POST /api/recharge-payment-applications/submit`：提交补款明细。
+- `POST /api/recharge-payment-applications/:id/submit|cancel|approve|reject` 等状态接口保留为当前实现能力，但起草、审核状态流转尚未完成端到端真实验证。
+- 当前阶段不执行实际付款、钱包变动、资金流水、回单、到账或银行接口动作。
 
 ### 客户钱包
 

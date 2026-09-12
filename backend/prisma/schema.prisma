@@ -118,6 +118,7 @@ enum ReceivePostingStatus { POSTED REVERSED }
 enum ReceiveInvoiceStatus { UNISSUED PARTIAL ISSUED }
 enum InvoiceStatus { DRAFT PROCESSING ISSUED VOIDED }
 enum RechargePaymentStatus { DRAFT PENDING_REVIEW APPROVED REJECTED CANCELLED }
+enum RechargePaymentDetailStatus { DRAFT }
 
 model User {
   id           String       @id @default(uuid()) @db.Uuid
@@ -165,6 +166,7 @@ model User {
   voidedInvoices Invoice[] @relation("InvoiceVoider")
   rechargePaymentApplications RechargePaymentApplication[] @relation("RechargePaymentApplicant")
   reviewedRechargePaymentApplications RechargePaymentApplication[] @relation("RechargePaymentReviewer")
+  rechargePaymentApplicationDetails RechargePaymentApplicationDetail[] @relation("RechargePaymentDetailOperator")
 
   @@map("users")
 }
@@ -915,12 +917,29 @@ model RechargePaymentApplication {
   customer        Customer              @relation(fields: [customerId], references: [id])
   applicant       User                  @relation("RechargePaymentApplicant", fields: [applicantId], references: [id])
   reviewer        User?                 @relation("RechargePaymentReviewer", fields: [reviewerId], references: [id])
+  details         RechargePaymentApplicationDetail[]
 
   @@index([organizationId, status, createdAt])
   @@index([receiveRecordId, createdAt])
   @@index([customerId, createdAt])
   @@index([applicantId, createdAt])
   @@map("recharge_payment_applications")
+}
+
+model RechargePaymentApplicationDetail {
+  id            String                       @id @default(uuid()) @db.Uuid
+  applicationId String                       @map("application_id") @db.Uuid
+  businessType  String?                      @map("business_type") @db.VarChar(100)
+  amount        Decimal                      @db.Decimal(20, 2)
+  operatorId    String                       @map("operator_id") @db.Uuid
+  status        RechargePaymentDetailStatus  @default(DRAFT)
+  remark        String?                      @db.VarChar(255)
+  createdAt     DateTime                     @default(now()) @map("created_at")
+  application   RechargePaymentApplication  @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  operator      User                         @relation("RechargePaymentDetailOperator", fields: [operatorId], references: [id])
+
+  @@index([applicationId, createdAt])
+  @@map("recharge_payment_application_details")
 }
 
 model Invoice {
