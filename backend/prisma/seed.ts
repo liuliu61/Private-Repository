@@ -65,6 +65,12 @@ async function main() {
     prisma.permission.upsert({ where: { code: 'FINANCE_SERVICE_FEE_RECONCILIATION_EXPORT' }, update: {}, create: { code: 'FINANCE_SERVICE_FEE_RECONCILIATION_EXPORT', name: '服务费对账导出', description: '允许导出服务费对账数据' } }),
   ]);
 
+  const rechargePaymentPermissions = await Promise.all([
+    prisma.permission.upsert({ where: { code: 'FINANCE_RECHARGE_PAYMENT_VIEW' }, update: {}, create: { code: 'FINANCE_RECHARGE_PAYMENT_VIEW', name: '充值付款申请查看', description: '允许查看充值付款申请' } }),
+    prisma.permission.upsert({ where: { code: 'FINANCE_RECHARGE_PAYMENT_CREATE' }, update: {}, create: { code: 'FINANCE_RECHARGE_PAYMENT_CREATE', name: '充值付款申请创建', description: '允许创建、修改、提交和取消充值付款申请' } }),
+    prisma.permission.upsert({ where: { code: 'FINANCE_RECHARGE_PAYMENT_REVIEW' }, update: {}, create: { code: 'FINANCE_RECHARGE_PAYMENT_REVIEW', name: '充值付款申请审核', description: '允许审核通过或退回充值付款申请' } }),
+  ]);
+
   const receivingPermissions = await Promise.all([
     prisma.permission.upsert({ where: { code: 'FINANCE_RECEIVE_VIEW' }, update: {}, create: { code: 'FINANCE_RECEIVE_VIEW', name: '收款记录查看', description: '允许查看收款记录' } }),
     prisma.permission.upsert({ where: { code: 'FINANCE_RECEIVE_CREATE' }, update: {}, create: { code: 'FINANCE_RECEIVE_CREATE', name: '收款记录创建', description: '允许创建收款记录' } }),
@@ -151,6 +157,14 @@ async function main() {
   }
 
   for (const item of serviceFeePermissions) {
+    await prisma.rolePermission.upsert({
+      where: { roleId_permissionId: { roleId: adminRole.id, permissionId: item.id } },
+      update: {},
+      create: { roleId: adminRole.id, permissionId: item.id },
+    });
+  }
+
+  for (const item of rechargePaymentPermissions) {
     await prisma.rolePermission.upsert({
       where: { roleId_permissionId: { roleId: adminRole.id, permissionId: item.id } },
       update: {},

@@ -224,6 +224,13 @@ README 不是业务规则的唯一来源，不能用来推翻实测结论。遇�
 - `POST /api/receive-records/:id/confirm`：收款入账，原子更新收款记录、资金流水、V 钱包、开票额度和入账记录。
 - `POST /api/receive-records/:id/refund`：按已入账 V 钱包金额发起退款。
 
+### 充值付款流程（第一阶段）
+
+- `GET /api/recharge-payment-applications`、`GET /api/recharge-payment-applications/:id`：查询充值付款申请及详情。
+- `POST /api/recharge-payment-applications`、`POST /api/recharge-payment-applications/:id`：创建和修改草稿申请。
+- `POST /api/recharge-payment-applications/:id/submit|cancel|approve|reject`：提交审核、取消草稿、审核通过或退回。
+- 当前阶段只记录申请与审核状态，不执行实际银行付款、钱包变动或资金流水。
+
 ### 客户钱包
 
 - `GET/POST /api/customer-wallets`、`GET /api/customer-wallets/:id`：查询和创建客户钱包。
@@ -272,6 +279,7 @@ README 不是业务规则的唯一来源，不能用来推翻实测结论。遇�
 - 返点政策查看使用 `FINANCE_REBATE_VIEW`，新增版本与停用使用 `FINANCE_REBATE_POLICY_EDIT`。
 - 财务核算使用 `FINANCE_VIEW`；财务调整使用 `FINANCE_ADJUST_VIEW`、`FINANCE_ADJUST_CREATE`、`FINANCE_ADJUST_APPROVE`、`FINANCE_ADJUST_EXECUTE`。
 - 收款管理使用 `FINANCE_BANK_TRANSACTION_VIEW`、`FINANCE_BANK_TRANSACTION_IMPORT`、`FINANCE_BANK_TRANSACTION_MATCH`、`FINANCE_RECEIVE_VIEW`、`FINANCE_RECEIVE_CREATE`、`FINANCE_RECEIVE_CONFIRM`。
+- 充值付款流程使用 `FINANCE_RECHARGE_PAYMENT_VIEW`、`FINANCE_RECHARGE_PAYMENT_CREATE`、`FINANCE_RECHARGE_PAYMENT_REVIEW`。
 - 钱包使用 `FINANCE_WALLET_VIEW`、`FINANCE_WALLET_ADJUST`、`FINANCE_WALLET_OPENING_BALANCE`。
 - 发票使用 `FINANCE_INVOICE_VIEW`、`FINANCE_INVOICE_CREATE`、`FINANCE_INVOICE_EDIT`、`FINANCE_INVOICE_CONFIRM`、`FINANCE_INVOICE_VOID`。
 - 结算使用 `FINANCE_SETTLEMENT_VIEW`、`FINANCE_SETTLEMENT_CREATE`、`FINANCE_SETTLEMENT_CONFIRM`、`FINANCE_SETTLEMENT_CANCEL`。

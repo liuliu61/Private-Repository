@@ -1,6 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import { ArrayMinSize, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
-import { AccountStatus, AccountType, AccountUnit, AdAssetStatus, BankTransactionDirection, BankTransactionStatus, CustomerWalletTransactionType, CustomerWalletType, FinancialAdjustmentStatus, FinancialAdjustmentType, InvoiceStatus, OrganizationType, PromotionTransactionBusinessType, PurchaseOrderStatus, PurchaseOrderTransactionType, ReceiveRecordStatus, RebateCalculationMode, RebateRuleType, ReconciliationStatus, RefundStatus, SettlementStatus, SupplierAccountType, SupplierPlatform, SupplierSettlementType } from '@prisma/client';
+import { AccountStatus, AccountType, AccountUnit, AdAssetStatus, BankTransactionDirection, BankTransactionStatus, CustomerWalletTransactionType, CustomerWalletType, FinancialAdjustmentStatus, FinancialAdjustmentType, InvoiceStatus, OrganizationType, PromotionTransactionBusinessType, PurchaseOrderStatus, PurchaseOrderTransactionType, ReceiveRecordStatus, RebateCalculationMode, RebateRuleType, ReconciliationStatus, RefundStatus, SettlementStatus, SupplierAccountType, SupplierPlatform, SupplierSettlementType, RechargePaymentStatus } from '@prisma/client';
 
 const money = /^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$/;
 const rate = /^-?(?:0|[1-9]\d*)(?:\.\d{1,4})?$/;
@@ -560,4 +560,32 @@ export class UpdateInvoiceDraftDto {
 
 export class InvoiceVoidDto {
   @IsOptional() @IsString() @MaxLength(255) reason?: string;
+}
+
+export class RechargePaymentApplicationQueryDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
+  @IsOptional() @IsIn([10, 20, 50, 100], { message: '每页数量只支持10、20、50或100' }) @Type(() => Number) pageSize = 10;
+  @IsOptional() @IsEnum(RechargePaymentStatus, { message: '充值付款申请状态不正确' }) status?: RechargePaymentStatus;
+  @IsOptional() @IsUUID('4', { message: '客户ID格式不正确' }) customerId?: string;
+  @IsOptional() @IsUUID('4', { message: '申请人ID格式不正确' }) applicantId?: string;
+  @IsOptional() @IsString() @MaxLength(60) applicationNo?: string;
+  @IsOptional() @IsDateString({}, { message: '开始时间格式不正确' }) startDate?: string;
+  @IsOptional() @IsDateString({}, { message: '结束时间格式不正确' }) endDate?: string;
+  @IsOptional() @IsBoolean() @Transform(({ value }) => value === true || value === 'true') mine?: boolean;
+}
+
+export class CreateRechargePaymentApplicationDto {
+  @IsUUID('4', { message: '收款记录ID格式不正确' }) receiveRecordId!: string;
+  @Matches(positiveMoney, { message: '申请金额格式不正确' }) amount!: string;
+  @IsOptional() @IsString() @MaxLength(100) clientRequestId?: string;
+  @IsOptional() @IsString() @MaxLength(255) remark?: string;
+}
+
+export class UpdateRechargePaymentApplicationDto {
+  @Matches(positiveMoney, { message: '申请金额格式不正确' }) amount!: string;
+  @IsOptional() @IsString() @MaxLength(255) remark?: string;
+}
+
+export class RejectRechargePaymentApplicationDto {
+  @IsString() @IsNotEmpty() @MaxLength(255) rejectReason!: string;
 }

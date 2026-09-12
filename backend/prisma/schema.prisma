@@ -117,6 +117,7 @@ enum ReceiveRecordStatus { PENDING_MATCH PENDING_CONFIRMATION CONFIRMED CANCELLE
 enum ReceivePostingStatus { POSTED REVERSED }
 enum ReceiveInvoiceStatus { UNISSUED PARTIAL ISSUED }
 enum InvoiceStatus { DRAFT PROCESSING ISSUED VOIDED }
+enum RechargePaymentStatus { DRAFT PENDING_REVIEW APPROVED REJECTED CANCELLED }
 
 model User {
   id           String       @id @default(uuid()) @db.Uuid
@@ -162,6 +163,8 @@ model User {
   createdInvoices Invoice[] @relation("InvoiceCreator")
   confirmedInvoices Invoice[] @relation("InvoiceConfirmer")
   voidedInvoices Invoice[] @relation("InvoiceVoider")
+  rechargePaymentApplications RechargePaymentApplication[] @relation("RechargePaymentApplicant")
+  reviewedRechargePaymentApplications RechargePaymentApplication[] @relation("RechargePaymentReviewer")
 
   @@map("users")
 }
@@ -337,6 +340,7 @@ model Customer {
   receivePostings ReceivePosting[]
   invoices Invoice[]
   customerSettlements Settlement[] @relation("CustomerSettlements")
+  rechargePaymentApplications RechargePaymentApplication[]
 
   @@index([status])
   @@index([agentId, status])
@@ -514,6 +518,7 @@ model Organization {
   receiveRecords ReceiveRecord[]
   receivePostings ReceivePosting[]
   invoices Invoice[]
+  rechargePaymentApplications RechargePaymentApplication[]
   sourcingSetting SourcingSetting?
   @@index([parentId])
   @@index([type, status])
@@ -836,6 +841,7 @@ model ReceiveRecord {
   postings          ReceivePosting[]
   serviceFeeDetails ReceiveServiceFee[]
   refunds           Refund[]
+  rechargePaymentApplications RechargePaymentApplication[]
 
   @@index([organizationId, status, receivedAt])
   @@index([customerId, receivedAt])
@@ -882,6 +888,39 @@ model ReceiveServiceFee {
 
   @@index([receiveRecordId, createdAt])
   @@map("receive_service_fees")
+}
+
+// 充值付款流程（第一阶段）：仅承载申请、状态机与审核信息，不触发任何资金动作。
+model RechargePaymentApplication {
+  id              String                @id @default(uuid()) @db.Uuid
+  applicationNo   String                @unique @map("application_no") @db.VarChar(60)
+  organizationId  String                @map("organization_id") @db.Uuid
+  receiveRecordId String                @map("receive_record_id") @db.Uuid
+  customerId      String                @map("customer_id") @db.Uuid
+  amount          Decimal               @db.Decimal(20, 2)
+  currency        String                @default("CNY") @db.Char(3)
+  status          RechargePaymentStatus @default(DRAFT)
+  applicantId     String                @map("applicant_id") @db.Uuid
+  appliedAt       DateTime              @default(now()) @map("applied_at")
+  submittedAt     DateTime?             @map("submitted_at")
+  reviewerId      String?               @map("reviewer_id") @db.Uuid
+  reviewedAt      DateTime?             @map("reviewed_at")
+  rejectReason    String?               @map("reject_reason") @db.VarChar(255)
+  clientRequestId String?               @unique @map("client_request_id") @db.VarChar(100)
+  remark          String?               @db.VarChar(255)
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+  organization    Organization          @relation(fields: [organizationId], references: [id])
+  receiveRecord   ReceiveRecord         @relation(fields: [receiveRecordId], references: [id])
+  customer        Customer              @relation(fields: [customerId], references: [id])
+  applicant       User                  @relation("RechargePaymentApplicant", fields: [applicantId], references: [id])
+  reviewer        User?                 @relation("RechargePaymentReviewer", fields: [reviewerId], references: [id])
+
+  @@index([organizationId, status, createdAt])
+  @@index([receiveRecordId, createdAt])
+  @@index([customerId, createdAt])
+  @@index([applicantId, createdAt])
+  @@map("recharge_payment_applications")
 }
 
 model Invoice {
