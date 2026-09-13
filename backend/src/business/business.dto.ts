@@ -572,6 +572,8 @@ export class InvoiceApplicationItemDto {
 export class CreateInvoiceApplicationDto {
   @IsArray() @ArrayMinSize(1, { message: '至少选择一笔收款记录' }) @IsUUID('4', { each: true, message: '收款记录ID格式不正确' }) receiveRecordIds!: string[];
   @Matches(positiveMoney, { message: '申请开票金额格式不正确' }) amount!: string;
+  @IsOptional() @IsDateString({}, { message: '开票日期格式不正确' }) invoiceDate?: string;
+  @IsOptional() @IsString() @MaxLength(100) invoiceNumber?: string;
   @IsOptional() @IsBoolean() autoSplit = true;
   @IsOptional() @ValidateNested({ each: true }) @Type(() => InvoiceApplicationItemDto) @IsArray() items?: InvoiceApplicationItemDto[];
   @IsOptional() @IsString() @MaxLength(50) invoiceType?: string;
@@ -581,10 +583,13 @@ export class CreateInvoiceApplicationDto {
   @IsOptional() @IsString() @MaxLength(255) invoiceContent?: string;
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
   @IsOptional() @IsString() @MaxLength(100) clientRequestId?: string;
+  @IsOptional() @IsUUID('4', { message: 'OCR记录ID格式不正确' }) ocrRecordId?: string;
 }
 
 export class UpdateInvoiceApplicationDto {
   @IsOptional() @Matches(positiveMoney, { message: '申请开票金额格式不正确' }) amount?: string;
+  @IsOptional() @IsDateString({}, { message: '开票日期格式不正确' }) invoiceDate?: string;
+  @IsOptional() @IsString() @MaxLength(100) invoiceNumber?: string;
   @IsOptional() @IsArray() @IsUUID('4', { each: true, message: '收款记录ID格式不正确' }) receiveRecordIds?: string[];
   @IsOptional() @IsBoolean() autoSplit?: boolean;
   @IsOptional() @ValidateNested({ each: true }) @Type(() => InvoiceApplicationItemDto) @IsArray() items?: InvoiceApplicationItemDto[];
@@ -599,4 +604,8 @@ export class UpdateInvoiceApplicationDto {
 export class InvoiceReviewDto {
   @IsOptional() @IsString() @MaxLength(255) approvalRemark?: string;
   @IsOptional() @IsString() @MaxLength(255) rejectReason?: string;
+}
+
+export class InvoiceOcrRequestDto {
+  @IsOptional() @IsUUID('4', { message: '发票申请ID格式不正确' }) invoiceId?: string;
 }

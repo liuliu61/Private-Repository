@@ -93,9 +93,15 @@ export class InvoiceService {
       const sources = await this.resolveApplicationSources(tx, dto.receiveRecordIds, amount, context);
       const items = this.applicationItems(amount, dto.items, dto.autoSplit);
       const first = sources[0].receive;
-      const row = await tx.invoice.create({ data: { invoiceNo: this.generateInvoiceNo(), organizationId: first.organizationId, customerId: first.customerId!, receiveRecordId: sources.length === 1 ? first.id : null, accountId: first.accountId, businessNo: sources.length === 1 ? first.receiveNo : 'MULTI_RECEIVE', amount, currency: first.currency, invoiceType: dto.invoiceType?.trim() || null, invoiceNature: dto.invoiceNature?.trim() || null, invoiceTitle: dto.invoiceTitle?.trim() || null, taxNumber: dto.taxNumber?.trim() || null, invoiceContent: dto.invoiceContent?.trim() || null, status: InvoiceStatus.DRAFT, clientRequestId: dto.clientRequestId?.trim() || null, createdBy: context.sub, remark: dto.remark?.trim() || null } });
+      const row = await tx.invoice.create({ data: { invoiceNo: this.generateInvoiceNo(), invoiceNumber: dto.invoiceNumber?.trim() || null, invoiceDate: dto.invoiceDate ? new Date(dto.invoiceDate) : null, organizationId: first.organizationId, customerId: first.customerId!, receiveRecordId: sources.length === 1 ? first.id : null, accountId: first.accountId, businessNo: sources.length === 1 ? first.receiveNo : 'MULTI_RECEIVE', amount, currency: first.currency, invoiceType: dto.invoiceType?.trim() || null, invoiceNature: dto.invoiceNature?.trim() || null, invoiceTitle: dto.invoiceTitle?.trim() || null, taxNumber: dto.taxNumber?.trim() || null, invoiceContent: dto.invoiceContent?.trim() || null, status: InvoiceStatus.DRAFT, clientRequestId: dto.clientRequestId?.trim() || null, createdBy: context.sub, remark: dto.remark?.trim() || null } });
       await tx.invoiceApplicationReceiveRecord.createMany({ data: sources.map((source) => ({ invoiceId: row.id, receiveRecordId: source.receive.id, amount: source.amount })) });
       await tx.invoiceApplicationItem.createMany({ data: items.map((item) => ({ invoiceId: row.id, amount: item.amount, itemType: item.itemType, content: item.content, remark: item.remark })) });
+      if (dto.ocrRecordId) {
+        const ocrRecord = await tx.invoiceOcrRecord.findUnique({ where: { id: dto.ocrRecordId } });
+        if (!ocrRecord || ocrRecord.invoiceId || ocrRecord.organizationId !== first.organizationId) throw new ConflictException('OCR记录不可绑定');
+        await this.scope.assertOrganizationAccess(first.organizationId, context);
+        await tx.invoiceOcrRecord.update({ where: { id: dto.ocrRecordId }, data: { invoiceId: row.id } });
+      }
       await this.audit(tx, context, row.organizationId, row.id, 'INVOICE_APPLICATION_CREATE', null, { invoiceNo: row.invoiceNo, amount: moneyToString(amount), status: row.status });
       return { idempotent: false, invoice: this.view({ ...row, applicationItems: items, receiveSources: sources.map((source) => ({ amount: source.amount, receiveRecord: source.receive })) }) };
     });
@@ -113,7 +119,7 @@ export class InvoiceService {
       const currentItems = await tx.invoiceApplicationItem.findMany({ where: { invoiceId: id } });
       const items = dto.items || (dto.amount || dto.autoSplit !== undefined ? this.applicationItems(amount, undefined, dto.autoSplit ?? true) : currentItems);
       this.assertApplicationItems(amount, items);
-      const updated = await tx.invoice.update({ where: { id }, data: { amount, receiveRecordId: sources.length === 1 ? sources[0].receive.id : null, accountId: sources[0].receive.accountId, businessNo: sources.length === 1 ? sources[0].receive.receiveNo : 'MULTI_RECEIVE', invoiceType: dto.invoiceType?.trim(), invoiceNature: dto.invoiceNature?.trim(), invoiceTitle: dto.invoiceTitle?.trim(), taxNumber: dto.taxNumber?.trim(), invoiceContent: dto.invoiceContent?.trim(), remark: dto.remark?.trim() } });
+      const updated = await tx.invoice.update({ where: { id }, data: { amount, invoiceNumber: dto.invoiceNumber?.trim(), invoiceDate: dto.invoiceDate ? new Date(dto.invoiceDate) : undefined, receiveRecordId: sources.length === 1 ? sources[0].receive.id : null, accountId: sources[0].receive.accountId, businessNo: sources.length === 1 ? sources[0].receive.receiveNo : 'MULTI_RECEIVE', invoiceType: dto.invoiceType?.trim(), invoiceNature: dto.invoiceNature?.trim(), invoiceTitle: dto.invoiceTitle?.trim(), taxNumber: dto.taxNumber?.trim(), invoiceContent: dto.invoiceContent?.trim(), remark: dto.remark?.trim() } });
       await tx.invoiceApplicationReceiveRecord.deleteMany({ where: { invoiceId: id } });
       await tx.invoiceApplicationReceiveRecord.createMany({ data: sources.map((source) => ({ invoiceId: id, receiveRecordId: source.receive.id, amount: source.amount })) });
       if (dto.items || dto.amount || dto.autoSplit !== undefined) {

@@ -28,6 +28,8 @@ import { InvoiceService } from './invoice.service';
 import { SourcingSettingService } from './sourcing-setting.service';
 import { ServiceFeeReconciliationController } from './service-fee-reconciliation.controller';
 import { ServiceFeeReconciliationService } from './service-fee-reconciliation.service';
+import { InvoiceOcrController } from './invoice-ocr.controller';
+import { InvoiceOcrService } from './invoice-ocr.service';
 
-@Module({ imports: [PrismaModule, CommonModule, RebateModule, CashflowModule], controllers: [BusinessController, FinanceController, CustomerWalletController, ReceivingController, InvoiceController, ServiceFeeReconciliationController], providers: [BusinessService, CustomerRebatePolicyService, SupplierRebatePolicyService, PolicyResolverService, ProcurementOrderService, ProfitCalculator, GrossProfitCalculator, SupplierCostCalculator, PromotionAccountService, FinanceOverviewService, RefundService, SettlementCenterService, ReconciliationCenterService, FinancialAdjustmentService, CustomerWalletService, ReceivingService, InvoiceService, SourcingSettingService, ServiceFeeReconciliationService] })
+@Module({ imports: [PrismaModule, CommonModule, RebateModule, CashflowModule], controllers: [BusinessController, FinanceController, CustomerWalletController, ReceivingController, InvoiceController, InvoiceOcrController, ServiceFeeReconciliationController], providers: [BusinessService, CustomerRebatePolicyService, SupplierRebatePolicyService, PolicyResolverService, ProcurementOrderService, ProfitCalculator, GrossProfitCalculator, SupplierCostCalculator, PromotionAccountService, FinanceOverviewService, RefundService, SettlementCenterService, ReconciliationCenterService, FinancialAdjustmentService, CustomerWalletService, ReceivingService, InvoiceService, InvoiceOcrService, SourcingSettingService, ServiceFeeReconciliationService] })
 export class BusinessModule {}

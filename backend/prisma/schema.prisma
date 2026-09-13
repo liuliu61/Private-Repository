@@ -117,6 +117,7 @@ enum ReceiveRecordStatus { PENDING_MATCH PENDING_CONFIRMATION CONFIRMED CANCELLE
 enum ReceivePostingStatus { POSTED REVERSED }
 enum ReceiveInvoiceStatus { UNISSUED PARTIAL ISSUED }
 enum InvoiceStatus { DRAFT PROCESSING REVIEWING APPROVED REJECTED ISSUED VOIDED }
+enum InvoiceOcrStatus { PENDING PROCESSING SUCCESS FAILED }
 
 model User {
   id           String       @id @default(uuid()) @db.Uuid
@@ -160,6 +161,7 @@ model User {
   createdReceivePostings ReceivePosting[] @relation("ReceivePostingCreator")
   receiveServiceFees ReceiveServiceFee[] @relation("ReceiveServiceFeeOperator")
   createdInvoices Invoice[] @relation("InvoiceCreator")
+  createdInvoiceOcrRecords InvoiceOcrRecord[]
   confirmedInvoices Invoice[] @relation("InvoiceConfirmer")
   voidedInvoices Invoice[] @relation("InvoiceVoider")
 
@@ -514,6 +516,7 @@ model Organization {
   receiveRecords ReceiveRecord[]
   receivePostings ReceivePosting[]
   invoices Invoice[]
+  invoiceOcrRecords InvoiceOcrRecord[]
   sourcingSetting SourcingSetting?
   @@index([parentId])
   @@index([type, status])
@@ -934,6 +937,7 @@ model Invoice {
   voider           User?          @relation("InvoiceVoider", fields: [voidedBy], references: [id])
   applicationItems InvoiceApplicationItem[]
   receiveSources   InvoiceApplicationReceiveRecord[]
+  ocrRecords       InvoiceOcrRecord[]
 
   @@index([organizationId, status, createdAt])
   @@index([customerId, status, createdAt])
@@ -968,6 +972,34 @@ model InvoiceApplicationReceiveRecord {
   @@id([invoiceId, receiveRecordId])
   @@index([receiveRecordId])
   @@map("invoice_application_receive_records")
+}
+
+model InvoiceOcrRecord {
+  id               String          @id @default(uuid()) @db.Uuid
+  invoiceId        String?         @map("invoice_id") @db.Uuid
+  organizationId   String          @map("organization_id") @db.Uuid
+  fileId           String          @map("file_id") @db.Uuid
+  originalFileName String          @map("original_file_name") @db.VarChar(255)
+  filePath         String          @map("file_path") @db.VarChar(500)
+  mimeType         String          @map("mime_type") @db.VarChar(100)
+  fileSizeBytes    Int             @map("file_size_bytes")
+  status           InvoiceOcrStatus @default(PENDING)
+  provider         String          @db.VarChar(50)
+  model            String?         @db.VarChar(100)
+  rawResult        Json?           @map("raw_result")
+  parsedResult     Json?           @map("parsed_result")
+  fieldConfidence  Json?           @map("field_confidence")
+  errorMessage     String?         @map("error_message") @db.VarChar(500)
+  createdBy        String          @map("created_by") @db.Uuid
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  invoice          Invoice?        @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  organization     Organization    @relation(fields: [organizationId], references: [id])
+  creator          User            @relation(fields: [createdBy], references: [id])
+
+  @@index([invoiceId, createdAt])
+  @@index([status, createdAt])
+  @@map("invoice_ocr_records")
 }
 
 model AdSubject {
