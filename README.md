@@ -87,7 +87,7 @@ npm run dev
 - 伙伴钱包人工调整：待确认
 - 伙伴独立钱包明细页面：待确认
 - 充值付款完整资金执行链路：待确认
-- 发票正式上传完成链路：待后续真实规则确认
+- 对公开票任务、审核与人工完成开票：已完成基础流程；税务接口、自动开票、邮件与红字/作废后续流程待确认
 - 红字发票 / 作废的完整真实业务流程：待确认
 - 银行交易“忽略”操作接口、银行接口自动同步、自动候选匹配：待确认
 
@@ -110,12 +110,11 @@ npm run dev
 
 ### 入账
 
-入账时必须在同一个数据库事务内原子更新：
+入账时必须在同一个数据库事务内原子更新收款记录、公司资金流水、财务 V 钱包、入账记录和入账性质明细。每笔入账由人工拆分为一条或多条 `PUBLIC`（对公）/`PRIVATE`（对私）明细，明细金额合计必须等于本次收款金额；服务费不影响这项拆分。
 
 - 收款记录
 - 公司资金流水
 - 财务 V 钱包
-- 开票额度
 - 入账记录（`ReceivePosting`）
 
 钱包金额与可开票金额必须使用两个独立口径，不得复用同一个字段：
@@ -125,7 +124,7 @@ walletCreditAmount    = paymentAmount - serviceFeeAmount
 invoiceEligibleAmount = paymentAmount
 ```
 
-即钱包实际增加金额需扣除服务费，开票额度按付款全额计算。这是当前实测得到的原系统行为，不要擅自修改。
+即钱包实际增加金额需扣除服务费。新版发票业务不再将全部收款自动放入旧开票额度池：只有对公入账明细生成开票任务，对私明细不会进入发票管理。
 
 ### 服务费
 
@@ -258,20 +257,18 @@ README 不是业务规则的唯一来源，不能用来推翻实测结论。遇�
 - `POST /api/invoices/:id/process|confirm|void`：提交开票中、确认开票、作废。
 - `GET /api/customers/:customerId/invoice-balance`：客户业务来源金额、已开票金额和未开票金额。
 
-#### 发票申请与审核（第一阶段）
+#### 对公开票任务（当前主流程）
 
-- 申请来源为已确认收款记录，支持一笔申请关联多笔收款，并保存收款来源分配金额。
-- `Invoice` 作为申请主表复用；申请明细保存于 `InvoiceApplicationItem`。
-- `GET /api/invoices/applications`、`GET /api/invoices/applications/:id`：申请列表与详情。
-- `POST /api/invoices/applications`、`PATCH /api/invoices/applications/:id`：创建或编辑起草申请。
-- `POST /api/invoices/applications/:id/submit`：起草 → 审核中。
-- `POST /api/invoices/applications/:id/approve|reject|revoke`：审核中 → 审核通过 / 审核不通过；创建人可撤回审核中的申请。
-- `POST /api/invoices/ocr`：调用本地 PaddleOCR 识别发票文件，返回辅助字段与 OCR 记录 ID。
-- 发票额度按收款记录维护：`可开票金额 = amount - billedAmount - billingAmount`，并满足 `amount = unBillingAmount + billingAmount + billedAmount`；服务费不参与额度扣减，也不使用 V 钱包余额计算。
-- 草稿不占用额度；提交审核在同一事务内执行 `unBillingAmount -= 申请金额`、`billingAmount += 申请金额`；审核通过执行 `billingAmount → billedAmount`，驳回或创建人撤回执行 `billingAmount → unBillingAmount`。
-- 支持服务费单独作为“信息服务费”明细，剩余金额按 91.5% 技术服务与 8.5% 广告发布拆分，明细合计必须等于申请金额，金额计算使用 Decimal。
-- 申请、提交和审核不会产生资金流水，不会改变客户 V 钱包、外采钱包或公司资金；审核通过也不会自动完成开票。
-- 发票申请第一阶段不包含正式发票上传、发票号码录入、发送邮箱、红字发票和作废后续流程。
+- `ReceiveRecordDetail` 记录每次入账的 `PUBLIC` / `PRIVATE` 拆分；`PUBLIC` 自动生成一条 `InvoiceTask`，`PRIVATE` 不生成任务、不会进入发票管理。
+- 发票任务保存对公来源金额 `publicAmount` 与可人工调整的 `invoiceAmount`；后者必须大于 `0` 且不超过前者，但可以小于前者。
+- 一个客户可维护多条 `CustomerInvoiceProfile`。任务可选择并快照抬头、税号、地址、电话、开户行、账号和默认内容；付款账户仅是银行流水付款方快照，不等同于开票抬头。
+- 状态流转为：待开票 → 审核中 → 待完成开票 → 已完成；审核不通过后可编辑并再次提交，创建人可撤回审核中的任务。
+- `GET /api/invoice-tasks`、`GET /api/invoice-tasks/:id`、`PATCH /api/invoice-tasks/:id`、`POST /api/invoice-tasks/:id/submit|approve|reject|revoke|complete` 提供任务流程；`GET/POST/PATCH /api/customers/:customerId/invoice-profiles` 维护客户开票信息。
+- 完成开票仅手工记录实际发票信息和可选附件地址，并复用 `InvoiceDetail` 保存实际开票资料；不会调用税务接口、不会强制 OCR、不会发邮件，也不会改变钱包、收款金额或旧额度字段。
+
+#### 旧发票兼容边界
+
+`Invoice`、`InvoiceApplicationItem`、`InvoiceApplicationReceiveRecord` 及 `ReceiveRecord` 上的 `unBillingAmount`、`billingAmount`、`billedAmount` 保留用于旧数据和旧接口兼容。新版 `InvoiceTask` 不读取、不写入这些额度字段；新确认收款的旧额度字段初始化为 `0`，以避免旧额度池重新控制对公/对私流程。
 
 ### 财务核算与服务费对账
 
@@ -288,7 +285,7 @@ README 不是业务规则的唯一来源，不能用来推翻实测结论。遇�
 - 财务核算使用 `FINANCE_VIEW`；财务调整使用 `FINANCE_ADJUST_VIEW`、`FINANCE_ADJUST_CREATE`、`FINANCE_ADJUST_APPROVE`、`FINANCE_ADJUST_EXECUTE`。
 - 收款管理使用 `FINANCE_BANK_TRANSACTION_VIEW`、`FINANCE_BANK_TRANSACTION_IMPORT`、`FINANCE_BANK_TRANSACTION_MATCH`、`FINANCE_RECEIVE_VIEW`、`FINANCE_RECEIVE_CREATE`、`FINANCE_RECEIVE_CONFIRM`。
 - 钱包使用 `FINANCE_WALLET_VIEW`、`FINANCE_WALLET_ADJUST`、`FINANCE_WALLET_OPENING_BALANCE`。
-- 发票使用 `FINANCE_INVOICE_VIEW`、`FINANCE_INVOICE_CREATE`、`FINANCE_INVOICE_EDIT`、`FINANCE_INVOICE_CONFIRM`、`FINANCE_INVOICE_VOID`。
+- 发票任务使用 `FINANCE_INVOICE_VIEW`、`FINANCE_INVOICE_CREATE`、`FINANCE_INVOICE_EDIT`、`FINANCE_INVOICE_CONFIRM`、`FINANCE_INVOICE_COMPLETE`；普通操作人员不能审核或完成开票，财务可以审核，超级管理员可直接处理。
 - 结算使用 `FINANCE_SETTLEMENT_VIEW`、`FINANCE_SETTLEMENT_CREATE`、`FINANCE_SETTLEMENT_CONFIRM`、`FINANCE_SETTLEMENT_CANCEL`。
 - 对账使用 `FINANCE_RECONCILIATION_VIEW`、`FINANCE_RECONCILIATION_CREATE`、`FINANCE_RECONCILIATION_CONFIRM`。
 - 外采订单使用 `PROCUREMENT_VIEW`、`PROCUREMENT_CREATE`、`PROCUREMENT_CONFIRM`、`PROCUREMENT_CANCEL`、`PROCUREMENT_SETTLE`。

@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Button, Card, Descriptions, Form, Input, Modal, Select, Space, Table, Tabs, Tag } from 'antd';
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 type Customer = { id: string; name: string; customerCode: string };
 type BankTransaction = { id: string; transactionNo: string; account?: { name: string; accountCode: string }; occurredAt: string; direction: string; amount: string; counterpartyName?: string; status: string; matchedCustomer?: { name: string }; receiveRecord?: { id: string; receiveNo: string; status: string } };
-type ReceiveRecord = { id: string; receiveNo: string; amount: string; invoiceEligibleAmount?: string; receivedAt: string; status: string; customer?: { name: string; customerCode: string }; bankTransaction?: { transactionNo: string }; purchaseOrder?: { orderNo: string }; transaction?: { transactionNo: string } };
+type ReceiveDetail = { id: string; type: 'PUBLIC' | 'PRIVATE'; amount: string };
+type ReceiveRecord = { id: string; receiveNo: string; amount: string; invoiceEligibleAmount?: string; receivedAt: string; status: string; customer?: { name: string; customerCode: string }; bankTransaction?: { transactionNo: string }; purchaseOrder?: { orderNo: string }; transaction?: { transactionNo: string }; details?: ReceiveDetail[] };
 
 async function request<T>(path: string, token: string, options?: RequestInit): Promise<T> {
   const response = await fetch(`${apiUrl}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options?.headers || {}) } });
@@ -28,11 +30,14 @@ export default function ReceivingPanel({ token, customers, onError }: { token: s
   const [matchOpen, setMatchOpen] = useState(false);
   const [receiveOpen, setReceiveOpen] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [postingOpen, setPostingOpen] = useState(false);
   const [detail, setDetail] = useState<ReceiveRecord | null>(null);
   const [selectedBank, setSelectedBank] = useState<BankTransaction | null>(null);
+  const [selectedReceive, setSelectedReceive] = useState<ReceiveRecord | null>(null);
   const [form] = Form.useForm();
   const [bankFilterForm] = Form.useForm();
   const [receiveFilterForm] = Form.useForm();
+  const [postingForm] = Form.useForm();
 
   async function refresh(bankQuery = '', receiveQuery = '') {
     setLoading(true);
@@ -72,6 +77,20 @@ export default function ReceivingPanel({ token, customers, onError }: { token: s
     catch (error) { onError(error instanceof Error ? error.message : successMessage); }
   }
 
+  async function confirmReceive(values: { serviceFeeAmount?: string; remark?: string; details: { type: 'PUBLIC' | 'PRIVATE'; amount: string }[] }) {
+    if (!selectedReceive) return;
+    try {
+      await request(`/receive-records/${selectedReceive.id}/confirm`, token, { method: 'POST', body: JSON.stringify(values) });
+      setPostingOpen(false); postingForm.resetFields(); await refresh();
+    } catch (error) { onError(error instanceof Error ? error.message : '确认收款失败'); }
+  }
+
+  function openPosting(row: ReceiveRecord) {
+    setSelectedReceive(row);
+    postingForm.setFieldsValue({ serviceFeeAmount: '0.00', details: [{ type: 'PUBLIC', amount: row.amount }] });
+    setPostingOpen(true);
+  }
+
   async function showReceiveDetail(id: string) {
     try { setDetail(await request<ReceiveRecord>(`/receive-records/${id}`, token)); setDetailOpen(true); }
     catch (error) { onError(error instanceof Error ? error.message : '收款详情查询失败'); }
@@ -99,6 +118,7 @@ export default function ReceivingPanel({ token, customers, onError }: { token: s
         { title: '交易时间', dataIndex: 'occurredAt', render: (value: string) => new Date(value).toLocaleString('zh-CN') },
         { title: '方向', dataIndex: 'direction', render: (value: string) => directionName[value] || value },
         { title: '金额', dataIndex: 'amount' },
+        { title: '对公/对私', render: (_: unknown, row: ReceiveRecord) => row.details?.length ? row.details.map((detail) => `${detail.type === 'PUBLIC' ? '对公' : '对私'} ${detail.amount}`).join(' / ') : '-' },
         { title: '对方名称', dataIndex: 'counterpartyName' },
         { title: '客户', render: (_: unknown, row: BankTransaction) => row.matchedCustomer?.name || '待匹配' },
         { title: '状态', dataIndex: 'status', render: (value: string) => <Tag>{bankStatus[value] || value}</Tag> },
@@ -115,12 +135,13 @@ export default function ReceivingPanel({ token, customers, onError }: { token: s
         { title: '银行交易', render: (_: unknown, row: ReceiveRecord) => row.bankTransaction?.transactionNo || '-' },
         { title: '关联订单', render: (_: unknown, row: ReceiveRecord) => row.purchaseOrder?.orderNo || '-' },
         { title: '状态', dataIndex: 'status', render: (value: string) => <Tag>{receiveStatus[value] || value}</Tag> },
-        { title: '操作', render: (_: unknown, row: ReceiveRecord) => <Space><Button type="link" onClick={() => void showReceiveDetail(row.id)}>详情</Button>{row.status === 'PENDING_CONFIRMATION' && <Button type="link" onClick={() => void action(`/receive-records/${row.id}/confirm`, '确认收款失败')}>确认收款</Button>}{row.status === 'CONFIRMED' && <Button type="link" onClick={() => { window.location.href = `/agent/fund/invoice/apply?receiveRecordId=${row.id}`; }}>发起开票申请</Button>}{row.transaction ? <span>{row.transaction.transactionNo}</span> : null}</Space> },
+        { title: '操作', render: (_: unknown, row: ReceiveRecord) => <Space><Button type="link" onClick={() => void showReceiveDetail(row.id)}>详情</Button>{row.status === 'PENDING_CONFIRMATION' && <Button type="link" onClick={() => openPosting(row)}>确认入账</Button>}{row.transaction ? <span>{row.transaction.transactionNo}</span> : null}</Space> },
       ]} />
     </>}
     <Modal title="导入银行交易" open={importOpen} onCancel={() => setImportOpen(false)} onOk={() => form.submit()} okText="导入" cancelText="取消"><Form form={form} layout="vertical" onFinish={importBank}><Form.Item name="accountId" label="银行账户ID" rules={[{ required: true, message: '请输入银行账户ID' }]}><Input placeholder="请输入账户ID" /></Form.Item><Form.Item name="occurredAt" label="交易时间" rules={[{ required: true, message: '请输入ISO时间' }]}><Input placeholder="2026-09-11T10:00:00+08:00" /></Form.Item><Form.Item name="direction" label="交易方向" initialValue="INCOME"><Select options={[{ value: 'INCOME', label: '收入' }, { value: 'EXPENSE', label: '支出' }]} /></Form.Item><Form.Item name="amount" label="金额" rules={[{ required: true, message: '请输入金额' }]}><Input /></Form.Item><Form.Item name="source" label="来源" initialValue="MANUAL" rules={[{ required: true, message: '请输入来源' }]}><Input /></Form.Item><Form.Item name="externalTransactionId" label="原始交易编号" rules={[{ required: true, message: '请输入原始交易编号' }]}><Input /></Form.Item><Form.Item name="counterpartyName" label="对方名称"><Input /></Form.Item><Form.Item name="summary" label="摘要"><Input /></Form.Item></Form></Modal>
     <Modal title="匹配银行交易" open={matchOpen} onCancel={() => setMatchOpen(false)} onOk={() => form.submit()} okText="保存匹配" cancelText="取消"><Form form={form} layout="vertical" onFinish={matchBank}><Form.Item name="customerId" label="客户" rules={[{ required: true, message: '请选择客户' }]}><Select showSearch optionFilterProp="label" options={customers.map((item) => ({ value: item.id, label: `${item.name}（${item.customerCode}）` }))} /></Form.Item><Form.Item name="purchaseOrderId" label="订单ID（可选）"><Input placeholder="可选，输入订单ID" /></Form.Item><Form.Item name="remark" label="备注"><Input /></Form.Item></Form></Modal>
     <Modal title="创建收款记录" open={receiveOpen} onCancel={() => setReceiveOpen(false)} onOk={() => form.submit()} okText="保存" cancelText="取消"><Form form={form} layout="vertical" onFinish={createReceive}><Form.Item name="bankTransactionId" label="银行交易ID" rules={[{ required: true, message: '请输入银行交易ID' }]}><Input placeholder="请输入银行交易ID" /></Form.Item><Form.Item name="customerId" label="客户（可选）"><Select allowClear showSearch optionFilterProp="label" options={customers.map((item) => ({ value: item.id, label: `${item.name}（${item.customerCode}）` }))} /></Form.Item><Form.Item name="purchaseOrderId" label="订单ID（可选）"><Input placeholder="可选，输入订单ID" /></Form.Item><Form.Item name="remark" label="备注"><Input /></Form.Item></Form></Modal>
-    <Modal title="收款详情" open={detailOpen} onCancel={() => setDetailOpen(false)} footer={null}>{detail && <Descriptions bordered column={1}><Descriptions.Item label="收款编号">{detail.receiveNo}</Descriptions.Item><Descriptions.Item label="客户">{detail.customer?.name || '待匹配'}</Descriptions.Item><Descriptions.Item label="金额">{detail.amount}</Descriptions.Item><Descriptions.Item label="收款时间">{new Date(detail.receivedAt).toLocaleString('zh-CN')}</Descriptions.Item><Descriptions.Item label="银行交易">{detail.bankTransaction?.transactionNo || '-'}</Descriptions.Item><Descriptions.Item label="关联订单">{detail.purchaseOrder?.orderNo || '-'}</Descriptions.Item><Descriptions.Item label="状态">{receiveStatus[detail.status] || detail.status}</Descriptions.Item><Descriptions.Item label="资金流水">{detail.transaction?.transactionNo || '尚未入账'}</Descriptions.Item></Descriptions>}</Modal>
+    <Modal title={selectedReceive ? `确认入账：${selectedReceive.receiveNo}` : '确认入账'} open={postingOpen} onCancel={() => setPostingOpen(false)} onOk={() => postingForm.submit()} okText="确认入账" cancelText="取消"><Form form={postingForm} layout="vertical" onFinish={confirmReceive}><Descriptions size="small" bordered column={1}><Descriptions.Item label="本次流水金额">{selectedReceive?.amount}</Descriptions.Item></Descriptions><Form.Item name="serviceFeeAmount" label="服务费"><Input /></Form.Item><Form.List name="details" rules={[{ validator: async (_, value) => { if (!value?.length) return Promise.reject(new Error('至少需要一条入账明细')); return Promise.resolve(); } }]}>{(fields, { add, remove }) => <><div style={{ marginBottom: 8 }}>入账明细（对公与对私合计必须等于本次流水金额）</div>{fields.map(({ key, name, ...restField }) => <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}><Form.Item {...restField} name={[name, 'type']} rules={[{ required: true, message: '请选择性质' }]}><Select style={{ width: 120 }} options={[{ value: 'PUBLIC', label: '对公款' }, { value: 'PRIVATE', label: '对私款' }]} /></Form.Item><Form.Item {...restField} name={[name, 'amount']} rules={[{ required: true, message: '请输入金额' }]}><Input placeholder="金额" /></Form.Item>{fields.length > 1 && <MinusCircleOutlined onClick={() => remove(name)} />}</Space>)}<Button type="dashed" onClick={() => add({ type: 'PRIVATE', amount: '' })} icon={<PlusOutlined />}>添加明细</Button></>}</Form.List><Form.Item name="remark" label="备注"><Input /></Form.Item></Form></Modal>
+    <Modal title="收款详情" open={detailOpen} onCancel={() => setDetailOpen(false)} footer={null}>{detail && <Descriptions bordered column={1}><Descriptions.Item label="收款编号">{detail.receiveNo}</Descriptions.Item><Descriptions.Item label="客户">{detail.customer?.name || '待匹配'}</Descriptions.Item><Descriptions.Item label="金额">{detail.amount}</Descriptions.Item><Descriptions.Item label="入账性质">{detail.details?.map((item) => `${item.type === 'PUBLIC' ? '对公' : '对私'} ${item.amount}`).join(' / ') || '-'}</Descriptions.Item><Descriptions.Item label="收款时间">{new Date(detail.receivedAt).toLocaleString('zh-CN')}</Descriptions.Item><Descriptions.Item label="银行交易">{detail.bankTransaction?.transactionNo || '-'}</Descriptions.Item><Descriptions.Item label="关联订单">{detail.purchaseOrder?.orderNo || '-'}</Descriptions.Item><Descriptions.Item label="状态">{receiveStatus[detail.status] || detail.status}</Descriptions.Item><Descriptions.Item label="资金流水">{detail.transaction?.transactionNo || '尚未入账'}</Descriptions.Item></Descriptions>}</Modal>
   </Card>;
 }

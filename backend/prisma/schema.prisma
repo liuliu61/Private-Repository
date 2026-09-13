@@ -118,6 +118,8 @@ enum ReceivePostingStatus { POSTED REVERSED }
 enum ReceiveInvoiceStatus { UNISSUED PARTIAL ISSUED }
 enum InvoiceStatus { DRAFT PROCESSING REVIEWING APPROVED REJECTED ISSUED VOIDED }
 enum InvoiceOcrStatus { PENDING PROCESSING SUCCESS FAILED }
+enum ReceivePaymentNature { PUBLIC PRIVATE }
+enum InvoiceTaskStatus { PENDING REVIEWING APPROVED REJECTED COMPLETED }
 
 model User {
   id           String       @id @default(uuid()) @db.Uuid
@@ -162,6 +164,10 @@ model User {
   receiveServiceFees ReceiveServiceFee[] @relation("ReceiveServiceFeeOperator")
   createdInvoices Invoice[] @relation("InvoiceCreator")
   createdInvoiceOcrRecords InvoiceOcrRecord[]
+  createdInvoiceDetails InvoiceDetail[] @relation("InvoiceDetailCreator")
+  createdInvoiceTasks InvoiceTask[] @relation("InvoiceTaskCreator")
+  reviewedInvoiceTasks InvoiceTask[] @relation("InvoiceTaskReviewer")
+  completedInvoiceTasks InvoiceTask[] @relation("InvoiceTaskCompleter")
   confirmedInvoices Invoice[] @relation("InvoiceConfirmer")
   voidedInvoices Invoice[] @relation("InvoiceVoider")
 
@@ -338,6 +344,9 @@ model Customer {
   receiveRecords ReceiveRecord[]
   receivePostings ReceivePosting[]
   invoices Invoice[]
+  invoiceProfiles CustomerInvoiceProfile[]
+  receiveRecordDetails ReceiveRecordDetail[]
+  invoiceTasks InvoiceTask[]
   customerSettlements Settlement[] @relation("CustomerSettlements")
 
   @@index([status])
@@ -517,6 +526,7 @@ model Organization {
   receivePostings ReceivePosting[]
   invoices Invoice[]
   invoiceOcrRecords InvoiceOcrRecord[]
+  invoiceTasks InvoiceTask[]
   sourcingSetting SourcingSetting?
   @@index([parentId])
   @@index([type, status])
@@ -843,6 +853,7 @@ model ReceiveRecord {
   serviceFeeDetails ReceiveServiceFee[]
   refunds           Refund[]
   invoiceApplicationSources InvoiceApplicationReceiveRecord[]
+  details ReceiveRecordDetail[]
 
   @@index([organizationId, status, receivedAt])
   @@index([customerId, receivedAt])
@@ -874,6 +885,87 @@ model ReceivePosting {
   @@index([organizationId, createdAt])
   @@index([receiveRecordId, createdAt])
   @@map("receive_postings")
+}
+
+model ReceiveRecordDetail {
+  id              String               @id @default(uuid()) @db.Uuid
+  receiveRecordId String               @map("receive_record_id") @db.Uuid
+  customerId      String               @map("customer_id") @db.Uuid
+  type            ReceivePaymentNature
+  amount          Decimal              @db.Decimal(20, 2)
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  receiveRecord   ReceiveRecord        @relation(fields: [receiveRecordId], references: [id], onDelete: Cascade)
+  customer        Customer             @relation(fields: [customerId], references: [id])
+  invoiceTask     InvoiceTask?
+
+  @@index([receiveRecordId, type])
+  @@index([customerId, type, createdAt])
+  @@map("receive_record_details")
+}
+
+model CustomerInvoiceProfile {
+  id                    String        @id @default(uuid()) @db.Uuid
+  customerId            String        @map("customer_id") @db.Uuid
+  titleName             String        @map("title_name") @db.VarChar(150)
+  taxpayerCode          String?       @map("taxpayer_code") @db.VarChar(100)
+  address               String?       @db.VarChar(255)
+  phone                 String?       @db.VarChar(50)
+  bankName              String?       @map("bank_name") @db.VarChar(150)
+  bankAccount           String?       @map("bank_account") @db.VarChar(100)
+  defaultInvoiceContent String?       @map("default_invoice_content") @db.VarChar(255)
+  enabled               Boolean       @default(true)
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  customer              Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invoiceTasks          InvoiceTask[]
+
+  @@index([customerId, enabled])
+  @@map("customer_invoice_profiles")
+}
+
+model InvoiceTask {
+  id                    String              @id @default(uuid()) @db.Uuid
+  taskNo                String              @unique @map("task_no") @db.VarChar(60)
+  organizationId        String              @map("organization_id") @db.Uuid
+  customerId            String              @map("customer_id") @db.Uuid
+  receiveRecordDetailId String              @unique @map("receive_record_detail_id") @db.Uuid
+  invoiceProfileId      String?             @map("invoice_profile_id") @db.Uuid
+  publicAmount          Decimal             @map("public_amount") @db.Decimal(20, 2)
+  invoiceAmount         Decimal             @map("invoice_amount") @db.Decimal(20, 2)
+  payerName             String?             @map("payer_name") @db.VarChar(120)
+  payerAccount          String?             @map("payer_account") @db.VarChar(120)
+  titleName             String?             @map("title_name") @db.VarChar(150)
+  taxpayerCode          String?             @map("taxpayer_code") @db.VarChar(100)
+  address               String?             @db.VarChar(255)
+  phone                 String?             @db.VarChar(50)
+  bankName              String?             @map("bank_name") @db.VarChar(150)
+  bankAccount           String?             @map("bank_account") @db.VarChar(100)
+  invoiceContent        String?             @map("invoice_content") @db.VarChar(255)
+  remark                String?             @db.VarChar(255)
+  status                InvoiceTaskStatus   @default(PENDING)
+  createdBy             String              @map("created_by") @db.Uuid
+  submittedAt           DateTime?           @map("submitted_at")
+  reviewedBy            String?             @map("reviewed_by") @db.Uuid
+  reviewedAt            DateTime?           @map("reviewed_at")
+  approvalRemark        String?             @map("approval_remark") @db.VarChar(255)
+  rejectReason          String?             @map("reject_reason") @db.VarChar(255)
+  completedBy           String?             @map("completed_by") @db.Uuid
+  completedAt           DateTime?           @map("completed_at")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  organization          Organization        @relation(fields: [organizationId], references: [id])
+  customer              Customer            @relation(fields: [customerId], references: [id])
+  receiveRecordDetail   ReceiveRecordDetail @relation(fields: [receiveRecordDetailId], references: [id], onDelete: Cascade)
+  invoiceProfile        CustomerInvoiceProfile? @relation(fields: [invoiceProfileId], references: [id], onDelete: SetNull)
+  creator               User                @relation("InvoiceTaskCreator", fields: [createdBy], references: [id])
+  reviewer              User?               @relation("InvoiceTaskReviewer", fields: [reviewedBy], references: [id])
+  completer             User?               @relation("InvoiceTaskCompleter", fields: [completedBy], references: [id])
+  invoiceDetails        InvoiceDetail[]
+
+  @@index([organizationId, status, createdAt])
+  @@index([customerId, status, createdAt])
+  @@map("invoice_tasks")
 }
 
 model ReceiveServiceFee {
@@ -941,6 +1033,7 @@ model Invoice {
   applicationItems InvoiceApplicationItem[]
   receiveSources   InvoiceApplicationReceiveRecord[]
   ocrRecords       InvoiceOcrRecord[]
+  invoiceDetails   InvoiceDetail[]
 
   @@index([organizationId, status, createdAt])
   @@index([customerId, status, createdAt])
@@ -960,9 +1053,40 @@ model InvoiceApplicationItem {
   remark    String?  @db.VarChar(255)
   createdAt DateTime @default(now()) @map("created_at")
   invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceDetails InvoiceDetail[]
 
   @@index([invoiceId, createdAt])
   @@map("invoice_application_items")
+}
+
+model InvoiceDetail {
+  id                     String                @id @default(uuid()) @db.Uuid
+  invoiceId              String?               @map("invoice_apply_id") @db.Uuid
+  invoiceTaskId          String?               @map("invoice_task_id") @db.Uuid
+  invoiceApplicationItemId String?             @map("invoice_apply_invoice_id") @db.Uuid
+  amount                 Decimal               @default(0) @db.Decimal(20, 2)
+  invoiceType            String                @map("invoice_type") @db.VarChar(50)
+  invoiceContent         String?               @map("invoice_content") @db.VarChar(255)
+  invoiceCode            String?               @map("invoice_code") @db.VarChar(100)
+  invoiceUrl              String?              @map("invoice_url") @db.VarChar(500)
+  imageUrl               String?              @map("image_url") @db.VarChar(500)
+  filePath               String?              @map("file_path") @db.VarChar(500)
+  originalFileName       String?              @map("original_file_name") @db.VarChar(255)
+  mimeType               String?              @map("mime_type") @db.VarChar(100)
+  invoiceDate            DateTime?            @map("invoice_date")
+  remark                 String?              @db.VarChar(255)
+  createdBy              String                @map("created_by") @db.Uuid
+  createdAt              DateTime              @default(now()) @map("create_time")
+  updatedAt              DateTime              @updatedAt @map("update_time")
+  invoice                Invoice?              @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceTask            InvoiceTask?          @relation(fields: [invoiceTaskId], references: [id], onDelete: Cascade)
+  invoiceApplicationItem InvoiceApplicationItem? @relation(fields: [invoiceApplicationItemId], references: [id], onDelete: SetNull)
+  creator                User                  @relation("InvoiceDetailCreator", fields: [createdBy], references: [id])
+
+  @@index([invoiceId, createdAt])
+  @@index([invoiceTaskId, createdAt])
+  @@index([invoiceApplicationItemId])
+  @@map("invoice_details")
 }
 
 model InvoiceApplicationReceiveRecord {

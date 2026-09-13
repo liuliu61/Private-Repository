@@ -1,6 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import { ArrayMinSize, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
-import { AccountStatus, AccountType, AccountUnit, AdAssetStatus, BankTransactionDirection, BankTransactionStatus, CustomerWalletTransactionType, CustomerWalletType, FinancialAdjustmentStatus, FinancialAdjustmentType, InvoiceStatus, OrganizationType, PromotionTransactionBusinessType, PurchaseOrderStatus, PurchaseOrderTransactionType, ReceiveRecordStatus, RebateCalculationMode, RebateRuleType, ReconciliationStatus, RefundStatus, SettlementStatus, SupplierAccountType, SupplierPlatform, SupplierSettlementType } from '@prisma/client';
+import { AccountStatus, AccountType, AccountUnit, AdAssetStatus, BankTransactionDirection, BankTransactionStatus, CustomerWalletTransactionType, CustomerWalletType, FinancialAdjustmentStatus, FinancialAdjustmentType, InvoiceStatus, InvoiceTaskStatus, OrganizationType, PromotionTransactionBusinessType, PurchaseOrderStatus, PurchaseOrderTransactionType, ReceivePaymentNature, ReceiveRecordStatus, RebateCalculationMode, RebateRuleType, ReconciliationStatus, RefundStatus, SettlementStatus, SupplierAccountType, SupplierPlatform, SupplierSettlementType } from '@prisma/client';
 
 const money = /^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$/;
 const rate = /^-?(?:0|[1-9]\d*)(?:\.\d{1,4})?$/;
@@ -486,10 +486,63 @@ export class CreateReceiveRecordDto {
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
 }
 
+export class ReceivePostingDetailDto {
+  @IsEnum(ReceivePaymentNature, { message: '入账性质不正确' }) type!: ReceivePaymentNature;
+  @Matches(positiveMoney, { message: '入账明细金额格式不正确' }) amount!: string;
+}
+
 export class ReceivePostingDto {
   @Matches(positiveMoney, { message: '服务费金额格式不正确' }) serviceFeeAmount = '0.00';
+  @IsArray({ message: '入账明细格式不正确' }) @ArrayMinSize(1, { message: '至少需要填写一条入账明细' }) @ValidateNested({ each: true }) @Type(() => ReceivePostingDetailDto) details!: ReceivePostingDetailDto[];
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
   @IsOptional() @IsString() @MaxLength(100) idempotencyKey?: string;
+}
+
+export class CreateCustomerInvoiceProfileDto {
+  @IsString() @IsNotEmpty() @MaxLength(150) titleName!: string;
+  @IsOptional() @IsString() @MaxLength(100) taxpayerCode?: string;
+  @IsOptional() @IsString() @MaxLength(255) address?: string;
+  @IsOptional() @IsString() @MaxLength(50) phone?: string;
+  @IsOptional() @IsString() @MaxLength(150) bankName?: string;
+  @IsOptional() @IsString() @MaxLength(100) bankAccount?: string;
+  @IsOptional() @IsString() @MaxLength(255) defaultInvoiceContent?: string;
+  @IsOptional() @IsBoolean() enabled?: boolean;
+}
+
+export class UpdateCustomerInvoiceProfileDto extends CreateCustomerInvoiceProfileDto {}
+
+export class UpdateInvoiceTaskDto {
+  @Matches(positiveMoney, { message: '需开票金额格式不正确' }) invoiceAmount!: string;
+  @IsOptional() @IsUUID('4', { message: '开票信息ID格式不正确' }) invoiceProfileId?: string;
+  @IsOptional() @IsString() @MaxLength(150) titleName?: string;
+  @IsOptional() @IsString() @MaxLength(100) taxpayerCode?: string;
+  @IsOptional() @IsString() @MaxLength(255) address?: string;
+  @IsOptional() @IsString() @MaxLength(50) phone?: string;
+  @IsOptional() @IsString() @MaxLength(150) bankName?: string;
+  @IsOptional() @IsString() @MaxLength(100) bankAccount?: string;
+  @IsOptional() @IsString() @MaxLength(255) invoiceContent?: string;
+  @IsOptional() @IsString() @MaxLength(255) remark?: string;
+}
+
+export class InvoiceTaskReviewDto { @IsOptional() @IsString() @MaxLength(255) approvalRemark?: string; }
+export class InvoiceTaskRejectDto { @IsString() @IsNotEmpty({ message: '请填写驳回原因' }) @MaxLength(255) rejectReason!: string; }
+export class CompleteInvoiceTaskDto {
+  @Matches(positiveMoney, { message: '实际开票金额格式不正确' }) amount!: string;
+  @IsString() @IsNotEmpty({ message: '请选择发票类型!' }) @IsIn(['增值税电子专用发票', '增值税电子普通发票', '增值税专用发票', '增值税普通发票', '形式发票'], { message: '发票类型不正确' }) invoiceType!: string;
+  @IsOptional() @IsString() @MaxLength(100) invoiceCode?: string;
+  @IsOptional() @IsDateString({}, { message: '开票日期格式不正确' }) invoiceDate?: string;
+  @IsOptional() @IsString() @MaxLength(255) invoiceContent?: string;
+  @IsOptional() @IsString() @MaxLength(255) remark?: string;
+  @IsOptional() @IsString() @MaxLength(500) invoiceUrl?: string;
+  @IsOptional() @IsString() @MaxLength(500) imageUrl?: string;
+}
+
+export class InvoiceTaskQueryDto {
+  @IsOptional() @IsEnum(InvoiceTaskStatus) status?: InvoiceTaskStatus;
+  @IsOptional() @IsUUID('4') customerId?: string;
+  @IsOptional() @IsString() @MaxLength(60) keyword?: string;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize = 20;
 }
 
 export class CreateReceiveRefundDto {
@@ -604,6 +657,21 @@ export class UpdateInvoiceApplicationDto {
 export class InvoiceReviewDto {
   @IsOptional() @IsString() @MaxLength(255) approvalRemark?: string;
   @IsOptional() @IsString() @MaxLength(255) rejectReason?: string;
+}
+
+export class UploadInvoiceDetailDto {
+  @IsOptional() @IsUUID('4', { message: '发票申请明细ID格式不正确' }) invoiceApplicationItemId?: string;
+  @IsOptional() @Matches(money, { message: '发票金额格式不正确' }) amount?: string;
+  @IsString() @IsNotEmpty({ message: '请选择发票类型!' }) @MaxLength(50) invoiceType!: string;
+  @IsOptional() @IsString() @MaxLength(255) invoiceContent?: string;
+  @IsOptional() @IsString() @MaxLength(100) invoiceCode?: string;
+}
+
+export class UpdateInvoiceDetailDto {
+  @IsOptional() @Matches(money, { message: '发票金额格式不正确' }) amount?: string;
+  @IsString() @IsNotEmpty({ message: '请选择发票类型!' }) @MaxLength(50) invoiceType!: string;
+  @IsOptional() @IsString() @MaxLength(255) invoiceContent?: string;
+  @IsOptional() @IsString() @MaxLength(100) invoiceCode?: string;
 }
 
 export class InvoiceOcrRequestDto {

@@ -1,10 +1,18 @@
-import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { InvoiceStatus, Prisma, PurchaseOrderStatus, ReceiveInvoiceStatus, ReceiveRecordStatus, RefundStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { extname, join, resolve } from 'node:path';
 import { AccessContext, AccessScopeService } from '../common/access-scope.service';
 import { moneyToString, toMoney } from '../cashflow/utils/money.util';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateInvoiceApplicationDto, CreateInvoiceDto, InvoiceApplicationItemDto, InvoiceQueryDto, InvoiceReviewDto, InvoiceVoidDto, UpdateInvoiceApplicationDto, UpdateInvoiceDraftDto } from './business.dto';
+import { UpdateInvoiceDetailDto, UploadInvoiceDetailDto } from './business.dto';
+
+const invoiceDetailTypes = new Set(['增值税电子专用发票', '增值税电子普通发票', '增值税专用发票', '增值税普通发票', '形式发票']);
+const invoiceFileTypes = new Set(['image/jpeg', 'image/png', 'application/pdf']);
+const invoiceFileExtensions = new Set(['.jpg', '.jpeg', '.png', '.pdf']);
+const maxInvoiceFileSize = 20 * 1024 * 1024;
 
 @Injectable()
 export class InvoiceService {
@@ -65,7 +73,7 @@ export class InvoiceService {
     const organizationIds = await this.scope.getOrganizationIds(context);
     const where = this.invoiceWhere(query, organizationIds);
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.invoice.findMany({ where, include: { customer: { select: { id: true, name: true, customerCode: true } }, receiveSources: { include: { receiveRecord: { select: { id: true, receiveNo: true } } } }, applicationItems: true, creator: { select: { id: true, displayName: true } } }, orderBy: [{ createdAt: 'desc' }, { invoiceNo: 'desc' }], skip: (query.page - 1) * query.pageSize, take: query.pageSize }),
+      this.prisma.invoice.findMany({ where, include: { customer: { select: { id: true, name: true, customerCode: true } }, receiveSources: { include: { receiveRecord: { select: { id: true, receiveNo: true } } } }, applicationItems: true, invoiceDetails: true, creator: { select: { id: true, displayName: true } } }, orderBy: [{ createdAt: 'desc' }, { invoiceNo: 'desc' }], skip: (query.page - 1) * query.pageSize, take: query.pageSize }),
       this.prisma.invoice.count({ where }),
     ]);
     return { items: items.map((item) => this.view(item)), total, page: query.page, pageSize: query.pageSize };
@@ -73,7 +81,7 @@ export class InvoiceService {
 
   async getApplicationById(id: string, context: AccessContext) {
     this.assertPermission(context, 'FINANCE_INVOICE_VIEW');
-    const row = await this.prisma.invoice.findUnique({ where: { id }, include: { customer: true, creator: { select: { id: true, displayName: true } }, receiveSources: { include: { receiveRecord: { include: { bankTransaction: true } } } }, applicationItems: true } });
+    const row = await this.prisma.invoice.findUnique({ where: { id }, include: { customer: true, creator: { select: { id: true, displayName: true } }, receiveSources: { include: { receiveRecord: { include: { bankTransaction: true } } } }, applicationItems: true, invoiceDetails: true } });
     if (!row) throw new NotFoundException('发票申请不存在');
     await this.scope.assertOrganizationAccess(row.organizationId, context);
     return this.view(row);
@@ -175,6 +183,98 @@ export class InvoiceService {
       await this.audit(tx, context, row.organizationId, id, 'INVOICE_APPLICATION_REJECT', { status: row.status }, { status: updated.status, rejectReason: reason });
       return { idempotent: false, invoice: this.view(updated) };
     });
+  }
+
+  async listInvoiceDetails(id: string, context: AccessContext) {
+    this.assertPermission(context, 'FINANCE_INVOICE_VIEW');
+    const row = await this.prisma.invoice.findUnique({ where: { id }, select: { id: true, organizationId: true } });
+    if (!row) throw new NotFoundException('发票申请不存在');
+    await this.scope.assertOrganizationAccess(row.organizationId, context);
+    const details = await this.prisma.invoiceDetail.findMany({ where: { invoiceId: id }, orderBy: { createdAt: 'asc' } });
+    return details.map((detail) => this.invoiceDetailView(detail));
+  }
+
+  async uploadInvoiceDetail(id: string, dto: UploadInvoiceDetailDto, file: any, context: AccessContext) {
+    this.assertPermission(context, 'FINANCE_INVOICE_CONFIRM');
+    this.assertInvoiceDetailFile(file);
+    this.assertInvoiceDetailType(dto.invoiceType);
+    const preflight = await this.prisma.invoice.findUnique({ where: { id }, select: { status: true, organizationId: true } });
+    if (!preflight) throw new NotFoundException('发票申请不存在');
+    await this.scope.assertOrganizationAccess(preflight.organizationId, context);
+    if (![InvoiceStatus.APPROVED, InvoiceStatus.ISSUED].includes(preflight.status)) throw new ConflictException('只有审核通过或已完成开票的申请可以上传发票');
+    const amount = dto.amount ? toMoney(dto.amount, '发票金额') : new Prisma.Decimal(0);
+    const fileId = randomUUID();
+    const extension = extname(file.originalname).toLowerCase();
+    const storageRoot = resolve(process.env.INVOICE_UPLOAD_DIR || join(process.cwd(), 'storage', 'invoices'));
+    await mkdir(storageRoot, { recursive: true });
+    const storedPath = join(storageRoot, `${fileId}${extension}`);
+    await writeFile(storedPath, file.buffer);
+    return this.prisma.$transaction(async (tx) => {
+      const row = await this.lockInvoice(tx, id, context);
+      if (![InvoiceStatus.APPROVED, InvoiceStatus.ISSUED].includes(row.status)) throw new ConflictException('只有审核通过或已完成开票的申请可以上传发票');
+      let itemId = dto.invoiceApplicationItemId;
+      if (itemId) {
+        const item = await tx.invoiceApplicationItem.findUnique({ where: { id: itemId }, select: { id: true, invoiceId: true } });
+        if (!item || item.invoiceId !== id) throw new ConflictException('发票申请明细不属于当前申请');
+      }
+      const detail = await tx.invoiceDetail.create({ data: { invoiceId: id, invoiceApplicationItemId: itemId || null, amount, invoiceType: dto.invoiceType.trim(), invoiceContent: dto.invoiceContent?.trim() || null, invoiceCode: dto.invoiceCode?.trim() || null, filePath: storedPath, originalFileName: file.originalname, mimeType: file.mimetype, createdBy: context.sub, invoiceUrl: null, imageUrl: null } });
+      const fileUrl = `/api/invoices/applications/${id}/details/${detail.id}/file`;
+      const updatedDetail = await tx.invoiceDetail.update({ where: { id: detail.id }, data: { invoiceUrl: fileUrl, imageUrl: fileUrl } });
+      await this.audit(tx, context, row.organizationId, id, 'INVOICE_DETAIL_UPLOAD', { status: row.status }, { status: row.status, invoiceDetailId: detail.id });
+      return { invoice: this.view({ ...row, invoiceDetails: [updatedDetail] }), invoiceDetail: this.invoiceDetailView(updatedDetail) };
+    });
+  }
+
+  async completeInvoiceApplication(id: string, context: AccessContext) {
+    this.assertPermission(context, 'FINANCE_INVOICE_CONFIRM');
+    return this.prisma.$transaction(async (tx) => {
+      const row = await this.lockInvoice(tx, id, context);
+      if (row.status === InvoiceStatus.ISSUED) return { idempotent: true, invoice: this.view(row) };
+      if (row.status !== InvoiceStatus.APPROVED) throw new ConflictException('只有审核通过的申请可以完成开票');
+      const details = await tx.invoiceDetail.findMany({ where: { invoiceId: id }, select: { id: true } });
+      if (!details.length) throw new ConflictException('请先上传发票');
+      const updated = await tx.invoice.update({ where: { id }, data: { status: InvoiceStatus.ISSUED, confirmedBy: context.sub, confirmedAt: new Date() } });
+      await this.audit(tx, context, row.organizationId, id, 'INVOICE_APPLICATION_COMPLETE', { status: row.status }, { status: updated.status, note: '完成开票' });
+      return { idempotent: false, invoice: this.view(updated) };
+    });
+  }
+
+  async updateInvoiceDetail(applicationId: string, detailId: string, dto: UpdateInvoiceDetailDto, context: AccessContext) {
+    this.assertPermission(context, 'FINANCE_INVOICE_CONFIRM');
+    this.assertInvoiceDetailType(dto.invoiceType);
+    const amount = dto.amount ? toMoney(dto.amount, '发票金额') : undefined;
+    return this.prisma.$transaction(async (tx) => {
+      const row = await this.lockInvoice(tx, applicationId, context);
+      if (row.status !== InvoiceStatus.APPROVED) throw new ConflictException('只有完成开票前的审核通过申请可以修改发票明细');
+      const detail = await tx.invoiceDetail.findUnique({ where: { id: detailId } });
+      if (!detail || detail.invoiceId !== applicationId) throw new NotFoundException('发票明细不存在');
+      const updated = await tx.invoiceDetail.update({ where: { id: detailId }, data: { amount, invoiceType: dto.invoiceType.trim(), invoiceContent: dto.invoiceContent?.trim() || null, invoiceCode: dto.invoiceCode?.trim() || null } });
+      await this.audit(tx, context, row.organizationId, applicationId, 'INVOICE_DETAIL_UPDATE', null, { invoiceDetailId: detailId });
+      return this.invoiceDetailView(updated);
+    });
+  }
+
+  async deleteInvoiceDetail(applicationId: string, detailId: string, context: AccessContext) {
+    this.assertPermission(context, 'FINANCE_INVOICE_CONFIRM');
+    return this.prisma.$transaction(async (tx) => {
+      const row = await this.lockInvoice(tx, applicationId, context);
+      if (row.status !== InvoiceStatus.APPROVED) throw new ConflictException('只有完成开票前的审核通过申请可以删除发票明细');
+      const detail = await tx.invoiceDetail.findUnique({ where: { id: detailId } });
+      if (!detail || detail.invoiceId !== applicationId) throw new NotFoundException('发票明细不存在');
+      await tx.invoiceDetail.delete({ where: { id: detailId } });
+      await this.audit(tx, context, row.organizationId, applicationId, 'INVOICE_DETAIL_DELETE', { invoiceDetailId: detailId }, null);
+      return { idempotent: false };
+    });
+  }
+
+  async getInvoiceDetailFile(applicationId: string, detailId: string, context: AccessContext) {
+    this.assertPermission(context, 'FINANCE_INVOICE_VIEW');
+    const detail = await this.prisma.invoiceDetail.findUnique({ where: { id: detailId }, select: { invoiceId: true, filePath: true, originalFileName: true, mimeType: true } });
+    if (!detail || detail.invoiceId !== applicationId || !detail.filePath) throw new NotFoundException('发票文件不存在');
+    const application = await this.prisma.invoice.findUnique({ where: { id: applicationId }, select: { organizationId: true } });
+    if (!application) throw new NotFoundException('发票申请不存在');
+    await this.scope.assertOrganizationAccess(application.organizationId, context);
+    return { path: detail.filePath, fileName: detail.originalFileName || 'invoice', mimeType: detail.mimeType || 'application/octet-stream' };
   }
 
   async revokeApplication(id: string, context: AccessContext) {
@@ -408,8 +508,11 @@ export class InvoiceService {
       }
     }
   }
+  private assertInvoiceDetailType(value: string) { if (!invoiceDetailTypes.has(value.trim())) throw new BadRequestException('请选择发票类型!'); }
+  private assertInvoiceDetailFile(file: any) { if (!file || !invoiceFileTypes.has(file.mimetype) || !invoiceFileExtensions.has(extname(file.originalname).toLowerCase())) throw new BadRequestException('仅支持 PDF、PNG、JPG 或 JPEG 发票文件'); if (file.size > maxInvoiceFileSize) throw new BadRequestException('发票文件不能超过20MB'); }
   private assertPermission(context: AccessContext, permission: string) { if (!this.scope.isSuperAdmin(context) && !context.roles.includes('FINANCE') && !context.permissions.includes(permission)) throw new ForbiddenException({ success: false, code: 'PERMISSION_DENIED', message: '无权操作发票管理' }); }
   private async audit(tx: Prisma.TransactionClient, context: AccessContext, organizationId: string, resourceId: string, action: string, beforeData: unknown, afterData: unknown) { await tx.auditLog.create({ data: { operatorId: context.sub, organizationId, actionType: action, businessType: 'INVOICE', businessId: resourceId, beforeData: beforeData as Prisma.InputJsonValue, afterData: afterData as Prisma.InputJsonValue, result: 'SUCCESS' } }); }
-  private view(row: any) { return { ...row, amount: moneyToString(row.amount), approvedAmount: row.approvedAmount === undefined ? row.approvedAmount : row.approvedAmount === null ? null : moneyToString(row.approvedAmount), applicationItems: row.applicationItems?.map((item: any) => ({ ...item, amount: moneyToString(item.amount) })), receiveSources: row.receiveSources?.map((source: any) => ({ ...source, amount: moneyToString(source.amount), receiveRecord: source.receiveRecord ? { ...source.receiveRecord, amount: source.receiveRecord.amount === undefined ? source.receiveRecord.amount : moneyToString(source.receiveRecord.amount), invoiceEligibleAmount: source.receiveRecord.invoiceEligibleAmount === undefined ? source.receiveRecord.invoiceEligibleAmount : moneyToString(source.receiveRecord.invoiceEligibleAmount), serviceFeeAmount: source.receiveRecord.serviceFeeAmount === undefined ? source.receiveRecord.serviceFeeAmount : moneyToString(source.receiveRecord.serviceFeeAmount), unBillingAmount: source.receiveRecord.unBillingAmount === undefined ? source.receiveRecord.unBillingAmount : moneyToString(source.receiveRecord.unBillingAmount), billingAmount: source.receiveRecord.billingAmount === undefined ? source.receiveRecord.billingAmount : moneyToString(source.receiveRecord.billingAmount), billedAmount: source.receiveRecord.billedAmount === undefined ? source.receiveRecord.billedAmount : moneyToString(source.receiveRecord.billedAmount) } : source.receiveRecord })) }; }
+  private invoiceDetailView(row: any) { return { id: row.id, invoiceId: row.invoiceId, invoiceApplyId: row.invoiceId, invoiceApplicationItemId: row.invoiceApplicationItemId, invoiceApplyInvoiceId: row.invoiceApplicationItemId, amount: moneyToString(row.amount), invoiceType: row.invoiceType, invoiceContent: row.invoiceContent, invoiceCode: row.invoiceCode, invoiceUrl: row.invoiceUrl, imageUrl: row.imageUrl, originalFileName: row.originalFileName, createdBy: row.createdBy, createdAt: row.createdAt, updatedAt: row.updatedAt }; }
+  private view(row: any) { return { ...row, amount: moneyToString(row.amount), approvedAmount: row.approvedAmount === undefined ? row.approvedAmount : row.approvedAmount === null ? null : moneyToString(row.approvedAmount), applicationItems: row.applicationItems?.map((item: any) => ({ ...item, amount: moneyToString(item.amount) })), invoiceDetails: row.invoiceDetails?.map((detail: any) => this.invoiceDetailView(detail)), receiveSources: row.receiveSources?.map((source: any) => ({ ...source, amount: moneyToString(source.amount), receiveRecord: source.receiveRecord ? { ...source.receiveRecord, amount: source.receiveRecord.amount === undefined ? source.receiveRecord.amount : moneyToString(source.receiveRecord.amount), invoiceEligibleAmount: source.receiveRecord.invoiceEligibleAmount === undefined ? source.receiveRecord.invoiceEligibleAmount : moneyToString(source.receiveRecord.invoiceEligibleAmount), serviceFeeAmount: source.receiveRecord.serviceFeeAmount === undefined ? source.receiveRecord.serviceFeeAmount : moneyToString(source.receiveRecord.serviceFeeAmount), unBillingAmount: source.receiveRecord.unBillingAmount === undefined ? source.receiveRecord.unBillingAmount : moneyToString(source.receiveRecord.unBillingAmount), billingAmount: source.receiveRecord.billingAmount === undefined ? source.receiveRecord.billingAmount : moneyToString(source.receiveRecord.billingAmount), billedAmount: source.receiveRecord.billedAmount === undefined ? source.receiveRecord.billedAmount : moneyToString(source.receiveRecord.billedAmount) } : source.receiveRecord })) }; }
   private generateInvoiceNo() { return `INV${new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}${randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`; }
 }
