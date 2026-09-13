@@ -65,6 +65,9 @@ test('付款30000、服务费2000时V钱包只入账28000，开票口径保存30
   const posted = await f.service.confirmReceiveRecord(confirmed.receiveRecord.id, { serviceFeeAmount: '2000.00' }, context);
   assert.equal(posted.receiveRecord.walletCreditAmount, '28000.00');
   assert.equal(posted.receiveRecord.invoiceEligibleAmount, '30000.00');
+  assert.equal(posted.receiveRecord.unBillingAmount, '30000.00');
+  assert.equal(posted.receiveRecord.billingAmount, '0.00');
+  assert.equal(posted.receiveRecord.billedAmount, '0.00');
   assert.equal(posted.receiveRecord.postedAmount, '28000.00');
   assert.equal(f.cashflowCalls.length, 1);
   assert.equal(f.receives[0].status, ReceiveRecordStatus.CONFIRMED);

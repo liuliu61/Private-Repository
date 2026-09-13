@@ -265,9 +265,11 @@ README 不是业务规则的唯一来源，不能用来推翻实测结论。遇�
 - `GET /api/invoices/applications`、`GET /api/invoices/applications/:id`：申请列表与详情。
 - `POST /api/invoices/applications`、`PATCH /api/invoices/applications/:id`：创建或编辑起草申请。
 - `POST /api/invoices/applications/:id/submit`：起草 → 审核中。
-- `POST /api/invoices/applications/:id/approve|reject`：审核中 → 审核通过 / 审核不通过。
+- `POST /api/invoices/applications/:id/approve|reject|revoke`：审核中 → 审核通过 / 审核不通过；创建人可撤回审核中的申请。
 - `POST /api/invoices/ocr`：调用本地 PaddleOCR 识别发票文件，返回辅助字段与 OCR 记录 ID。
-- 支持 91.5% 技术服务与 8.5% 广告发布的金额拆分，明细合计必须等于申请金额，金额计算使用 Decimal。
+- 发票额度按收款记录维护：`可开票金额 = amount - billedAmount - billingAmount`，并满足 `amount = unBillingAmount + billingAmount + billedAmount`；服务费不参与额度扣减，也不使用 V 钱包余额计算。
+- 草稿不占用额度；提交审核在同一事务内执行 `unBillingAmount -= 申请金额`、`billingAmount += 申请金额`；审核通过执行 `billingAmount → billedAmount`，驳回或创建人撤回执行 `billingAmount → unBillingAmount`。
+- 支持服务费单独作为“信息服务费”明细，剩余金额按 91.5% 技术服务与 8.5% 广告发布拆分，明细合计必须等于申请金额，金额计算使用 Decimal。
 - 申请、提交和审核不会产生资金流水，不会改变客户 V 钱包、外采钱包或公司资金；审核通过也不会自动完成开票。
 - 发票申请第一阶段不包含正式发票上传、发票号码录入、发送邮箱、红字发票和作废后续流程。
 
