@@ -68,7 +68,8 @@ export class SettlementCenterService {
     return this.prisma.$transaction(async (tx) => {
       const settlement = await this.lockSettlement(tx, type, id, context);
       if (settlement.status === SettlementStatus.CANCELLED) return { idempotent: true, ...this.view(settlement) };
-      if (![SettlementStatus.DRAFT, SettlementStatus.GENERATED].includes(settlement.status)) throw new ConflictException('当前结算单状态不允许取消');
+      const cancellableStatuses: SettlementStatus[] = [SettlementStatus.DRAFT, SettlementStatus.GENERATED];
+      if (!cancellableStatuses.includes(settlement.status)) throw new ConflictException('当前结算单状态不允许取消');
       const updated = await tx.settlement.update({ where: { id }, data: { status: SettlementStatus.CANCELLED } });
       await this.writeAudit(tx, context, settlement.organizationId, 'SETTLEMENT_CANCEL', id, { status: settlement.status }, { status: updated.status, settlementType: type });
       return { idempotent: false, ...this.view(updated) };

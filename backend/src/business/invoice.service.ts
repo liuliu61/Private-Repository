@@ -120,14 +120,17 @@ export class InvoiceService {
     this.assertPermission(context, 'FINANCE_INVOICE_EDIT');
     return this.prisma.$transaction(async (tx) => {
       const row = await this.lockInvoice(tx, id, context);
-      if (![InvoiceStatus.DRAFT, InvoiceStatus.REJECTED].includes(row.status)) throw new ConflictException('只有起草或审核不通过的发票申请允许修改');
+      const editableStatuses: InvoiceStatus[] = [InvoiceStatus.DRAFT, InvoiceStatus.REJECTED];
+      if (!editableStatuses.includes(row.status)) throw new ConflictException('只有起草或审核不通过的发票申请允许修改');
       const currentSources = await tx.invoiceApplicationReceiveRecord.findMany({ where: { invoiceId: id }, select: { receiveRecordId: true } });
       const sourceIds = dto.receiveRecordIds?.length ? dto.receiveRecordIds : currentSources.map((item) => item.receiveRecordId);
       const amount = dto.amount ? toMoney(dto.amount, '申请开票金额') : row.amount;
       const resolved = await this.resolveApplicationSources(tx, sourceIds, amount, context);
       const sources = resolved.sources;
       const currentItems = await tx.invoiceApplicationItem.findMany({ where: { invoiceId: id } });
-      const items = dto.items || (dto.amount || dto.autoSplit !== undefined ? this.applicationItems(amount, undefined, dto.autoSplit ?? true, resolved.totalServiceFee) : currentItems);
+       const items: Array<{ amount: Prisma.Decimal; itemType: string | null; content: string | null; remark: string | null }> = dto.items
+         ? dto.items.map((item) => ({ amount: toMoney(item.amount, '发票明细金额'), itemType: item.itemType?.trim() || null, content: item.content?.trim() || null, remark: item.remark?.trim() || null }))
+         : (dto.amount || dto.autoSplit !== undefined ? this.applicationItems(amount, undefined, dto.autoSplit ?? true, resolved.totalServiceFee) : currentItems);
       this.assertApplicationItems(amount, items);
       const updated = await tx.invoice.update({ where: { id }, data: { amount, invoiceNumber: dto.invoiceNumber?.trim(), invoiceDate: dto.invoiceDate ? new Date(dto.invoiceDate) : undefined, receiveRecordId: sources.length === 1 ? sources[0].receive.id : null, accountId: sources[0].receive.accountId, businessNo: sources.length === 1 ? sources[0].receive.receiveNo : 'MULTI_RECEIVE', invoiceType: dto.invoiceType?.trim(), invoiceNature: dto.invoiceNature?.trim(), invoiceTitle: dto.invoiceTitle?.trim(), taxNumber: dto.taxNumber?.trim(), invoiceContent: dto.invoiceContent?.trim(), rejectReason: row.status === InvoiceStatus.REJECTED ? null : undefined, reviewedBy: row.status === InvoiceStatus.REJECTED ? null : undefined, reviewedAt: row.status === InvoiceStatus.REJECTED ? null : undefined, approvalRemark: row.status === InvoiceStatus.REJECTED ? null : undefined, remark: dto.remark?.trim() } });
       await tx.invoiceApplicationReceiveRecord.deleteMany({ where: { invoiceId: id } });
@@ -201,7 +204,8 @@ export class InvoiceService {
     const preflight = await this.prisma.invoice.findUnique({ where: { id }, select: { status: true, organizationId: true } });
     if (!preflight) throw new NotFoundException('发票申请不存在');
     await this.scope.assertOrganizationAccess(preflight.organizationId, context);
-    if (![InvoiceStatus.APPROVED, InvoiceStatus.ISSUED].includes(preflight.status)) throw new ConflictException('只有审核通过或已完成开票的申请可以上传发票');
+    const uploadableStatuses: InvoiceStatus[] = [InvoiceStatus.APPROVED, InvoiceStatus.ISSUED];
+    if (!uploadableStatuses.includes(preflight.status)) throw new ConflictException('只有审核通过或已完成开票的申请可以上传发票');
     const amount = dto.amount ? toMoney(dto.amount, '发票金额') : new Prisma.Decimal(0);
     const fileId = randomUUID();
     const extension = extname(file.originalname).toLowerCase();
@@ -211,7 +215,7 @@ export class InvoiceService {
     await writeFile(storedPath, file.buffer);
     return this.prisma.$transaction(async (tx) => {
       const row = await this.lockInvoice(tx, id, context);
-      if (![InvoiceStatus.APPROVED, InvoiceStatus.ISSUED].includes(row.status)) throw new ConflictException('只有审核通过或已完成开票的申请可以上传发票');
+      if (!uploadableStatuses.includes(row.status)) throw new ConflictException('只有审核通过或已完成开票的申请可以上传发票');
       let itemId = dto.invoiceApplicationItemId;
       if (itemId) {
         const item = await tx.invoiceApplicationItem.findUnique({ where: { id: itemId }, select: { id: true, invoiceId: true } });
@@ -297,7 +301,8 @@ export class InvoiceService {
     return this.prisma.$transaction(async (tx) => {
       const row = await this.lockInvoice(tx, id, context);
       if (row.status === InvoiceStatus.ISSUED) return { idempotent: true, invoice: this.view(row) };
-      if (![InvoiceStatus.DRAFT, InvoiceStatus.PROCESSING].includes(row.status)) throw new ConflictException('当前发票状态不允许确认开票');
+      const confirmableStatuses: InvoiceStatus[] = [InvoiceStatus.DRAFT, InvoiceStatus.PROCESSING];
+      if (!confirmableStatuses.includes(row.status)) throw new ConflictException('当前发票状态不允许确认开票');
       const source = await this.resolveExistingSource(tx, row, context);
       await this.assertAmountAvailable(tx, source, row.amount, context, row.id);
       const updated = await tx.invoice.update({ where: { id }, data: { status: InvoiceStatus.ISSUED, confirmedBy: context.sub, confirmedAt: new Date(), invoiceDate: row.invoiceDate || new Date() } });
@@ -381,7 +386,8 @@ export class InvoiceService {
     if (!customerId) throw new ConflictException('发票业务来源缺少客户');
     if (dto.customerId && dto.customerId !== customerId) throw new ConflictException('发票客户与业务来源不匹配');
     if (receive && receive.status !== ReceiveRecordStatus.CONFIRMED) throw new ConflictException('只有已确认收款记录才能作为发票来源');
-    if (order && [PurchaseOrderStatus.DRAFT, PurchaseOrderStatus.PENDING_CONFIRMATION, PurchaseOrderStatus.CANCELLED].includes(order.status)) throw new ConflictException('当前订单状态不允许开票');
+    const invoiceBlockedOrderStatuses: PurchaseOrderStatus[] = [PurchaseOrderStatus.DRAFT, PurchaseOrderStatus.PENDING_CONFIRMATION, PurchaseOrderStatus.CANCELLED];
+    if (order && invoiceBlockedOrderStatuses.includes(order.status)) throw new ConflictException('当前订单状态不允许开票');
     return { organizationId, customerId, purchaseOrderId: order?.id || receive?.purchaseOrderId || null, receiveRecordId: receive?.id || null, accountId: order?.cashAccountId || receive?.accountId || null, businessNo: order?.orderNo || receive?.receiveNo || null, currency: 'CNY' };
   }
 

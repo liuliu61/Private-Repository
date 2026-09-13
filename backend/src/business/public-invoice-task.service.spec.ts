@@ -43,7 +43,8 @@ test('客户可以维护并选择多条开票信息', async () => {
 });
 
 test('普通操作员不能审核或完成开票，财务可以审核', async () => {
-  const value = fixture(InvoiceTaskStatus.REVIEWING);
+  const value = fixture(InvoiceTaskStatus.PENDING);
+  value.task.status = InvoiceTaskStatus.REVIEWING;
   await assert.rejects(() => value.service.approve(ids.task, {}, normal), /无权审核/);
   const approved = await value.service.approve(ids.task, { approvalRemark: '通过' }, finance);
   assert.equal(approved.status, InvoiceTaskStatus.APPROVED);
@@ -51,7 +52,8 @@ test('普通操作员不能审核或完成开票，财务可以审核', async ()
 });
 
 test('管理员人工填写实际发票信息后完成开票，不改变收款或钱包', async () => {
-  const value = fixture(InvoiceTaskStatus.APPROVED);
+  const value = fixture(InvoiceTaskStatus.PENDING);
+  value.task.status = InvoiceTaskStatus.APPROVED;
   const completed = await value.service.complete(ids.task, { amount: '25000.00', invoiceType: '增值税普通发票', invoiceCode: 'INV-001', invoiceContent: '服务费' }, admin);
   assert.equal(completed.status, InvoiceTaskStatus.COMPLETED);
   assert.equal(value.details[0].invoiceCode, 'INV-001');

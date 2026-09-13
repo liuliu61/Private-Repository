@@ -56,7 +56,8 @@ export class PublicInvoiceTaskService {
   async update(id: string, dto: UpdateInvoiceTaskDto, context: AccessContext) {
     this.assertManage(context);
     const task = await this.findTask(id, context);
-    if (![InvoiceTaskStatus.PENDING, InvoiceTaskStatus.REJECTED].includes(task.status)) throw new ConflictException('当前状态不允许修改开票任务');
+    const editableStatuses: InvoiceTaskStatus[] = [InvoiceTaskStatus.PENDING, InvoiceTaskStatus.REJECTED];
+    if (!editableStatuses.includes(task.status)) throw new ConflictException('当前状态不允许修改开票任务');
     const amount = toMoney(dto.invoiceAmount, '需开票金额');
     if (amount.lte(0) || amount.gt(task.publicAmount)) throw new BadRequestException('需开票金额必须大于0且不能超过对公入账金额');
     const snapshot = await this.resolveProfile(task.customerId, dto.invoiceProfileId, context);
@@ -70,7 +71,8 @@ export class PublicInvoiceTaskService {
     return this.prisma.$transaction(async (tx) => {
       const task = await this.lockTask(tx, id, context);
       if (task.status === InvoiceTaskStatus.REVIEWING) return { idempotent: true, task: this.view(task) };
-      if (![InvoiceTaskStatus.PENDING, InvoiceTaskStatus.REJECTED].includes(task.status)) throw new ConflictException('当前状态不允许提交审核');
+      const submittableStatuses: InvoiceTaskStatus[] = [InvoiceTaskStatus.PENDING, InvoiceTaskStatus.REJECTED];
+      if (!submittableStatuses.includes(task.status)) throw new ConflictException('当前状态不允许提交审核');
       const updated = await tx.invoiceTask.update({ where: { id }, data: { status: InvoiceTaskStatus.REVIEWING, submittedAt: new Date(), rejectReason: null }, include: this.include() });
       await this.audit(tx, context, updated.organizationId, id, 'INVOICE_TASK_SUBMIT', { status: task.status }, { status: updated.status });
       return { idempotent: false, task: this.view(updated) };

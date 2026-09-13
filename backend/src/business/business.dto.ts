@@ -134,7 +134,7 @@ export class CreateProcurementOrderDto {
   @IsUUID('4') supplierId!: string;
   @IsOptional() @IsUUID('4', { message: '伙伴CNY账户ID格式不正确' }) supplierAccountId?: string;
   @IsEnum(SupplierPlatform) platform!: SupplierPlatform;
-  @IsOptional() @IsEnum(PurchaseOrderTransactionType, { message: '交易类型不正确' }) transactionType: PurchaseOrderTransactionType = PurchaseOrderTransactionType.TRANSFER_IN;
+  @IsOptional() @IsEnum(PurchaseOrderTransactionType, { message: '交易类型不正确' }) transactionType?: PurchaseOrderTransactionType = PurchaseOrderTransactionType.TRANSFER_IN;
   @IsOptional() @IsString() @MaxLength(50) businessType?: string;
   @IsUUID('4') subjectId!: string;
   @IsUUID('4') accountId!: string;
@@ -370,8 +370,8 @@ export enum WalletAdjustmentDirection { INCOME = 'INCOME', EXPENSE = 'EXPENSE' }
 export class CreateCustomerWalletDto {
   @IsUUID('4', { message: '客户ID格式不正确' }) customerId!: string;
   @IsOptional() @IsString() @MaxLength(100) walletName?: string;
-  @IsOptional() @IsEnum(CustomerWalletType, { message: '钱包类型不正确' }) walletType: CustomerWalletType = CustomerWalletType.FINANCE_V;
-  @IsOptional() @IsEnum(AccountUnit, { message: '钱包单位不正确' }) unit: AccountUnit = AccountUnit.CNY;
+  @IsOptional() @IsEnum(CustomerWalletType, { message: '钱包类型不正确' }) walletType?: CustomerWalletType = CustomerWalletType.FINANCE_V;
+  @IsOptional() @IsEnum(AccountUnit, { message: '钱包单位不正确' }) unit?: AccountUnit = AccountUnit.CNY;
 }
 
 export class CustomerWalletListQueryDto {

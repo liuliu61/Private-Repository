@@ -1,4 +1,4 @@
-import { AccountStatus, AccountUnit, CustomerWalletTransactionType, Prisma, PromotionAccountOwnerType, PromotionAccountUnit } from '@prisma/client';
+import { AccountStatus, AccountUnit, CustomerWalletTransactionType, CustomerWalletType, Prisma, PromotionAccountOwnerType, PromotionAccountUnit } from '@prisma/client';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CustomerWalletService } from './customer-wallet.service';
@@ -11,7 +11,7 @@ const operatorId = '00000000-0000-4000-8000-000000000003';
 function decimal(value: string) { return new Prisma.Decimal(value); }
 function walletRow(overrides: Record<string, unknown> = {}) {
   const now = new Date();
-  return { id: '00000000-0000-4000-8000-000000000010', customerId, organizationId, walletName: '客户钱包', unit: AccountUnit.ACCOUNT_CREDIT, cashBalance: decimal('0.00'), groupBalance: decimal('0.00'), creditLimit: decimal('0.00'), creditUsed: decimal('0.00'), advanceOutstanding: decimal('0.00'), status: AccountStatus.ACTIVE, createdAt: now, updatedAt: now, customer: { id: customerId, name: '客户A', customerCode: 'C001', agentId: organizationId }, ...overrides };
+  return { id: '00000000-0000-4000-8000-000000000010', customerId, organizationId, walletName: '客户钱包', walletType: CustomerWalletType.FINANCE_V, unit: AccountUnit.CNY, cashBalance: decimal('0.00'), groupBalance: decimal('0.00'), creditLimit: decimal('0.00'), creditUsed: decimal('0.00'), advanceOutstanding: decimal('0.00'), status: AccountStatus.ACTIVE as AccountStatus, createdAt: now, updatedAt: now, customer: { id: customerId, name: '客户A', customerCode: 'C001', agentId: organizationId }, ...overrides };
 }
 
 function createFixture(withWallet = true) {
@@ -29,7 +29,7 @@ function createFixture(withWallet = true) {
       findUnique: async ({ where: { id, customerId: idByCustomer } }: any) => wallets.find((item) => (id ? item.id === id : item.customerId === idByCustomer)) || null,
       findMany: async () => wallets,
       create: async ({ data }: any) => { const row = walletRow({ id: `wallet-${wallets.length + 1}`, ...data }); wallets.push(row); return row; },
-      update: async ({ where: { id }, data }: any) => { const row = wallets.find((item) => item.id === id); Object.assign(row, data); return row; },
+      update: async ({ where: { id }, data }: any) => { const row = wallets.find((item) => item.id === id); if (!row) throw new Error('钱包不存在'); Object.assign(row, data); return row; },
     },
     customerWalletTransaction: {
       findUnique: async ({ where: { idempotencyKey } }: any) => walletTransactions.find((item) => item.idempotencyKey === idempotencyKey) || null,
@@ -51,8 +51,8 @@ function createFixture(withWallet = true) {
 
 test('客户钱包创建、查询和多推广账户聚合', async () => {
   const fixture = createFixture(false);
-  const created = await fixture.service.create({ customerId, unit: AccountUnit.ACCOUNT_CREDIT, walletName: '客户A钱包' }, fixture.context);
-  assert.equal(created.unit, AccountUnit.ACCOUNT_CREDIT);
+  const created = await fixture.service.create({ customerId, walletName: '客户A钱包' }, fixture.context);
+  assert.equal(created.unit, AccountUnit.CNY);
   const detail = await fixture.service.getById(fixture.wallets[0].id, fixture.context);
   assert.equal(detail.groupBalance, '50000.00');
   assert.equal(detail.totalBalance, '50000.00');
@@ -87,7 +87,7 @@ test('手工调整、幂等和禁用钱包限制', async () => {
 
 test('客户钱包拒绝混用CNY单位', async () => {
   const fixture = createFixture();
-  await assert.rejects(() => fixture.service.create({ customerId, unit: AccountUnit.CNY }, fixture.context), /只支持ACCOUNT_CREDIT/);
+  await assert.rejects(() => fixture.service.create({ customerId, unit: AccountUnit.ACCOUNT_CREDIT }, fixture.context), /只支持CNY/);
 });
 
 test('并发钱包调整最终余额等于全部流水合计', async () => {

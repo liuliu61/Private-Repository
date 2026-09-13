@@ -91,7 +91,8 @@ export class CustomerWalletService {
 
   async adjust(walletId: string, dto: WalletAdjustmentDto, context: AccessContext) {
     this.assertPermission(context, 'FINANCE_WALLET_ADJUST');
-    if (![CustomerWalletTransactionType.ADJUSTMENT_RED, CustomerWalletTransactionType.ADJUSTMENT_BLUE, CustomerWalletTransactionType.MANUAL_ADJUSTMENT].includes(dto.type)) throw new BadRequestException('钱包调整类型不正确');
+    const adjustmentTypes: CustomerWalletTransactionType[] = [CustomerWalletTransactionType.ADJUSTMENT_RED, CustomerWalletTransactionType.ADJUSTMENT_BLUE, CustomerWalletTransactionType.MANUAL_ADJUSTMENT];
+    if (!adjustmentTypes.includes(dto.type)) throw new BadRequestException('钱包调整类型不正确');
     if (dto.type === CustomerWalletTransactionType.MANUAL_ADJUSTMENT && !dto.direction) throw new BadRequestException('手工调整必须指定收入或支出方向');
     const amount = toMoney(dto.amount, '调整金额');
     if (amount.lte(0)) throw new BadRequestException('调整金额必须大于0');

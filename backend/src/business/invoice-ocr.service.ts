@@ -52,7 +52,7 @@ export class InvoiceOcrService {
     form.append('file', new Blob([buffer], { type: mimeType }), originalName);
     const response = await fetch(endpoint, { method: 'POST', body: form, signal: AbortSignal.timeout(Number(process.env.OCR_SERVICE_TIMEOUT_MS || 30000)) });
     if (!response.ok) throw new Error(`OCR服务返回${response.status}`);
-    return await response.json() as { data?: Record<string, unknown>; rawResult?: unknown; rawResultJson?: unknown; fieldConfidence?: unknown };
+    return await response.json() as { data?: Record<string, unknown>; parsedResult?: Record<string, unknown>; rawResult?: unknown; rawResultJson?: unknown; fieldConfidence?: unknown };
   }
 
   private normalizeResult(data: Record<string, any>) {

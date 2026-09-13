@@ -58,7 +58,8 @@ export class PromotionAccountService {
 
     return this.prisma.$transaction(async (tx) => {
       const order = await this.lockOrder(tx, id, context);
-      if (![PurchaseOrderStatus.CONFIRMED, PurchaseOrderStatus.SETTLED].includes(order.status)) throw new ConflictException('订单必须已确认后才能确认账户币到账');
+      const creditStatuses: PurchaseOrderStatus[] = [PurchaseOrderStatus.CONFIRMED, PurchaseOrderStatus.SETTLED];
+      if (!creditStatuses.includes(order.status)) throw new ConflictException('订单必须已确认后才能确认账户币到账');
       if (!order.customerId || !order.organizationId || !order.customerCreditAmount) throw new BadRequestException({ success: false, code: 'PURCHASE_ORDER_CALCULATION_INCOMPLETE', message: '订单客户账户币金额未完成计算' });
       const existing = await tx.purchaseOrderCredit.findUnique({ where: { orderId_idempotencyKey: { orderId: id, idempotencyKey: dto.idempotencyKey } } });
       if (existing) return { idempotent: true, order: this.viewOrder(order), credit: this.creditView(existing) };

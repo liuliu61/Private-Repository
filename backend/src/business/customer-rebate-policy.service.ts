@@ -81,11 +81,11 @@ export class CustomerRebatePolicyService {
     return this.prisma.$transaction(async (tx) => {
       const policy = await tx.customerRebatePolicy.findFirst({ where: { id: policyId, customerId, adSubjectId: null, adAccountId: null } });
       if (!policy) throw new NotFoundException({ success: false, code: 'CUSTOMER_REBATE_POLICY_NOT_FOUND', message: '该客户返点政策不存在' });
-      if (policy.status === RebateRuleStatus.DISABLED) return { id: policy.id, customerId, status: policy.status };
-      await tx.customerRebatePolicy.update({ where: { id: policy.id }, data: { status: RebateRuleStatus.DISABLED } });
-      await tx.customerRebatePolicyVersion.updateMany({ where: { policyId: policy.id, status: RebateRuleStatus.ACTIVE }, data: { status: RebateRuleStatus.DISABLED } });
-      await tx.auditLog.create({ data: { operatorId: context.sub, organizationId: customer.agentId, actionType: 'CUSTOMER_REBATE_POLICY_DISABLE', businessType: 'CUSTOMER_REBATE_POLICY', businessId: policy.id, result: 'SUCCESS', beforeData: { status: policy.status }, afterData: { status: RebateRuleStatus.DISABLED } } });
-      return { id: policy.id, customerId, status: RebateRuleStatus.DISABLED };
+      if (policy.status === RebateRuleStatus.INACTIVE) return { id: policy.id, customerId, status: policy.status };
+      await tx.customerRebatePolicy.update({ where: { id: policy.id }, data: { status: RebateRuleStatus.INACTIVE } });
+      await tx.customerRebatePolicyVersion.updateMany({ where: { policyId: policy.id, status: RebateRuleStatus.ACTIVE }, data: { status: RebateRuleStatus.INACTIVE } });
+      await tx.auditLog.create({ data: { operatorId: context.sub, organizationId: customer.agentId, actionType: 'CUSTOMER_REBATE_POLICY_DISABLE', businessType: 'CUSTOMER_REBATE_POLICY', businessId: policy.id, result: 'SUCCESS', beforeData: { status: policy.status }, afterData: { status: RebateRuleStatus.INACTIVE } } });
+      return { id: policy.id, customerId, status: RebateRuleStatus.INACTIVE };
     });
   }
 

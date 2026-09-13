@@ -114,7 +114,7 @@ export class FinancialAdjustmentService {
     return row;
   }
 
-  private async assertOrganization(organizationId: string, context: AccessContext) { await this.scope.assertOrganizationAccess(organizationId, context); }
+  private async assertOrganization(organizationId: string | null, context: AccessContext) { if (!organizationId) throw new ForbiddenException('数据未配置所属组织'); await this.scope.assertOrganizationAccess(organizationId, context); }
   private assertPermission(context: AccessContext, permission: string) { if (!this.scope.isSuperAdmin(context) && !context.roles.includes('FINANCE') && !context.permissions.includes(permission)) throw new ForbiddenException({ success: false, code: 'PERMISSION_DENIED', message: '无权操作财务调整' }); }
   private generateNo() { return `ADJ${new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}${randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`; }
   private view(row: any) { return { ...row, amount: moneyToString(row.amount), account: row.account, promotionAccount: row.promotionAccount, transaction: row.transaction ? { ...row.transaction, changeAmount: moneyToString(row.transaction.changeAmount), balanceBefore: moneyToString(row.transaction.balanceBefore), balanceAfter: moneyToString(row.transaction.balanceAfter) } : undefined, promotionTransaction: row.promotionTransaction ? { ...row.promotionTransaction, changeAmount: moneyToString(row.promotionTransaction.changeAmount), balanceBefore: moneyToString(row.promotionTransaction.balanceBefore), balanceAfter: moneyToString(row.promotionTransaction.balanceAfter) } : undefined };

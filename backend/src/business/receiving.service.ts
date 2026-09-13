@@ -56,7 +56,8 @@ export class ReceivingService {
     this.assertPermission(context, 'FINANCE_BANK_TRANSACTION_MATCH');
     return this.prisma.$transaction(async (tx) => {
       const row = await this.lockBank(tx, id, context);
-      if ([BankTransactionStatus.RECEIPT_CONFIRMED, BankTransactionStatus.IGNORED].includes(row.status)) throw new ConflictException('当前银行交易状态不允许匹配');
+      const unmatchableStatuses: BankTransactionStatus[] = [BankTransactionStatus.RECEIPT_CONFIRMED, BankTransactionStatus.IGNORED];
+      if (unmatchableStatuses.includes(row.status)) throw new ConflictException('当前银行交易状态不允许匹配');
       const customer = await tx.customer.findUnique({ where: { id: dto.customerId }, select: { id: true, name: true, agentId: true } });
       if (!customer) throw new NotFoundException('客户不存在');
       if (customer.agentId !== row.organizationId) throw new ForbiddenException('客户不属于当前组织');
@@ -94,7 +95,8 @@ export class ReceivingService {
     return this.prisma.$transaction(async (tx) => {
       const row = await this.lockBank(tx, id, context);
       if (row.status === BankTransactionStatus.RECEIPT_CONFIRMED || row.receiveRecord?.status === ReceiveRecordStatus.CONFIRMED) throw new ConflictException('已确认收款的银行交易不能取消匹配');
-      if (!row.matchedCustomerId && !row.matchedPurchaseOrderId && [BankTransactionStatus.CONFIRMING, BankTransactionStatus.UNPROCESSED].includes(row.status)) return { idempotent: true, bankTransaction: this.bankView(row) };
+      const unmatchedStatuses: BankTransactionStatus[] = [BankTransactionStatus.CONFIRMING, BankTransactionStatus.UNPROCESSED];
+      if (!row.matchedCustomerId && !row.matchedPurchaseOrderId && unmatchedStatuses.includes(row.status)) return { idempotent: true, bankTransaction: this.bankView(row) };
       if (row.receiveRecord && row.receiveRecord.status !== ReceiveRecordStatus.CANCELLED) await tx.receiveRecord.update({ where: { id: row.receiveRecord.id }, data: { status: ReceiveRecordStatus.CANCELLED, remark: '取消银行交易匹配' } });
       const updated = await tx.bankTransaction.update({ where: { id }, data: { matchedCustomerId: null, matchedPurchaseOrderId: null, status: BankTransactionStatus.CONFIRMING } });
       await this.audit(tx, context, row.organizationId, id, 'BANK_TRANSACTION_UNMATCH', { status: row.status, matchedCustomerId: row.matchedCustomerId, matchedPurchaseOrderId: row.matchedPurchaseOrderId }, { status: updated.status });
@@ -174,7 +176,7 @@ export class ReceivingService {
       const detailAmount = details.reduce((total, detail) => total.add(detail.amount), new Prisma.Decimal(0)).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
       if (!detailAmount.eq(row.amount.toDecimalPlaces(2))) throw new ConflictException('对公款与对私款明细合计必须等于本次入账金额');
       const walletCreditAmount = row.amount.sub(serviceFeeAmount).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
-      const transaction = await this.cashflow.createTransactionInTransaction(tx, { accountId: row.accountId, businessType: TransactionBusinessType.CUSTOMER_PAYMENT, businessNo: row.receiveNo, changeAmount: row.amount, operatorId: context.sub, occurredAt: row.receivedAt, remark: row.remark, accessContext: context });
+      const transaction = await this.cashflow.createTransactionInTransaction(tx, { accountId: row.accountId, businessType: TransactionBusinessType.CUSTOMER_PAYMENT, businessNo: row.receiveNo, changeAmount: row.amount, operatorId: context.sub, occurredAt: row.receivedAt, remark: row.remark ?? undefined, accessContext: context });
       const walletResult = await this.customerWallet.applyReceivePostingInTransaction(tx, { customerId: row.customerId, organizationId: row.organizationId, receiveRecordId: row.id, receiveNo: row.receiveNo, walletCreditAmount, operatorId: context.sub, remark: dto.remark || row.remark || undefined });
       if (order) {
         const paidAmount = order.customerPaidAmount.add(row.amount);
