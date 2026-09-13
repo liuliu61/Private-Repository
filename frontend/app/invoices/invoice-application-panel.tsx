@@ -21,7 +21,7 @@ const statusName: Record<string, string> = { DRAFT: '起草', REVIEWING: '审核
 const invoiceTypes = ['增值税电子专用发票', '增值税电子普通发票', '增值税专用发票', '增值税普通发票', '形式发票'];
 
 function cents(value: string): bigint { const normalized = String(value || '0').trim(); const [whole, fraction = ''] = normalized.split('.'); return BigInt(`${whole || '0'}${fraction.padEnd(2, '0').slice(0, 2)}`); }
-function money(value: bigint): string { const sign = value < 0n ? '-' : ''; const absolute = value < 0n ? -value : value; return `${sign}${absolute / 100n}.${(absolute % 100n).toString().padStart(2, '0')}`; }
+function money(value: bigint): string { const zero = BigInt('0'); const hundred = BigInt('100'); const sign = value < zero ? '-' : ''; const absolute = value < zero ? -value : value; return `${sign}${absolute / hundred}.${(absolute % hundred).toString().padStart(2, '0')}`; }
 function availableReceive(item: Receive): bigint { return cents(item.amount) - cents(item.billedAmount || '0') - cents(item.billingAmount || '0'); }
 function tokenSubject(token: string): string { try { return JSON.parse(atob(token.split('.')[1])).sub || ''; } catch { return ''; } }
 
@@ -44,9 +44,9 @@ export default function InvoiceApplicationPanel({ token, customers, review = fal
   const autoSplit = Form.useWatch('autoSplit', form) !== false;
   const selectedReceives = useMemo(() => receives.filter((item) => selectedReceiveIds.includes(item.id)), [receives, selectedReceiveIds]);
   const currentUserId = useMemo(() => tokenSubject(token), [token]);
-  const selectedAvailable = useMemo(() => selectedReceives.reduce((sum, item) => sum + availableReceive(item), 0n), [selectedReceives]);
-  const selectedServiceFee = useMemo(() => selectedReceives.reduce((sum, item) => sum + cents(item.serviceFeeAmount || '0'), 0n), [selectedReceives]);
-  const splitPreview = useMemo(() => { const total = cents(amount); if (!autoSplit || total <= 0n) return [{ label: '自定义明细', amount: money(total) }]; const serviceFee = selectedServiceFee > total ? total : selectedServiceFee; const taxable = total - serviceFee; const technical = (taxable * 915n + 500n) / 1000n; return [{ label: '信息服务费', amount: money(serviceFee) }, { label: '技术服务费', amount: money(technical) }, { label: '广告发布费', amount: money(taxable - technical) }].filter((item) => item.amount !== '0.00'); }, [amount, autoSplit, selectedServiceFee]);
+  const selectedAvailable = useMemo(() => selectedReceives.reduce((sum, item) => sum + availableReceive(item), BigInt('0')), [selectedReceives]);
+  const selectedServiceFee = useMemo(() => selectedReceives.reduce((sum, item) => sum + cents(item.serviceFeeAmount || '0'), BigInt('0')), [selectedReceives]);
+  const splitPreview = useMemo(() => { const zero = BigInt('0'); const total = cents(amount); if (!autoSplit || total <= zero) return [{ label: '自定义明细', amount: money(total) }]; const serviceFee = selectedServiceFee > total ? total : selectedServiceFee; const taxable = total - serviceFee; const technical = (taxable * BigInt('915') + BigInt('500')) / BigInt('1000'); return [{ label: '信息服务费', amount: money(serviceFee) }, { label: '技术服务费', amount: money(technical) }, { label: '广告发布费', amount: money(taxable - technical) }].filter((item) => item.amount !== '0.00'); }, [amount, autoSplit, selectedServiceFee]);
 
   async function refresh(values: Record<string, string | undefined> = {}) {
     setLoading(true);
