@@ -15,7 +15,7 @@ function fixture(status = InvoiceTaskStatus.PENDING) {
   const tx: any = {
     $queryRaw: async () => [], auditLog: { create: async () => undefined },
     customer: { findUnique: async () => ({ id: ids.customer, agentId: ids.org }) },
-    customerInvoiceProfile: { findUnique: async ({ where: { id } }: any) => profiles.find((item) => item.id === id) || null, findMany: async () => profiles, create: async ({ data }: any) => { const row = { id: `profile-${profiles.length + 1}`, ...data }; profiles.push(row); return row; }, update: async ({ where: { id }, data }: any) => Object.assign(profiles.find((item) => item.id === id), data) },
+    customerInvoiceProfile: { findUnique: async ({ where: { id } }: any) => profiles.find((item) => item.id === id) || null, findMany: async () => profiles, create: async ({ data }: any) => { const row = { id: `profile-${profiles.length + 1}`, ...data }; profiles.push(row); return row; }, update: async ({ where: { id }, data }: any) => Object.assign(profiles.find((item) => item.id === id), data), updateMany: async ({ where, data }: any) => { profiles.filter((item) => item.customerId === where.customerId && item.isDefault).forEach((item) => Object.assign(item, data)); return { count: profiles.length }; }, delete: async ({ where: { id } }: any) => { const index = profiles.findIndex((item) => item.id === id); return profiles.splice(index, 1)[0]; } },
     invoiceTask: { findUnique: async () => task, update: async ({ data }: any) => Object.assign(task, data), count: async () => 1, findMany: async () => [task] },
     invoiceDetail: { create: async ({ data }: any) => { const row = { id: `detail-${details.length + 1}`, ...data }; details.push(row); task.invoiceDetails.push(row); return row; } },
     $transaction: async (input: any) => typeof input === 'function' ? input(tx) : Promise.all(input),
@@ -40,6 +40,14 @@ test('客户可以维护并选择多条开票信息', async () => {
   assert.equal(value.task.invoiceProfileId, second.id);
   assert.equal(value.task.titleName, second.titleName);
   assert.notEqual(first.id, second.id);
+});
+
+test('客户开票信息只保留一条默认信息', async () => {
+  const value = fixture();
+  const first = await value.service.createProfile(ids.customer, { titleName: '默认信息', isDefault: true }, normal);
+  const second = await value.service.createProfile(ids.customer, { titleName: '新默认信息', isDefault: true }, normal);
+  assert.equal(value.profiles.find((item) => item.id === first.id)?.isDefault, false);
+  assert.equal(value.profiles.find((item) => item.id === second.id)?.isDefault, true);
 });
 
 test('普通操作员不能审核或完成开票，财务可以审核', async () => {

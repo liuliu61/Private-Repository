@@ -1099,6 +1099,7 @@ model CustomerInvoiceProfile {
   bankName              String?       @map("bank_name") @db.VarChar(150)
   bankAccount           String?       @map("bank_account") @db.VarChar(100)
   defaultInvoiceContent String?       @map("default_invoice_content") @db.VarChar(255)
+  isDefault             Boolean       @default(false) @map("is_default")
   enabled               Boolean       @default(true)
   createdAt             DateTime      @default(now()) @map("created_at")
   updatedAt             DateTime      @updatedAt @map("updated_at")
@@ -1106,6 +1107,7 @@ model CustomerInvoiceProfile {
   invoiceTasks          InvoiceTask[]
 
   @@index([customerId, enabled])
+  @@index([customerId, isDefault])
   @@map("customer_invoice_profiles")
 }
 

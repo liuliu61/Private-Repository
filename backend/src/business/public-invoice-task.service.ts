@@ -15,6 +15,7 @@ export class PublicInvoiceTaskService {
     const organizationIds = await this.scope.getOrganizationIds(context);
     const where: Prisma.InvoiceTaskWhereInput = {
       organizationId: organizationIds ? { in: organizationIds } : undefined,
+      createdBy: this.canProcessAllTasks(context) ? undefined : context.sub,
       customerId: query.customerId,
       status: query.status,
       OR: query.keyword ? [{ taskNo: { contains: query.keyword, mode: 'insensitive' } }, { payerName: { contains: query.keyword, mode: 'insensitive' } }, { payerAccount: { contains: query.keyword, mode: 'insensitive' } }] : undefined,
@@ -29,6 +30,7 @@ export class PublicInvoiceTaskService {
   async get(id: string, context: AccessContext) {
     this.assertView(context);
     const row = await this.findTask(id, context);
+    this.assertTaskOwnerOrFinance(row, context);
     const auditLogs = await this.prisma.auditLog.findMany({ where: { businessType: 'PUBLIC_INVOICE_TASK', businessId: id }, orderBy: { createdAt: 'asc' } });
     return { ...this.view(row), auditLogs };
   }
@@ -36,13 +38,17 @@ export class PublicInvoiceTaskService {
   async listProfiles(customerId: string, context: AccessContext) {
     this.assertView(context);
     await this.assertCustomer(customerId, context);
-    return this.prisma.customerInvoiceProfile.findMany({ where: { customerId }, orderBy: [{ enabled: 'desc' }, { createdAt: 'desc' }] });
+    return this.prisma.customerInvoiceProfile.findMany({ where: { customerId }, orderBy: [{ enabled: 'desc' }, { isDefault: 'desc' }, { createdAt: 'desc' }] });
   }
 
   async createProfile(customerId: string, dto: CreateCustomerInvoiceProfileDto, context: AccessContext) {
     this.assertManage(context);
     await this.assertCustomer(customerId, context);
-    return this.prisma.customerInvoiceProfile.create({ data: { customerId, ...this.profileData(dto) } });
+    return this.prisma.$transaction(async (tx) => {
+      const data = this.profileData(dto);
+      if (data.isDefault) await tx.customerInvoiceProfile.updateMany({ where: { customerId, isDefault: true }, data: { isDefault: false } });
+      return tx.customerInvoiceProfile.create({ data: { customerId, ...data } });
+    });
   }
 
   async updateProfile(customerId: string, id: string, dto: UpdateCustomerInvoiceProfileDto, context: AccessContext) {
@@ -50,12 +56,27 @@ export class PublicInvoiceTaskService {
     await this.assertCustomer(customerId, context);
     const profile = await this.prisma.customerInvoiceProfile.findUnique({ where: { id } });
     if (!profile || profile.customerId !== customerId) throw new NotFoundException('开票信息不存在');
-    return this.prisma.customerInvoiceProfile.update({ where: { id }, data: this.profileData(dto) });
+    return this.prisma.$transaction(async (tx) => {
+      const data = this.profileData(dto);
+      if (data.isDefault) await tx.customerInvoiceProfile.updateMany({ where: { customerId, isDefault: true, id: { not: id } }, data: { isDefault: false } });
+      return tx.customerInvoiceProfile.update({ where: { id }, data });
+    });
+  }
+
+  async deleteProfile(customerId: string, id: string, context: AccessContext) {
+    this.assertManage(context);
+    await this.assertCustomer(customerId, context);
+    const profile = await this.prisma.customerInvoiceProfile.findUnique({ where: { id }, include: { _count: { select: { invoiceTasks: true } } } });
+    if (!profile || profile.customerId !== customerId) throw new NotFoundException('开票信息不存在');
+    if (profile._count.invoiceTasks > 0) throw new ConflictException('开票信息已被历史任务引用，不能删除');
+    await this.prisma.customerInvoiceProfile.delete({ where: { id } });
+    return { id };
   }
 
   async update(id: string, dto: UpdateInvoiceTaskDto, context: AccessContext) {
     this.assertManage(context);
     const task = await this.findTask(id, context);
+    this.assertTaskOwnerOrFinance(task, context);
     const editableStatuses: InvoiceTaskStatus[] = [InvoiceTaskStatus.PENDING, InvoiceTaskStatus.REJECTED];
     if (!editableStatuses.includes(task.status)) throw new ConflictException('当前状态不允许修改开票任务');
     const amount = toMoney(dto.invoiceAmount, '需开票金额');
@@ -70,6 +91,7 @@ export class PublicInvoiceTaskService {
     this.assertManage(context);
     return this.prisma.$transaction(async (tx) => {
       const task = await this.lockTask(tx, id, context);
+      this.assertTaskOwnerOrFinance(task, context);
       if (task.status === InvoiceTaskStatus.REVIEWING) return { idempotent: true, task: this.view(task) };
       const submittableStatuses: InvoiceTaskStatus[] = [InvoiceTaskStatus.PENDING, InvoiceTaskStatus.REJECTED];
       if (!submittableStatuses.includes(task.status)) throw new ConflictException('当前状态不允许提交审核');
@@ -130,10 +152,12 @@ export class PublicInvoiceTaskService {
   private async lockTask(tx: Prisma.TransactionClient, id: string, context: AccessContext) { await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "invoice_tasks" WHERE "id" = ${id}::uuid FOR UPDATE`); const task = await tx.invoiceTask.findUnique({ where: { id }, include: this.include() }); if (!task) throw new NotFoundException('开票任务不存在'); await this.scope.assertOrganizationAccess(task.organizationId, context); return task; }
   private async assertCustomer(customerId: string, context: AccessContext) { const customer = await this.prisma.customer.findUnique({ where: { id: customerId } }); if (!customer) throw new NotFoundException('客户不存在'); if (!customer.agentId) throw new ForbiddenException('客户未配置组织归属'); await this.scope.assertOrganizationAccess(customer.agentId, context); return customer; }
   private async resolveProfile(customerId: string, profileId: string | undefined, context: AccessContext) { if (profileId === undefined) return undefined; if (!profileId) return null; const profile = await this.prisma.customerInvoiceProfile.findUnique({ where: { id: profileId } }); if (!profile || profile.customerId !== customerId) throw new NotFoundException('开票信息不存在'); await this.assertCustomer(customerId, context); return profile; }
-  private profileData(dto: CreateCustomerInvoiceProfileDto) { return { titleName: dto.titleName.trim(), taxpayerCode: dto.taxpayerCode?.trim() || null, address: dto.address?.trim() || null, phone: dto.phone?.trim() || null, bankName: dto.bankName?.trim() || null, bankAccount: dto.bankAccount?.trim() || null, defaultInvoiceContent: dto.defaultInvoiceContent?.trim() || null, enabled: dto.enabled ?? true }; }
+  private profileData(dto: CreateCustomerInvoiceProfileDto) { return { titleName: dto.titleName.trim(), taxpayerCode: dto.taxpayerCode?.trim() || null, address: dto.address?.trim() || null, phone: dto.phone?.trim() || null, bankName: dto.bankName?.trim() || null, bankAccount: dto.bankAccount?.trim() || null, defaultInvoiceContent: dto.defaultInvoiceContent?.trim() || null, isDefault: dto.isDefault ?? false, enabled: dto.enabled ?? true }; }
   private taskSnapshot(profile: any, dto: UpdateInvoiceTaskDto) { const base: Record<string, string | null | undefined> = profile === undefined ? {} : profile ? { titleName: profile.titleName, taxpayerCode: profile.taxpayerCode, address: profile.address, phone: profile.phone, bankName: profile.bankName, bankAccount: profile.bankAccount, invoiceContent: profile.defaultInvoiceContent } : { titleName: null, taxpayerCode: null, address: null, phone: null, bankName: null, bankAccount: null, invoiceContent: null }; return { ...base, titleName: dto.titleName?.trim() ?? base.titleName, taxpayerCode: dto.taxpayerCode?.trim() ?? base.taxpayerCode, address: dto.address?.trim() ?? base.address, phone: dto.phone?.trim() ?? base.phone, bankName: dto.bankName?.trim() ?? base.bankName, bankAccount: dto.bankAccount?.trim() ?? base.bankAccount, invoiceContent: dto.invoiceContent?.trim() ?? base.invoiceContent, remark: dto.remark?.trim() ?? undefined }; }
   private view(row: any) { return { ...row, publicAmount: moneyToString(row.publicAmount), invoiceAmount: moneyToString(row.invoiceAmount), invoiceDetails: row.invoiceDetails?.map((detail: any) => ({ ...detail, amount: moneyToString(detail.amount) })) }; }
-  private assertView(context: AccessContext) { if (!this.scope.isSuperAdmin(context) && !context.roles.includes('FINANCE') && !context.permissions.includes('FINANCE_INVOICE_VIEW')) throw new ForbiddenException('无权查看开票任务'); }
+  private canProcessAllTasks(context: AccessContext) { return this.scope.isSuperAdmin(context) || context.roles.includes('FINANCE') || context.permissions.includes('FINANCE_INVOICE_CONFIRM') || context.permissions.includes('FINANCE_INVOICE_COMPLETE'); }
+  private assertTaskOwnerOrFinance(task: { createdBy: string }, context: AccessContext) { if (!this.canProcessAllTasks(context) && task.createdBy !== context.sub) throw new ForbiddenException('只能操作自己的开票任务'); }
+  private assertView(context: AccessContext) { if (!this.scope.isSuperAdmin(context) && !context.roles.includes('FINANCE') && !context.permissions.includes('FINANCE_INVOICE_VIEW') && !context.permissions.includes('FINANCE_INVOICE_CREATE') && !context.permissions.includes('FINANCE_INVOICE_EDIT')) throw new ForbiddenException('无权查看开票任务'); }
   private assertManage(context: AccessContext) { if (!this.scope.isSuperAdmin(context) && !context.roles.includes('FINANCE') && !context.permissions.includes('FINANCE_INVOICE_CREATE') && !context.permissions.includes('FINANCE_INVOICE_EDIT')) throw new ForbiddenException('无权维护开票任务'); }
   private assertReview(context: AccessContext) { if (!this.scope.isSuperAdmin(context) && !context.roles.includes('FINANCE') && !context.permissions.includes('FINANCE_INVOICE_CONFIRM')) throw new ForbiddenException('无权审核开票任务'); }
   private assertComplete(context: AccessContext) { if (!this.scope.isSuperAdmin(context) && !context.permissions.includes('FINANCE_INVOICE_COMPLETE')) throw new ForbiddenException('无权完成开票'); }

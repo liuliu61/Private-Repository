@@ -506,6 +506,7 @@ export class CreateCustomerInvoiceProfileDto {
   @IsOptional() @IsString() @MaxLength(150) bankName?: string;
   @IsOptional() @IsString() @MaxLength(100) bankAccount?: string;
   @IsOptional() @IsString() @MaxLength(255) defaultInvoiceContent?: string;
+  @IsOptional() @IsBoolean() isDefault?: boolean;
   @IsOptional() @IsBoolean() enabled?: boolean;
 }
 

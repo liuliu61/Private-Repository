@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BusinessIdParamDto, CompleteInvoiceTaskDto, CreateCustomerInvoiceProfileDto, InvoiceTaskQueryDto, InvoiceTaskRejectDto, InvoiceTaskReviewDto, UpdateCustomerInvoiceProfileDto, UpdateInvoiceTaskDto } from './business.dto';
@@ -23,4 +23,5 @@ export class PublicInvoiceTaskController {
   @Get('customers/:customerId/invoice-profiles') profiles(@Param('customerId') customerId: string, @Req() request: AuthenticatedRequest) { return this.service.listProfiles(customerId, request.user); }
   @Post('customers/:customerId/invoice-profiles') createProfile(@Param('customerId') customerId: string, @Body() dto: CreateCustomerInvoiceProfileDto, @Req() request: AuthenticatedRequest) { return this.service.createProfile(customerId, dto, request.user); }
   @Patch('customers/:customerId/invoice-profiles/:id') updateProfile(@Param('customerId') customerId: string, @Param('id') id: string, @Body() dto: UpdateCustomerInvoiceProfileDto, @Req() request: AuthenticatedRequest) { return this.service.updateProfile(customerId, id, dto, request.user); }
+  @Delete('customers/:customerId/invoice-profiles/:id') deleteProfile(@Param('customerId') customerId: string, @Param('id') id: string, @Req() request: AuthenticatedRequest) { return this.service.deleteProfile(customerId, id, request.user); }
 }
