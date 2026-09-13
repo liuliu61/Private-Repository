@@ -6,7 +6,7 @@
     "build": "nest build",
     "start:dev": "nest start --watch",
     "start": "node dist/main",
-    "test": "tsx --test \"src/**/*.spec.ts\"",
+    "test": "tsx --test src/**/*.spec.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev --name init",
     "prisma:seed": "tsx prisma/seed.ts"
