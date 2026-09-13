@@ -1,0 +1,66 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import { Button, Card, Checkbox, Descriptions, Form, Input, Modal, Select, Space, Table, Tag, Typography } from 'antd';
+
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+type Customer = { id: string; name: string; customerCode: string };
+type Receive = { id: string; receiveNo: string; amount: string; invoiceEligibleAmount: string; status: string; customer?: Customer };
+type Application = { id: string; invoiceNo: string; amount: string; status: string; customer?: Customer; receiveSources?: Array<{ amount: string; receiveRecord?: { receiveNo: string } }>; applicationItems?: Array<{ amount: string; itemType?: string }>; createdAt: string; reviewedBy?: string; reviewedAt?: string; approvalRemark?: string; rejectReason?: string };
+
+async function request<T>(path: string, token: string, options?: RequestInit): Promise<T> {
+  const response = await fetch(`${apiUrl}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options?.headers || {}) } });
+  const data = await response.json();
+  if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join('；') : data.message || '请求失败');
+  return data;
+}
+
+const statusName: Record<string, string> = { DRAFT: '起草', REVIEWING: '审核中', APPROVED: '审核通过', REJECTED: '审核不通过', PROCESSING: '开票中', ISSUED: '已开票', VOIDED: '已作废' };
+
+function cents(value: string): bigint { const normalized = String(value || '0').trim(); const [whole, fraction = ''] = normalized.split('.'); return BigInt(`${whole || '0'}${fraction.padEnd(2, '0').slice(0, 2)}`); }
+function money(value: bigint): string { const sign = value < 0n ? '-' : ''; const absolute = value < 0n ? -value : value; return `${sign}${absolute / 100n}.${(absolute % 100n).toString().padStart(2, '0')}`; }
+
+export default function InvoiceApplicationPanel({ token, customers, review = false, onError }: { token: string; customers: Customer[]; review?: boolean; onError: (message: string) => void }) {
+  const [rows, setRows] = useState<Application[]>([]);
+  const [receives, setReceives] = useState<Receive[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [detail, setDetail] = useState<Application | null>(null);
+  const [form] = Form.useForm();
+  const [filterForm] = Form.useForm();
+  const selectedReceiveIds = Form.useWatch('receiveRecordIds', form) || [];
+  const amount = Form.useWatch('amount', form) || '0';
+  const autoSplit = Form.useWatch('autoSplit', form) !== false;
+  const selectedReceives = useMemo(() => receives.filter((item) => selectedReceiveIds.includes(item.id)), [receives, selectedReceiveIds]);
+  const splitPreview = useMemo(() => { const total = cents(amount); if (!autoSplit || total <= 0n) return [{ label: '自定义明细', amount: money(total) }]; const first = total * 915n / 1000n; return [{ label: '技术服务', amount: money(first) }, { label: '广告发布', amount: money(total - first) }].filter((item) => item.amount !== '0.00'); }, [amount, autoSplit]);
+
+  async function refresh(values: Record<string, string | undefined> = {}) {
+    setLoading(true);
+    try { const params = new URLSearchParams({ page: '1', pageSize: '100' }); Object.entries(values).forEach(([key, value]) => { if (value) params.set(key, value); }); const result = await request<{ items: Application[] }>(`/invoices/applications?${params.toString()}`, token); setRows(result.items); }
+    catch (error) { onError(error instanceof Error ? error.message : '发票申请查询失败'); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => { void refresh(); if (!review) void request<{ items: Receive[] }>('/receive-records?page=1&pageSize=100&status=CONFIRMED', token).then((result) => { setReceives(result.items); const sourceId = new URLSearchParams(window.location.search).get('receiveRecordId'); if (sourceId && result.items.some((item) => item.id === sourceId)) form.setFieldValue('receiveRecordIds', [sourceId]); }).catch((error) => onError(error instanceof Error ? error.message : '收款来源查询失败')); }, [token, review, form]);
+
+  async function save(values: any, submit: boolean) {
+    try { const payload = { ...values, items: values.autoSplit === false ? values.items : undefined }; const result = await request<{ invoice: Application }>('/invoices/applications', token, { method: 'POST', body: JSON.stringify(payload) }); if (submit) await request(`/invoices/applications/${result.invoice.id}/submit`, token, { method: 'POST' }); setCreateOpen(false); form.resetFields(); await refresh(filterForm.getFieldsValue()); }
+    catch (error) { onError(error instanceof Error ? error.message : '发票申请保存失败'); }
+  }
+
+  async function reviewAction(id: string, approved: boolean) {
+    try { if (approved) await request(`/invoices/applications/${id}/approve`, token, { method: 'POST', body: JSON.stringify({}) }); else { const reason = window.prompt('请输入驳回原因'); if (!reason?.trim()) return; await request(`/invoices/applications/${id}/reject`, token, { method: 'POST', body: JSON.stringify({ rejectReason: reason }) }); } await refresh(filterForm.getFieldsValue()); }
+    catch (error) { onError(error instanceof Error ? error.message : '发票审核操作失败'); }
+  }
+
+  async function showDetail(id: string) { try { setDetail(await request<Application>(`/invoices/applications/${id}`, token)); } catch (error) { onError(error instanceof Error ? error.message : '发票申请详情查询失败'); } }
+  const statusOptions = review ? ['REVIEWING', 'APPROVED', 'REJECTED'] : ['DRAFT', 'REVIEWING', 'APPROVED', 'REJECTED'];
+
+  return <Card title={review ? '发票申请审核' : '发票申请'} loading={loading} extra={!review && <Button type="primary" onClick={() => setCreateOpen(true)}>新建申请</Button>}>
+    <Form form={filterForm} layout="inline" onFinish={(values) => void refresh(values)} style={{ marginBottom: 16 }}><Form.Item name="status"><Select allowClear placeholder="状态" style={{ width: 150 }} options={statusOptions.map((value) => ({ value, label: statusName[value] }))} /></Form.Item><Form.Item name="customerId"><Select allowClear showSearch optionFilterProp="label" placeholder="客户" style={{ width: 210 }} options={customers.map((item) => ({ value: item.id, label: `${item.name}（${item.customerCode}）` }))} /></Form.Item><Form.Item name="invoiceNo"><Input placeholder="申请编号" /></Form.Item><Button htmlType="submit" type="primary">查询</Button><Button onClick={() => { filterForm.resetFields(); void refresh(); }}>重置</Button></Form>
+    <Table rowKey="id" dataSource={rows} pagination={{ pageSize: 20 }} columns={[{ title: '申请编号', dataIndex: 'invoiceNo' }, { title: '客户', render: (_: unknown, row: Application) => row.customer?.name || '-' }, { title: '收款来源', render: (_: unknown, row: Application) => row.receiveSources?.map((source) => source.receiveRecord?.receiveNo).filter(Boolean).join('、') || '-' }, { title: '申请金额', dataIndex: 'amount' }, { title: '发票拆分', render: (_: unknown, row: Application) => row.applicationItems?.map((item) => `${item.itemType || '明细'} ${item.amount}`).join('；') || '-' }, { title: '申请时间', dataIndex: 'createdAt', render: (value: string) => new Date(value).toLocaleString('zh-CN') }, { title: '状态', dataIndex: 'status', render: (value: string) => <Tag>{statusName[value] || value}</Tag> }, { title: '操作', render: (_: unknown, row: Application) => <Space><Button type="link" onClick={() => void showDetail(row.id)}>详情</Button>{review && row.status === 'REVIEWING' && <><Button type="link" onClick={() => void reviewAction(row.id, true)}>通过</Button><Button type="link" danger onClick={() => void reviewAction(row.id, false)}>驳回</Button></>}</Space> }]} />
+    {!review && <Typography.Paragraph type="secondary">发票申请必须来源于已确认收款记录；审核通过只改变申请状态，不自动开票、不产生资金流水。</Typography.Paragraph>}
+    <Modal title="新建发票申请" open={createOpen} onCancel={() => { setCreateOpen(false); form.resetFields(); }} footer={[<Button key="cancel" onClick={() => { setCreateOpen(false); form.resetFields(); }}>取消</Button>, <Button key="draft" onClick={() => form.submit()}>保存起草</Button>, <Button key="submit" type="primary" onClick={() => form.validateFields().then((values) => save(values, true))}>提交申请</Button>]}><Form form={form} layout="vertical" initialValues={{ autoSplit: true }} onFinish={(values) => void save(values, false)}><Form.Item name="receiveRecordIds" label="收款来源" rules={[{ required: true, message: '请选择至少一笔已确认收款' }]}><Select mode="multiple" showSearch optionFilterProp="label" options={receives.map((item) => ({ value: item.id, label: `${item.receiveNo}｜可开票 ${item.invoiceEligibleAmount} 元｜${item.customer?.name || '未关联客户'}` }))} /></Form.Item><Form.Item label="来源可开票金额"><Input value={selectedReceives.reduce((sum, item) => sum + cents(item.invoiceEligibleAmount), 0n).toString() === '0' ? '0.00' : money(selectedReceives.reduce((sum, item) => sum + cents(item.invoiceEligibleAmount), 0n))} readOnly /></Form.Item><Form.Item name="amount" label="本次申请开票金额" rules={[{ required: true, message: '请输入申请金额' }]}><Input placeholder="Decimal金额，例如 50000.00" /></Form.Item><Form.Item name="autoSplit" valuePropName="checked"><Checkbox>自动按 91.5% / 8.5% 拆分</Checkbox></Form.Item>{autoSplit ? <Descriptions size="small" bordered column={1} title="拆分预览">{splitPreview.map((item) => <Descriptions.Item key={item.label} label={item.label}>{item.amount} 元</Descriptions.Item>)}</Descriptions> : <Form.List name="items" initialValue={[{ itemType: '技术服务' }, { itemType: '广告发布' }]}>{(fields, { add, remove }) => <>{fields.map((field) => <Space key={field.key} align="baseline"><Form.Item {...field} name={[field.name, 'itemType']}><Input placeholder="发票项目" /></Form.Item><Form.Item {...field} name={[field.name, 'amount']} rules={[{ required: true, message: '请输入明细金额' }]}><Input placeholder="金额" /></Form.Item><Button onClick={() => remove(field.name)}>删除</Button></Space>)}<Button onClick={() => add()}>添加明细</Button></>}</Form.List>}<Form.Item name="invoiceNature" label="发票性质"><Select allowClear options={[{ value: '蓝字发票', label: '蓝字发票' }]} /></Form.Item><Form.Item name="invoiceType" label="发票类型"><Input /></Form.Item><Form.Item name="remark" label="备注"><Input.TextArea maxLength={255} /></Form.Item></Form></Modal>
+    <Modal title="发票申请详情" open={Boolean(detail)} onCancel={() => setDetail(null)} footer={null}>{detail && <Descriptions bordered column={1}><Descriptions.Item label="申请编号">{detail.invoiceNo}</Descriptions.Item><Descriptions.Item label="客户">{detail.customer?.name || '-'}</Descriptions.Item><Descriptions.Item label="申请金额">{detail.amount} 元</Descriptions.Item><Descriptions.Item label="收款来源">{detail.receiveSources?.map((item) => `${item.receiveRecord?.receiveNo || '-'}（${item.amount}）`).join('、') || '-'}</Descriptions.Item><Descriptions.Item label="明细">{detail.applicationItems?.map((item) => `${item.itemType || '明细'}：${item.amount}`).join('；') || '-'}</Descriptions.Item><Descriptions.Item label="状态">{statusName[detail.status] || detail.status}</Descriptions.Item><Descriptions.Item label="审核意见">{detail.approvalRemark || detail.rejectReason || '-'}</Descriptions.Item></Descriptions>}</Modal>
+  </Card>;
+}

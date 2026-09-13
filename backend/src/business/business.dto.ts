@@ -561,3 +561,42 @@ export class UpdateInvoiceDraftDto {
 export class InvoiceVoidDto {
   @IsOptional() @IsString() @MaxLength(255) reason?: string;
 }
+
+export class InvoiceApplicationItemDto {
+  @Matches(positiveMoney, { message: '发票明细金额格式不正确' }) amount!: string;
+  @IsOptional() @IsString() @MaxLength(50) itemType?: string;
+  @IsOptional() @IsString() @MaxLength(255) content?: string;
+  @IsOptional() @IsString() @MaxLength(255) remark?: string;
+}
+
+export class CreateInvoiceApplicationDto {
+  @IsArray() @ArrayMinSize(1, { message: '至少选择一笔收款记录' }) @IsUUID('4', { each: true, message: '收款记录ID格式不正确' }) receiveRecordIds!: string[];
+  @Matches(positiveMoney, { message: '申请开票金额格式不正确' }) amount!: string;
+  @IsOptional() @IsBoolean() autoSplit = true;
+  @IsOptional() @ValidateNested({ each: true }) @Type(() => InvoiceApplicationItemDto) @IsArray() items?: InvoiceApplicationItemDto[];
+  @IsOptional() @IsString() @MaxLength(50) invoiceType?: string;
+  @IsOptional() @IsString() @MaxLength(50) invoiceNature?: string;
+  @IsOptional() @IsString() @MaxLength(150) invoiceTitle?: string;
+  @IsOptional() @IsString() @MaxLength(100) taxNumber?: string;
+  @IsOptional() @IsString() @MaxLength(255) invoiceContent?: string;
+  @IsOptional() @IsString() @MaxLength(255) remark?: string;
+  @IsOptional() @IsString() @MaxLength(100) clientRequestId?: string;
+}
+
+export class UpdateInvoiceApplicationDto {
+  @IsOptional() @Matches(positiveMoney, { message: '申请开票金额格式不正确' }) amount?: string;
+  @IsOptional() @IsArray() @IsUUID('4', { each: true, message: '收款记录ID格式不正确' }) receiveRecordIds?: string[];
+  @IsOptional() @IsBoolean() autoSplit?: boolean;
+  @IsOptional() @ValidateNested({ each: true }) @Type(() => InvoiceApplicationItemDto) @IsArray() items?: InvoiceApplicationItemDto[];
+  @IsOptional() @IsString() @MaxLength(50) invoiceNature?: string;
+  @IsOptional() @IsString() @MaxLength(50) invoiceType?: string;
+  @IsOptional() @IsString() @MaxLength(150) invoiceTitle?: string;
+  @IsOptional() @IsString() @MaxLength(100) taxNumber?: string;
+  @IsOptional() @IsString() @MaxLength(255) invoiceContent?: string;
+  @IsOptional() @IsString() @MaxLength(255) remark?: string;
+}
+
+export class InvoiceReviewDto {
+  @IsOptional() @IsString() @MaxLength(255) approvalRemark?: string;
+  @IsOptional() @IsString() @MaxLength(255) rejectReason?: string;
+}

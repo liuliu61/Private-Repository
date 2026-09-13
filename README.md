@@ -258,6 +258,18 @@ README 不是业务规则的唯一来源，不能用来推翻实测结论。遇�
 - `POST /api/invoices/:id/process|confirm|void`：提交开票中、确认开票、作废。
 - `GET /api/customers/:customerId/invoice-balance`：客户业务来源金额、已开票金额和未开票金额。
 
+#### 发票申请与审核（第一阶段）
+
+- 申请来源为已确认收款记录，支持一笔申请关联多笔收款，并保存收款来源分配金额。
+- `Invoice` 作为申请主表复用；申请明细保存于 `InvoiceApplicationItem`。
+- `GET /api/invoices/applications`、`GET /api/invoices/applications/:id`：申请列表与详情。
+- `POST /api/invoices/applications`、`PATCH /api/invoices/applications/:id`：创建或编辑起草申请。
+- `POST /api/invoices/applications/:id/submit`：起草 → 审核中。
+- `POST /api/invoices/applications/:id/approve|reject`：审核中 → 审核通过 / 审核不通过。
+- 支持 91.5% 技术服务与 8.5% 广告发布的金额拆分，明细合计必须等于申请金额，金额计算使用 Decimal。
+- 申请、提交和审核不会产生资金流水，不会改变客户 V 钱包、外采钱包或公司资金；审核通过也不会自动完成开票。
+- 发票申请第一阶段不包含正式发票上传、发票号码录入、发送邮箱、红字发票和作废后续流程。
+
 ### 财务核算与服务费对账
 
 - `GET /api/finance/overview`：公司 CNY 账户概览。

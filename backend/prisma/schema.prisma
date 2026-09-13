@@ -116,7 +116,7 @@ enum BankTransactionStatus { CONFIRMING UNPROCESSED MATCHED RECEIPT_CREATED RECE
 enum ReceiveRecordStatus { PENDING_MATCH PENDING_CONFIRMATION CONFIRMED CANCELLED }
 enum ReceivePostingStatus { POSTED REVERSED }
 enum ReceiveInvoiceStatus { UNISSUED PARTIAL ISSUED }
-enum InvoiceStatus { DRAFT PROCESSING ISSUED VOIDED }
+enum InvoiceStatus { DRAFT PROCESSING REVIEWING APPROVED REJECTED ISSUED VOIDED }
 
 model User {
   id           String       @id @default(uuid()) @db.Uuid
@@ -836,6 +836,7 @@ model ReceiveRecord {
   postings          ReceivePosting[]
   serviceFeeDetails ReceiveServiceFee[]
   refunds           Refund[]
+  invoiceApplicationSources InvoiceApplicationReceiveRecord[]
 
   @@index([organizationId, status, receivedAt])
   @@index([customerId, receivedAt])
@@ -909,6 +910,12 @@ model Invoice {
   status           InvoiceStatus  @default(DRAFT)
   clientRequestId  String?        @unique @map("client_request_id") @db.VarChar(100)
   createdBy        String         @map("created_by") @db.Uuid
+  submittedAt      DateTime?      @map("submitted_at")
+  reviewedBy       String?        @map("reviewed_by") @db.Uuid
+  reviewedAt       DateTime?      @map("reviewed_at")
+  approvalRemark   String?        @map("approval_remark") @db.VarChar(255)
+  rejectReason     String?        @map("reject_reason") @db.VarChar(255)
+  approvedAmount   Decimal?       @map("approved_amount") @db.Decimal(20, 2)
   confirmedBy      String?        @map("confirmed_by") @db.Uuid
   confirmedAt      DateTime?      @map("confirmed_at")
   voidedBy         String?        @map("voided_by") @db.Uuid
@@ -925,6 +932,8 @@ model Invoice {
   creator          User           @relation("InvoiceCreator", fields: [createdBy], references: [id])
   confirmer        User?          @relation("InvoiceConfirmer", fields: [confirmedBy], references: [id])
   voider           User?          @relation("InvoiceVoider", fields: [voidedBy], references: [id])
+  applicationItems InvoiceApplicationItem[]
+  receiveSources   InvoiceApplicationReceiveRecord[]
 
   @@index([organizationId, status, createdAt])
   @@index([customerId, status, createdAt])
@@ -933,6 +942,32 @@ model Invoice {
   @@index([accountId])
   @@index([businessNo])
   @@map("invoices")
+}
+
+model InvoiceApplicationItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  invoiceId String   @map("invoice_id") @db.Uuid
+  amount    Decimal  @db.Decimal(20, 2)
+  itemType  String?  @map("item_type") @db.VarChar(50)
+  content   String?  @db.VarChar(255)
+  remark    String?  @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId, createdAt])
+  @@map("invoice_application_items")
+}
+
+model InvoiceApplicationReceiveRecord {
+  invoiceId       String        @map("invoice_id") @db.Uuid
+  receiveRecordId String        @map("receive_record_id") @db.Uuid
+  amount          Decimal       @db.Decimal(20, 2)
+  invoice         Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  receiveRecord   ReceiveRecord @relation(fields: [receiveRecordId], references: [id], onDelete: Restrict)
+
+  @@id([invoiceId, receiveRecordId])
+  @@index([receiveRecordId])
+  @@map("invoice_application_receive_records")
 }
 
 model AdSubject {
