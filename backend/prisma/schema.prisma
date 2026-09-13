@@ -87,39 +87,224 @@ enum RebateCalculationMode {
   CREDIT_TO_CASH
 }
 
-enum OrganizationType { PLATFORM PRIMARY_AGENT SECONDARY_AGENT }
-enum OrganizationStatus { ACTIVE DISABLED }
-enum ReconciliationStatus { DRAFT CHECKING PASSED FAILED CONFIRMED COMPLETED HAS_DIFFERENCE }
-enum FinancialAdjustmentType { INCOME EXPENSE }
-enum FinancialAdjustmentStatus { DRAFT APPROVED REJECTED EXECUTED }
-enum SupplierPlatform { DOUYIN KUAISHOU XIAOHONGSHU TENCENT OTHER }
-enum AdAssetStatus { ACTIVE DISABLED }
-enum PurchaseOrderStatus { DRAFT PENDING_CONFIRMATION CONFIRMED SETTLED CANCELLED PENDING_REVIEW APPROVED PROCESSING COMPLETED REJECTED }
-enum PurchaseOrderTransactionType { TRANSFER_IN TRANSFER_OUT }
-enum SettlementType { CUSTOMER SUPPLIER }
-enum SettlementStatus { DRAFT GENERATED CONFIRMED SETTLED COMPLETED CANCELLED }
-enum AuditResult { SUCCESS FAILURE }
-enum SupplierSettlementType { REBATE_ON_BASE PAYMENT_AFTER_REBATE CREDIT_AFTER_REBATE FIXED_PRICE OTHER }
-enum ProfitStatus { PROFIT BREAK_EVEN LOSS }
-enum SupplierAccountType { BANK CASH OTHER }
-enum PaymentStatus { PENDING PARTIAL PAID }
-enum PurchasePaymentType { CUSTOMER_PAYMENT SUPPLIER_PAYMENT }
-enum RefundStatus { PENDING APPROVED REJECTED REFUNDED CANCELLED }
-enum AccountUnit { CNY ACCOUNT_CREDIT }
-enum PromotionAccountOwnerType { CUSTOMER SUPPLIER }
-enum PromotionAccountUnit { ACCOUNT_CREDIT }
-enum PromotionTransactionBusinessType { CUSTOMER_CREDIT SUPPLIER_CREDIT ADJUSTMENT OTHER }
-enum CustomerWalletTransactionType { OPENING_BALANCE ADJUSTMENT_RED ADJUSTMENT_BLUE MANUAL_ADJUSTMENT RECEIVE_POSTING RECEIVE_REFUND }
-enum CustomerWalletType { FINANCE_V EXTERNAL_PROCUREMENT }
-enum BankTransactionDirection { INCOME EXPENSE }
-enum BankTransactionStatus { CONFIRMING UNPROCESSED MATCHED RECEIPT_CREATED RECEIPT_CONFIRMED IGNORED }
-enum ReceiveRecordStatus { PENDING_MATCH PENDING_CONFIRMATION CONFIRMED CANCELLED }
-enum ReceivePostingStatus { POSTED REVERSED }
-enum ReceiveInvoiceStatus { UNISSUED PARTIAL ISSUED }
-enum InvoiceStatus { DRAFT PROCESSING REVIEWING APPROVED REJECTED ISSUED VOIDED }
-enum InvoiceOcrStatus { PENDING PROCESSING SUCCESS FAILED }
-enum ReceivePaymentNature { PUBLIC PRIVATE }
-enum InvoiceTaskStatus { PENDING REVIEWING APPROVED REJECTED COMPLETED }
+enum OrganizationType {
+  PLATFORM
+  PRIMARY_AGENT
+  SECONDARY_AGENT
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ReconciliationStatus {
+  DRAFT
+  CHECKING
+  PASSED
+  FAILED
+  CONFIRMED
+  COMPLETED
+  HAS_DIFFERENCE
+}
+
+enum FinancialAdjustmentType {
+  INCOME
+  EXPENSE
+}
+
+enum FinancialAdjustmentStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+  EXECUTED
+}
+
+enum SupplierPlatform {
+  DOUYIN
+  KUAISHOU
+  XIAOHONGSHU
+  TENCENT
+  OTHER
+}
+
+enum AdAssetStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  PENDING_CONFIRMATION
+  CONFIRMED
+  SETTLED
+  CANCELLED
+  PENDING_REVIEW
+  APPROVED
+  PROCESSING
+  COMPLETED
+  REJECTED
+}
+
+enum PurchaseOrderTransactionType {
+  TRANSFER_IN
+  TRANSFER_OUT
+}
+
+enum SettlementType {
+  CUSTOMER
+  SUPPLIER
+}
+
+enum SettlementStatus {
+  DRAFT
+  GENERATED
+  CONFIRMED
+  SETTLED
+  COMPLETED
+  CANCELLED
+}
+
+enum AuditResult {
+  SUCCESS
+  FAILURE
+}
+
+enum SupplierSettlementType {
+  REBATE_ON_BASE
+  PAYMENT_AFTER_REBATE
+  CREDIT_AFTER_REBATE
+  FIXED_PRICE
+  OTHER
+}
+
+enum ProfitStatus {
+  PROFIT
+  BREAK_EVEN
+  LOSS
+}
+
+enum SupplierAccountType {
+  BANK
+  CASH
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
+enum PurchasePaymentType {
+  CUSTOMER_PAYMENT
+  SUPPLIER_PAYMENT
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REFUNDED
+  CANCELLED
+}
+
+enum AccountUnit {
+  CNY
+  ACCOUNT_CREDIT
+}
+
+enum PromotionAccountOwnerType {
+  CUSTOMER
+  SUPPLIER
+}
+
+enum PromotionAccountUnit {
+  ACCOUNT_CREDIT
+}
+
+enum PromotionTransactionBusinessType {
+  CUSTOMER_CREDIT
+  SUPPLIER_CREDIT
+  ADJUSTMENT
+  OTHER
+}
+
+enum CustomerWalletTransactionType {
+  OPENING_BALANCE
+  ADJUSTMENT_RED
+  ADJUSTMENT_BLUE
+  MANUAL_ADJUSTMENT
+  RECEIVE_POSTING
+  RECEIVE_REFUND
+}
+
+enum CustomerWalletType {
+  FINANCE_V
+  EXTERNAL_PROCUREMENT
+}
+
+enum BankTransactionDirection {
+  INCOME
+  EXPENSE
+}
+
+enum BankTransactionStatus {
+  CONFIRMING
+  UNPROCESSED
+  MATCHED
+  RECEIPT_CREATED
+  RECEIPT_CONFIRMED
+  IGNORED
+}
+
+enum ReceiveRecordStatus {
+  PENDING_MATCH
+  PENDING_CONFIRMATION
+  CONFIRMED
+  CANCELLED
+}
+
+enum ReceivePostingStatus {
+  POSTED
+  REVERSED
+}
+
+enum ReceiveInvoiceStatus {
+  UNISSUED
+  PARTIAL
+  ISSUED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PROCESSING
+  REVIEWING
+  APPROVED
+  REJECTED
+  ISSUED
+  VOIDED
+}
+
+enum InvoiceOcrStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+}
+
+enum ReceivePaymentNature {
+  PUBLIC
+  PRIVATE
+}
+
+enum InvoiceTaskStatus {
+  PENDING
+  REVIEWING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
 
 model User {
   id           String       @id @default(uuid()) @db.Uuid
