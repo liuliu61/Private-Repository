@@ -6,7 +6,7 @@ import { Button, Card, Descriptions, Form, Input, Modal, Select, Space, Table, T
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 type Customer = { id: string; name: string; customerCode: string };
-type BankTransaction = { id: string; transactionNo: string; account?: { name: string; accountCode: string }; occurredAt: string; direction: string; amount: string; counterpartyName?: string; status: string; matchedCustomer?: { name: string }; receiveRecord?: { id: string; receiveNo: string; status: string } };
+type BankTransaction = { id: string; transactionNo: string; account?: { name: string; accountCode: string }; occurredAt: string; direction: string; amount: string; counterpartyName?: string; status: string; matchedCustomer?: { name: string }; receiveRecord?: { id: string; receiveNo: string; status: string }; details?: ReceiveDetail[] };
 type ReceiveDetail = { id: string; type: 'PUBLIC' | 'PRIVATE'; amount: string };
 type ReceiveRecord = { id: string; receiveNo: string; amount: string; invoiceEligibleAmount?: string; receivedAt: string; status: string; customer?: { name: string; customerCode: string }; bankTransaction?: { transactionNo: string }; purchaseOrder?: { orderNo: string }; transaction?: { transactionNo: string }; details?: ReceiveDetail[] };
 
@@ -129,7 +129,7 @@ export default function ReceivingPanel({ token, customers, onError }: { token: s
         { title: '交易时间', dataIndex: 'occurredAt', render: (value: string) => new Date(value).toLocaleString('zh-CN') },
         { title: '方向', dataIndex: 'direction', render: (value: string) => directionName[value] || value },
         { title: '金额', dataIndex: 'amount' },
-        { title: '对公/对私', render: (_: unknown, row: ReceiveRecord) => row.details?.length ? row.details.map((detail) => `${detail.type === 'PUBLIC' ? '对公' : '对私'} ${detail.amount}`).join(' / ') : '-' },
+        { title: '对公/对私', render: (_: unknown, row: BankTransaction) => row.details?.length ? row.details.map((detail) => `${detail.type === 'PUBLIC' ? '对公' : '对私'} ${detail.amount}`).join(' / ') : '-' },
         { title: '对方名称', dataIndex: 'counterpartyName' },
         { title: '客户', render: (_: unknown, row: BankTransaction) => row.matchedCustomer?.name || '待匹配' },
         { title: '状态', dataIndex: 'status', render: (value: string) => <Tag>{bankStatus[value] || value}</Tag> },

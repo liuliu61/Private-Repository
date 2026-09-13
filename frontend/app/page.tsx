@@ -18,7 +18,7 @@ import ServiceFeePanel from './service-fee-reconciliation/service-fee-panel';
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 const { Header, Sider, Content } = Layout;
 type Dashboard = { accountBalance: string; accountCount: number; pendingRebates: number; pendingOrders: number; pendingSettlements: number };
-type Account = { id: string; name: string; accountCode: string; accountType: string; currentBalance: string; status: string };
+type Account = { id: string; name: string; accountCode: string; accountType: string; currency: string; currentBalance: string; status: string };
 type Transaction = { id: string; transactionNo: string; businessType: string; businessNo: string; changeAmount: string; balanceAfter: string; occurredAt: string };
 type Customer = { id: string; name: string; customerCode: string };
 type Supplier = { id: string; name: string; platform: string; status: string };
