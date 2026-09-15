@@ -31,7 +31,7 @@ https://github.com/liuliu61/Private-Repository.git
 ## 本地启动
 
 ```text
-cd D:\刘欣\Documents\个人渠道记账
+cd D:\Documents\个人渠道记账
 docker compose up -d postgres
 cd backend
 npm install
@@ -44,7 +44,7 @@ npm run start:dev
 另开终端启动前端：
 
 ```text
-cd D:\刘欣\Documents\个人渠道记账\frontend
+cd D:\Documents\个人渠道记账\frontend
 npm install
 npm run dev
 ```
