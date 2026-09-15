@@ -293,21 +293,34 @@ README 不是业务规则的唯一来源，不能用来推翻实测结论。遇�
 
 ## Git 开发规范
 
-1. `main` 作为稳定主分支。
-2. 新功能不要长期直接开发在 `main`。
-3. 每个独立任务创建独立分支，命名建议 `feature/<功能名>`，例如 `feature/recharge-payment`。
-4. Bug 修复使用 `fix/<问题名>`。
-5. 每完成一个独立任务必须提交 commit。
-6. commit message 使用清晰、可追踪的英文格式，例如：
+### 仓库与分支
+
+- GitHub 主仓库：`https://github.com/liuliu61/Private-Repository.git`。
+- `main` 是稳定主分支和生产发布基线；不得直接在 `main` 上长期开发。
+- 每个独立任务从最新 `main` 创建独立分支，功能使用 `feature/<功能名>`，修复使用 `fix/<问题名>`。
+- 开始任务前确认分支基于最新 `main`；任务结束后先完成验证，再通过 Pull Request 合并。
+- 未经明确授权，不得修改、删除或重写其他未合并分支的提交。
+
+### 提交与审查
+
+- 每完成一个独立任务必须提交 commit，一个 commit 尽量只对应一个逻辑任务。
+- commit message 使用清晰、可追踪的英文格式，例如：
    - `feat: implement recharge payment workflow`
    - `fix: correct receiving wallet posting`
    - `test: add receiving business rule tests`
    - `docs: update business rules`
-7. 一个 commit 尽量只对应一个逻辑任务。
-8. 不要把无关的代码格式化、重构混进业务 commit。
-9. 完成任务后先验证，再合并到 `main`。
-10. 不允许对 `main` 强制推送（force push）。
-11. 不允许修改已发布的历史 commit 来掩盖错误。
+- 不要把无关的格式化、重构、部署文件或临时文件混进业务 commit。
+- 提交前检查 `git diff`、`git diff --check` 和 `git status`，确认没有密钥、密码、令牌、`.env` 或本机生成物。
+- 任务报告必须说明实际修改文件、测试结果、数据库/migration 是否变更以及遗留问题。
+- 不允许对 `main` 强制推送（force push），也不允许修改已发布的历史 commit 来掩盖错误。
+
+### 生产变更
+
+- 生产服务器只用于部署已确认的 Git 提交，不作为日常开发工作区。
+- 服务器上的未提交部署配置或验证修复必须先盘点、备份并明确归属，禁止直接 reset、clean 或覆盖。
+- 生产数据库变更只允许通过已审查的 Prisma migration；禁止使用 `db push`、`migrate reset` 或手工改写 migration 历史替代正式流程。
+- 生产环境的密钥、密码、证书私钥和本机配置不得进入 Git；使用服务器环境变量或受保护的配置文件。
+- 发布前依次确认构建、migration 状态、进程状态、监听范围和域名链路；未验证的业务资金动作不得上线。
 
 ## Codex 开发原则
 
