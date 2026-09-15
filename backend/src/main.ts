@@ -8,6 +8,12 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
   app.enableCors({ origin: true, credentials: true });
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
-  await app.listen(process.env.BACKEND_PORT || 3001);
+  const port = Number(process.env.BACKEND_PORT || 3001);
+  const host = process.env.BACKEND_HOST;
+  if (host) {
+    await app.listen(port, host);
+  } else {
+    await app.listen(port);
+  }
 }
 bootstrap();
