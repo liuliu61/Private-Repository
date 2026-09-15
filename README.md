@@ -15,7 +15,7 @@
 ## 正式开发目录
 
 ```text
-D:\刘欣\Documents\个人渠道记账
+D:\Documents\个人渠道记账
 ```
 
 `D:\agent-finance-system` 是历史临时副本，不再作为正式开发目录。所有后端、前端、Prisma schema、migration、DTO、Service、Controller、测试、README 和配置都在中文正式目录中修改。
