@@ -21,8 +21,14 @@ function createFixture(withWallet = true) {
     { customerId, ownerType: PromotionAccountOwnerType.CUSTOMER, unit: PromotionAccountUnit.ACCOUNT_CREDIT, currentBalance: decimal('30000.00') },
     { customerId, ownerType: PromotionAccountOwnerType.CUSTOMER, unit: PromotionAccountUnit.ACCOUNT_CREDIT, currentBalance: decimal('20000.00') },
   ];
+  let txChain: Promise<unknown> = Promise.resolve();
   const prisma: any = {
-    $transaction: async (callback: (tx: any) => Promise<unknown>) => callback(prisma),
+    // 真实库行锁（SELECT ... FOR UPDATE）会串行化事务；mock 用队列模拟，避免并发 lost-update
+    $transaction: async (callback: (tx: any) => Promise<unknown>) => {
+      const run = txChain.then(() => callback(prisma));
+      txChain = run.then(() => undefined, () => undefined);
+      return run;
+    },
     $queryRaw: async () => [],
     customer: { findUnique: async ({ where: { id } }: any) => id === customerId ? { id, name: '客户A', agentId: organizationId, status: 'ACTIVE' } : null },
     customerWallet: {

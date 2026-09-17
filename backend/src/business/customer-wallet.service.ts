@@ -46,7 +46,7 @@ export class CustomerWalletService {
       include: { customer: { select: { id: true, name: true, customerCode: true, agentId: true } } },
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
     });
-    const groupBalances = await this.getGroupBalances(rows.filter((row) => row.walletType !== CustomerWalletType.FINANCE_V).map((row) => row.customerId));
+    const groupBalances = await this.getGroupBalances(rows.map((row) => row.customerId));
     const views = rows.map((row) => this.walletView(row, groupBalances.get(row.customerId) || new Prisma.Decimal(0), row.customer));
     const filtered = views.filter((row) => this.matchesComparison(new Prisma.Decimal(row.totalBalance), query.totalBalanceOperator, query.totalBalance) && this.matchesComparison(new Prisma.Decimal(row.advanceOutstanding), query.advanceOperator, query.advanceOutstanding) && this.matchesComparison(new Prisma.Decimal(row.creditLimit), query.creditLimitOperator, query.creditLimit));
     const start = (query.page - 1) * query.pageSize;
@@ -56,7 +56,7 @@ export class CustomerWalletService {
   async getById(id: string, context: AccessContext) {
     this.assertPermission(context, 'FINANCE_WALLET_VIEW');
     const wallet = await this.getWallet(id, context);
-    const groupBalance = wallet.walletType === CustomerWalletType.FINANCE_V ? new Prisma.Decimal(0) : (await this.getGroupBalances([wallet.customerId])).get(wallet.customerId) || new Prisma.Decimal(0);
+    const groupBalance = (await this.getGroupBalances([wallet.customerId])).get(wallet.customerId) || new Prisma.Decimal(0);
     return this.walletView(wallet, groupBalance, wallet.customer);
   }
 
@@ -113,7 +113,7 @@ export class CustomerWalletService {
       await this.audit(tx, context, locked.organizationId, walletId, 'CUSTOMER_WALLET_CREDIT_UPDATE', { creditLimit: moneyToString(locked.creditLimit), creditUsed: moneyToString(locked.creditUsed) }, { creditLimit: moneyToString(creditLimit), creditUsed: moneyToString(creditUsed), effectiveAt: dto.effectiveAt || new Date().toISOString(), remark: dto.remark || null });
       return row;
     });
-    return this.walletView(updated, updated.walletType === CustomerWalletType.FINANCE_V ? new Prisma.Decimal(0) : (await this.getGroupBalances([updated.customerId])).get(updated.customerId) || new Prisma.Decimal(0));
+    return this.walletView(updated, (await this.getGroupBalances([updated.customerId])).get(updated.customerId) || new Prisma.Decimal(0));
   }
 
   async updateAdvance(walletId: string, dto: WalletAdvanceUpdateDto, context: AccessContext) {
@@ -127,7 +127,7 @@ export class CustomerWalletService {
       await this.audit(tx, context, locked.organizationId, walletId, 'CUSTOMER_WALLET_ADVANCE_UPDATE', { advanceOutstanding: moneyToString(locked.advanceOutstanding) }, { advanceOutstanding: moneyToString(amount), effectiveAt: dto.effectiveAt || new Date().toISOString(), remark: dto.remark || null });
       return row;
     });
-    return this.walletView(updated, updated.walletType === CustomerWalletType.FINANCE_V ? new Prisma.Decimal(0) : (await this.getGroupBalances([updated.customerId])).get(updated.customerId) || new Prisma.Decimal(0));
+    return this.walletView(updated, (await this.getGroupBalances([updated.customerId])).get(updated.customerId) || new Prisma.Decimal(0));
   }
 
   async checkBalance(walletId: string, context: AccessContext) {
@@ -258,11 +258,17 @@ export class CustomerWalletService {
   }
 
   private async getGroupBalances(customerIds: string[]) {
-    return new Map<string, Prisma.Decimal>();
+    if (!customerIds.length) return new Map<string, Prisma.Decimal>();
+    const rows = await this.prisma.promotionAccount.groupBy({
+      by: ['customerId'],
+      where: { customerId: { in: customerIds }, ownerType: PromotionAccountOwnerType.CUSTOMER, unit: PromotionAccountUnit.ACCOUNT_CREDIT },
+      _sum: { currentBalance: true },
+    });
+    return new Map(rows.map((row) => [row.customerId, row._sum.currentBalance ?? new Prisma.Decimal(0)]));
   }
 
   private walletView(row: any, groupBalance: Prisma.Decimal, customer?: any) {
-    const currentGroup = row.walletType === CustomerWalletType.FINANCE_V ? new Prisma.Decimal(0) : groupBalance;
+    const currentGroup = groupBalance;
     const cashBalance = toMoney(row.cashBalance, '钱包现金余额');
     const totalBalance = cashBalance.add(currentGroup).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
     const creditAvailable = toMoney(row.creditLimit, '授信额度').sub(toMoney(row.creditUsed, '授信已使用金额')).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);

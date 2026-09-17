@@ -24,7 +24,7 @@ function createPaymentService(options: { failCompanyTransaction?: boolean } = {}
       update: async ({ data }: any) => { order = { ...order, ...data }; orderUpdates += 1; return order; },
     },
     purchaseOrderPayment: {
-      findUnique: async () => payment,
+      findUnique: async ({ where }: any) => (payment && payment.idempotencyKey === where.orderId_paymentType_idempotencyKey.idempotencyKey ? payment : null),
       create: async ({ data }: any) => { paymentCreates += 1; payment = { id: 'payment-a', ...data }; return payment; },
     },
     supplierAccount: { findUnique: async () => ({ id: 'supplier-account-a', supplierId: 'supplier-a', currency: 'CNY', status: 'ACTIVE' }) },

@@ -11,10 +11,10 @@ function fixture() {
   let credit: any = null;
   let transactionCount = 0;
   const tx = {
-    $queryRaw: async () => [],
+    $queryRaw: async () => [account],
     purchaseOrder: { findUnique: async () => order, update: async ({ data }: any) => { order = { ...order, ...data }; return order; } },
     customer: { findUnique: async () => ({ agentId: 'org-a' }) },
-    purchaseOrderCredit: { findUnique: async () => credit, create: async ({ data }: any) => { credit = { id: 'credit-a', ...data }; return credit; } },
+    purchaseOrderCredit: { findUnique: async ({ where }: any) => (credit && credit.idempotencyKey === where.orderId_idempotencyKey.idempotencyKey ? credit : null), create: async ({ data }: any) => { credit = { id: 'credit-a', ...data }; return credit; } },
     promotionTransaction: { create: async ({ data }: any) => { transactionCount += 1; return { id: 'promotion-tx-a', ...data }; } },
     promotionAccount: { update: async ({ data }: any) => { account = { ...account, current_balance: data.currentBalance }; return account; } },
     auditLog: { create: async () => undefined },
