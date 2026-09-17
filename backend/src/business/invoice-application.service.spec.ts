@@ -46,7 +46,9 @@ test('发票申请按收款可开票金额创建并自动拆分，不产生资�
   const value = fixture();
   const result = await value.service.createApplication({ receiveRecordIds: [receiveId], amount: '50000.00', autoSplit: true }, context);
   assert.equal(result.invoice.status, InvoiceStatus.DRAFT);
-  assert.deepEqual(value.items.map((item) => item.amount.toFixed(2)), ['1000.00', '44865.00', '4135.00']);
+  // 服务费 1000 单列后，剩余 49000 按已采集的 91.5%/8.5% 拆分：
+  // 技术服务 = 49000*0.915 = 44835.00，广告发布 = 49000-44835 = 4165.00，合计 50000.00
+  assert.deepEqual(value.items.map((item) => item.amount.toFixed(2)), ['1000.00', '44835.00', '4165.00']);
   assert.equal(value.sources[0].amount.toFixed(2), '50000.00');
   assert.equal(value.rows.length, 1);
 });
