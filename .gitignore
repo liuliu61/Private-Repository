@@ -29,3 +29,4 @@ services/ocr-service/.pytest_cache/
 *.swo
 .DS_Store
 Thumbs.db
+backend/pgdata/

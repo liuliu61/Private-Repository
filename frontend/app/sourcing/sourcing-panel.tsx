@@ -24,8 +24,10 @@ export default function SourcingPanel({ token, suppliers, onError }: { token: st
       const setting = await apiRequest<{ useCustomerWallet: boolean }>('/sourcing/setting', token);
       setUseCustomerWallet(setting.useCustomerWallet);
       const groups = await Promise.all(suppliers.map(async (supplier) => {
-        const rows = await apiRequest<Array<{ id: string; accountName: string; currentBalance: string; unit: string; status: string }>>(`/suppliers/${supplier.id}/promotion-accounts`, token);
-        return rows.map((row) => ({ ...row, supplierName: supplier.name }));
+        try {
+          const rows = await apiRequest<Array<{ id: string; accountName: string; currentBalance: string; unit: string; status: string }>>(`/suppliers/${supplier.id}/promotion-accounts`, token);
+          return rows.map((row) => ({ ...row, supplierName: supplier.name }));
+        } catch { return [] as Array<PartnerWallet>; }
       }));
       setWallets(groups.flat());
     } catch (error) { onError(error instanceof Error ? error.message : '外采钱包查询失败'); }
