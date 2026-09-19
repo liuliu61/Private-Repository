@@ -87,7 +87,7 @@ npm run dev
 - 伙伴钱包人工调整：待确认
 - 伙伴独立钱包明细页面：待确认
 - 充值付款完整资金执行链路：待确认
-- 发票实际上传完成链路：部分完成
+- 对公开票任务、审核与人工完成开票：已完成基础流程；税务接口、自动开票、邮件与红字/作废后续流程待确认
 - 红字发票 / 作废的完整真实业务流程：待确认
 - 银行交易“忽略”操作接口、银行接口自动同步、自动候选匹配：待确认
 
@@ -110,12 +110,11 @@ npm run dev
 
 ### 入账
 
-入账时必须在同一个数据库事务内原子更新：
+入账时必须在同一个数据库事务内原子更新收款记录、公司资金流水、财务 V 钱包、入账记录和入账性质明细。每笔入账由人工拆分为一条或多条 `PUBLIC`（对公）/`PRIVATE`（对私）明细，明细金额合计必须等于本次收款金额；服务费不影响这项拆分。
 
 - 收款记录
 - 公司资金流水
 - 财务 V 钱包
-- 开票额度
 - 入账记录（`ReceivePosting`）
 
 钱包金额与可开票金额必须使用两个独立口径，不得复用同一个字段：
@@ -125,7 +124,7 @@ walletCreditAmount    = paymentAmount - serviceFeeAmount
 invoiceEligibleAmount = paymentAmount
 ```
 
-即钱包实际增加金额需扣除服务费，开票额度按付款全额计算。这是当前实测得到的原系统行为，不要擅自修改。
+即钱包实际增加金额需扣除服务费。新版发票业务不再将全部收款自动放入旧开票额度池：只有对公入账明细生成开票任务，对私明细不会进入发票管理。
 
 ### 服务费
 
@@ -258,6 +257,19 @@ README 不是业务规则的唯一来源，不能用来推翻实测结论。遇�
 - `POST /api/invoices/:id/process|confirm|void`：提交开票中、确认开票、作废。
 - `GET /api/customers/:customerId/invoice-balance`：客户业务来源金额、已开票金额和未开票金额。
 
+#### 对公开票任务（当前主流程）
+
+- `ReceiveRecordDetail` 记录每次入账的 `PUBLIC` / `PRIVATE` 拆分；`PUBLIC` 自动生成一条 `InvoiceTask`，`PRIVATE` 不生成任务、不会进入发票管理。
+- 发票任务保存对公来源金额 `publicAmount` 与可人工调整的 `invoiceAmount`；后者必须大于 `0` 且不超过前者，但可以小于前者。
+- 一个客户可维护多条 `CustomerInvoiceProfile`。任务可选择并快照抬头、税号、地址、电话、开户行、账号和默认内容；付款账户仅是银行流水付款方快照，不等同于开票抬头。
+- 状态流转为：待开票 → 审核中 → 待完成开票 → 已完成；审核不通过后可编辑并再次提交，创建人可撤回审核中的任务。
+- `GET /api/invoice-tasks`、`GET /api/invoice-tasks/:id`、`PATCH /api/invoice-tasks/:id`、`POST /api/invoice-tasks/:id/submit|approve|reject|revoke|complete` 提供任务流程；`GET/POST/PATCH /api/customers/:customerId/invoice-profiles` 维护客户开票信息。
+- 完成开票仅手工记录实际发票信息和可选附件地址，并复用 `InvoiceDetail` 保存实际开票资料；不会调用税务接口、不会强制 OCR、不会发邮件，也不会改变钱包、收款金额或旧额度字段。
+
+#### 旧发票兼容边界
+
+`Invoice`、`InvoiceApplicationItem`、`InvoiceApplicationReceiveRecord` 及 `ReceiveRecord` 上的 `unBillingAmount`、`billingAmount`、`billedAmount` 保留用于旧数据和旧接口兼容。新版 `InvoiceTask` 不读取、不写入这些额度字段；新确认收款的旧额度字段初始化为 `0`，以避免旧额度池重新控制对公/对私流程。
+
 ### 财务核算与服务费对账
 
 - `GET /api/finance/overview`：公司 CNY 账户概览。
@@ -273,7 +285,7 @@ README 不是业务规则的唯一来源，不能用来推翻实测结论。遇�
 - 财务核算使用 `FINANCE_VIEW`；财务调整使用 `FINANCE_ADJUST_VIEW`、`FINANCE_ADJUST_CREATE`、`FINANCE_ADJUST_APPROVE`、`FINANCE_ADJUST_EXECUTE`。
 - 收款管理使用 `FINANCE_BANK_TRANSACTION_VIEW`、`FINANCE_BANK_TRANSACTION_IMPORT`、`FINANCE_BANK_TRANSACTION_MATCH`、`FINANCE_RECEIVE_VIEW`、`FINANCE_RECEIVE_CREATE`、`FINANCE_RECEIVE_CONFIRM`。
 - 钱包使用 `FINANCE_WALLET_VIEW`、`FINANCE_WALLET_ADJUST`、`FINANCE_WALLET_OPENING_BALANCE`。
-- 发票使用 `FINANCE_INVOICE_VIEW`、`FINANCE_INVOICE_CREATE`、`FINANCE_INVOICE_EDIT`、`FINANCE_INVOICE_CONFIRM`、`FINANCE_INVOICE_VOID`。
+- 发票任务使用 `FINANCE_INVOICE_VIEW`、`FINANCE_INVOICE_CREATE`、`FINANCE_INVOICE_EDIT`、`FINANCE_INVOICE_CONFIRM`、`FINANCE_INVOICE_COMPLETE`；普通操作人员不能审核或完成开票，财务可以审核，超级管理员可直接处理。
 - 结算使用 `FINANCE_SETTLEMENT_VIEW`、`FINANCE_SETTLEMENT_CREATE`、`FINANCE_SETTLEMENT_CONFIRM`、`FINANCE_SETTLEMENT_CANCEL`。
 - 对账使用 `FINANCE_RECONCILIATION_VIEW`、`FINANCE_RECONCILIATION_CREATE`、`FINANCE_RECONCILIATION_CONFIRM`。
 - 外采订单使用 `PROCUREMENT_VIEW`、`PROCUREMENT_CREATE`、`PROCUREMENT_CONFIRM`、`PROCUREMENT_CANCEL`、`PROCUREMENT_SETTLE`。
@@ -281,21 +293,34 @@ README 不是业务规则的唯一来源，不能用来推翻实测结论。遇�
 
 ## Git 开发规范
 
-1. `main` 作为稳定主分支。
-2. 新功能不要长期直接开发在 `main`。
-3. 每个独立任务创建独立分支，命名建议 `feature/<功能名>`，例如 `feature/recharge-payment`。
-4. Bug 修复使用 `fix/<问题名>`。
-5. 每完成一个独立任务必须提交 commit。
-6. commit message 使用清晰、可追踪的英文格式，例如：
+### 仓库与分支
+
+- GitHub 主仓库：`https://github.com/liuliu61/Private-Repository.git`。
+- `main` 是稳定主分支和生产发布基线；不得直接在 `main` 上长期开发。
+- 每个独立任务从最新 `main` 创建独立分支，功能使用 `feature/<功能名>`，修复使用 `fix/<问题名>`。
+- 开始任务前确认分支基于最新 `main`；任务结束后先完成验证，再通过 Pull Request 合并。
+- 未经明确授权，不得修改、删除或重写其他未合并分支的提交。
+
+### 提交与审查
+
+- 每完成一个独立任务必须提交 commit，一个 commit 尽量只对应一个逻辑任务。
+- commit message 使用清晰、可追踪的英文格式，例如：
    - `feat: implement recharge payment workflow`
    - `fix: correct receiving wallet posting`
    - `test: add receiving business rule tests`
    - `docs: update business rules`
-7. 一个 commit 尽量只对应一个逻辑任务。
-8. 不要把无关的代码格式化、重构混进业务 commit。
-9. 完成任务后先验证，再合并到 `main`。
-10. 不允许对 `main` 强制推送（force push）。
-11. 不允许修改已发布的历史 commit 来掩盖错误。
+- 不要把无关的格式化、重构、部署文件或临时文件混进业务 commit。
+- 提交前检查 `git diff`、`git diff --check` 和 `git status`，确认没有密钥、密码、令牌、`.env` 或本机生成物。
+- 任务报告必须说明实际修改文件、测试结果、数据库/migration 是否变更以及遗留问题。
+- 不允许对 `main` 强制推送（force push），也不允许修改已发布的历史 commit 来掩盖错误。
+
+### 生产变更
+
+- 生产服务器只用于部署已确认的 Git 提交，不作为日常开发工作区。
+- 服务器上的未提交部署配置或验证修复必须先盘点、备份并明确归属，禁止直接 reset、clean 或覆盖。
+- 生产数据库变更只允许通过已审查的 Prisma migration；禁止使用 `db push`、`migrate reset` 或手工改写 migration 历史替代正式流程。
+- 生产环境的密钥、密码、证书私钥和本机配置不得进入 Git；使用服务器环境变量或受保护的配置文件。
+- 发布前依次确认构建、migration 状态、进程状态、监听范围和域名链路；未验证的业务资金动作不得上线。
 
 ## Codex 开发原则
 
@@ -314,4 +339,12 @@ README 不是业务规则的唯一来源，不能用来推翻实测结论。遇�
 
 ## 当前未实现
 
-机器人、OCR、广告平台 / 银行接口自动对接、自动充值、生产部署和完整验收联调暂不包含在当前版本。导出能力目前仅服务费对账支持。
+机器人、广告平台 / 银行接口自动对接、自动充值、生产部署和完整验收联调暂不包含在当前版本。导出能力目前仅服务费对账支持。
+
+## 发票 OCR 辅助识别
+
+发票申请页支持上传 JPG、JPEG、PNG 或 PDF，并通过本地自托管的 PaddleOCR 3.x 服务辅助填充发票字段。Node.js 后端保存原始文件、OCR 原始结果和解析结果，识别结果仅供参考，用户仍需核对并最终提交申请。
+
+本地 OCR 服务位于 `services/ocr-service`，提供 `GET /health` 与 `POST /ocr/invoice`。启动、Python 依赖、模型缓存位置和 20MB 文件限制见 `services/ocr-service/README.md`。需要将 `OCR_SERVICE_URL` 配置为该服务地址；OCR 服务不可用或识别失败时，发票申请仍可手工填写。
+
+当前系统不接入 SMTP、SendGrid、Resend 或其他邮件服务，不会在发票审批或后续开票处理中自动发送客户邮件。

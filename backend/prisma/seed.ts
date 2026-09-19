@@ -79,6 +79,7 @@ async function main() {
     prisma.permission.upsert({ where: { code: 'FINANCE_INVOICE_CREATE' }, update: {}, create: { code: 'FINANCE_INVOICE_CREATE', name: '发票创建', description: '允许创建发票草稿' } }),
     prisma.permission.upsert({ where: { code: 'FINANCE_INVOICE_EDIT' }, update: {}, create: { code: 'FINANCE_INVOICE_EDIT', name: '发票草稿编辑', description: '允许编辑发票草稿' } }),
     prisma.permission.upsert({ where: { code: 'FINANCE_INVOICE_CONFIRM' }, update: {}, create: { code: 'FINANCE_INVOICE_CONFIRM', name: '发票确认', description: '允许确认开票' } }),
+    prisma.permission.upsert({ where: { code: 'FINANCE_INVOICE_COMPLETE' }, update: {}, create: { code: 'FINANCE_INVOICE_COMPLETE', name: '完成开票', description: '允许录入实际发票信息并完成开票任务' } }),
     prisma.permission.upsert({ where: { code: 'FINANCE_INVOICE_VOID' }, update: {}, create: { code: 'FINANCE_INVOICE_VOID', name: '发票作废', description: '允许作废发票记录' } }),
   ]);
 

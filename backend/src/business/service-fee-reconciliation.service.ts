@@ -36,7 +36,7 @@ export class ServiceFeeReconciliationService {
     return { filename: '服务费对账.xls', content: html, count: rows.length };
   }
 
-  private async findRows(query: ServiceFeeReconciliationQueryDto, organizationIds: string[] | null) {
+  private async findRows(query: ServiceFeeReconciliationQueryDto, organizationIds: string[] | undefined) {
     const start = query.dateFrom ? new Date(query.dateFrom) : undefined;
     const end = query.dateTo ? new Date(query.dateTo) : undefined;
     if (start && Number.isNaN(start.getTime())) throw new BadRequestException('开始日期格式不正确');

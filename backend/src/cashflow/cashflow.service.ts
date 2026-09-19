@@ -50,6 +50,9 @@ export class CashflowService {
         changeAmount,
         balanceBefore,
         balanceAfter,
+        // 历史兼容列 amount (legacyAmount) 在库表中为 NOT NULL，必须写入值
+        legacyAmount: changeAmount.abs(),
+        legacyType: changeAmount.isNegative() ? 'CREDIT' : 'DEBIT',
         operatorId: input.operatorId,
         occurredAt: input.occurredAt,
         remark: input.remark?.trim() || null,
@@ -105,6 +108,9 @@ export class CashflowService {
         changeAmount,
         balanceBefore,
         balanceAfter,
+        // 历史兼容列 amount (legacyAmount) 在库表中为 NOT NULL，必须写入值
+        legacyAmount: changeAmount.abs(),
+        legacyType: changeAmount.isNegative() ? 'CREDIT' : 'DEBIT',
         operatorId: input.operatorId,
         occurredAt: input.occurredAt,
         remark: input.remark?.trim() || null,

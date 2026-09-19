@@ -53,6 +53,7 @@ function createService(rows = [createTransactionRow()]) {
         return rows.length;
       },
     },
+    $transaction: async (promises: unknown[]) => Promise.all(promises),
     lastFindManyArgs: undefined as unknown,
     lastCountArgs: undefined as unknown,
   };

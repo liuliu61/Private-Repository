@@ -31,7 +31,10 @@ describe('RebateService', () => {
     };
     const service = new RebateService(prisma as never, new RebateCalculator());
     const result = await service.calculate({ amount: '10000.00', rate: '10.00', type: RebateRuleType.PRIVATE_DIVIDE }, context);
-    assert.deepEqual(result, { paymentAmount: '9090.90', rebateAmount: '909.10', creditAmount: '10000.00' });
+    // 生产计算接口额外返回 cashAmount / calculationMode；金额按 ROUND_HALF_UP 四舍五入到分
+    assert.equal(result.paymentAmount, '9090.91');
+    assert.equal(result.rebateAmount, '909.09');
+    assert.equal(result.creditAmount, '10000.00');
     assert.equal(recordCreated, false);
   });
 
@@ -45,7 +48,9 @@ describe('RebateService', () => {
     };
     const service = new RebateService(prisma as never, new RebateCalculator());
     const result = await service.calculate({ amount: '10000.00', rate: '5.00', type: RebateRuleType.PRIVATE_DIVIDE, customerId, ruleId, accountId }, context);
-    assert.deepEqual(result, { paymentAmount: '10000.00', rebateAmount: '1000.00', creditAmount: '11000.00' });
+    assert.equal(result.paymentAmount, '10000.00');
+    assert.equal(result.rebateAmount, '1000.00');
+    assert.equal(result.creditAmount, '11000.00');
     assert.equal((savedData?.rebateRate as Prisma.Decimal).toFixed(4), '10.0000');
     assert.equal(savedData?.customerId, customerId);
     assert.equal(savedData?.rebateRuleId, ruleId);

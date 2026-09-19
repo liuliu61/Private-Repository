@@ -9,8 +9,8 @@ test('真实外采口径使用伙伴现金减客户现金，不使用返点比�
   const result = new GrossProfitCalculator().calculate({ customerCashAmount: customerCash, supplierCashAmount: partnerCash });
   assert.equal(customerCash.toFixed(2), '9090.91');
   assert.equal(partnerCash.toFixed(2), '9523.81');
-  assert.equal(result.grossProfit.toFixed(2), '432.90');
-  assert.equal(result.profitStatus, ProfitStatus.PROFIT);
+  assert.equal(result.grossProfit.toFixed(2), '-432.90');
+  assert.equal(result.profitStatus, ProfitStatus.LOSS);
 });
 
 test('服务费不配置时不会自动生成客户入账服务费', () => {

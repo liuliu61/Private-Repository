@@ -12,6 +12,6 @@ export function toMoney(value: MoneyInput, fieldName = '金额'): Prisma.Decimal
   }
 }
 
-export function moneyToString(value: Prisma.Decimal): string {
-  return value.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP).toFixed(2);
+export function moneyToString(value: Prisma.Decimal | string | number): string {
+  return new Prisma.Decimal(String(value)).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP).toFixed(2);
 }

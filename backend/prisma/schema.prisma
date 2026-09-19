@@ -87,36 +87,224 @@ enum RebateCalculationMode {
   CREDIT_TO_CASH
 }
 
-enum OrganizationType { PLATFORM PRIMARY_AGENT SECONDARY_AGENT }
-enum OrganizationStatus { ACTIVE DISABLED }
-enum ReconciliationStatus { DRAFT CHECKING PASSED FAILED CONFIRMED COMPLETED HAS_DIFFERENCE }
-enum FinancialAdjustmentType { INCOME EXPENSE }
-enum FinancialAdjustmentStatus { DRAFT APPROVED REJECTED EXECUTED }
-enum SupplierPlatform { DOUYIN KUAISHOU XIAOHONGSHU TENCENT OTHER }
-enum AdAssetStatus { ACTIVE DISABLED }
-enum PurchaseOrderStatus { DRAFT PENDING_CONFIRMATION CONFIRMED SETTLED CANCELLED PENDING_REVIEW APPROVED PROCESSING COMPLETED REJECTED }
-enum PurchaseOrderTransactionType { TRANSFER_IN TRANSFER_OUT }
-enum SettlementType { CUSTOMER SUPPLIER }
-enum SettlementStatus { DRAFT GENERATED CONFIRMED SETTLED COMPLETED CANCELLED }
-enum AuditResult { SUCCESS FAILURE }
-enum SupplierSettlementType { REBATE_ON_BASE PAYMENT_AFTER_REBATE CREDIT_AFTER_REBATE FIXED_PRICE OTHER }
-enum ProfitStatus { PROFIT BREAK_EVEN LOSS }
-enum SupplierAccountType { BANK CASH OTHER }
-enum PaymentStatus { PENDING PARTIAL PAID }
-enum PurchasePaymentType { CUSTOMER_PAYMENT SUPPLIER_PAYMENT }
-enum RefundStatus { PENDING APPROVED REJECTED REFUNDED CANCELLED }
-enum AccountUnit { CNY ACCOUNT_CREDIT }
-enum PromotionAccountOwnerType { CUSTOMER SUPPLIER }
-enum PromotionAccountUnit { ACCOUNT_CREDIT }
-enum PromotionTransactionBusinessType { CUSTOMER_CREDIT SUPPLIER_CREDIT ADJUSTMENT OTHER }
-enum CustomerWalletTransactionType { OPENING_BALANCE ADJUSTMENT_RED ADJUSTMENT_BLUE MANUAL_ADJUSTMENT RECEIVE_POSTING RECEIVE_REFUND }
-enum CustomerWalletType { FINANCE_V EXTERNAL_PROCUREMENT }
-enum BankTransactionDirection { INCOME EXPENSE }
-enum BankTransactionStatus { CONFIRMING UNPROCESSED MATCHED RECEIPT_CREATED RECEIPT_CONFIRMED IGNORED }
-enum ReceiveRecordStatus { PENDING_MATCH PENDING_CONFIRMATION CONFIRMED CANCELLED }
-enum ReceivePostingStatus { POSTED REVERSED }
-enum ReceiveInvoiceStatus { UNISSUED PARTIAL ISSUED }
-enum InvoiceStatus { DRAFT PROCESSING ISSUED VOIDED }
+enum OrganizationType {
+  PLATFORM
+  PRIMARY_AGENT
+  SECONDARY_AGENT
+}
+
+enum OrganizationStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum ReconciliationStatus {
+  DRAFT
+  CHECKING
+  PASSED
+  FAILED
+  CONFIRMED
+  COMPLETED
+  HAS_DIFFERENCE
+}
+
+enum FinancialAdjustmentType {
+  INCOME
+  EXPENSE
+}
+
+enum FinancialAdjustmentStatus {
+  DRAFT
+  APPROVED
+  REJECTED
+  EXECUTED
+}
+
+enum SupplierPlatform {
+  DOUYIN
+  KUAISHOU
+  XIAOHONGSHU
+  TENCENT
+  OTHER
+}
+
+enum AdAssetStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  PENDING_CONFIRMATION
+  CONFIRMED
+  SETTLED
+  CANCELLED
+  PENDING_REVIEW
+  APPROVED
+  PROCESSING
+  COMPLETED
+  REJECTED
+}
+
+enum PurchaseOrderTransactionType {
+  TRANSFER_IN
+  TRANSFER_OUT
+}
+
+enum SettlementType {
+  CUSTOMER
+  SUPPLIER
+}
+
+enum SettlementStatus {
+  DRAFT
+  GENERATED
+  CONFIRMED
+  SETTLED
+  COMPLETED
+  CANCELLED
+}
+
+enum AuditResult {
+  SUCCESS
+  FAILURE
+}
+
+enum SupplierSettlementType {
+  REBATE_ON_BASE
+  PAYMENT_AFTER_REBATE
+  CREDIT_AFTER_REBATE
+  FIXED_PRICE
+  OTHER
+}
+
+enum ProfitStatus {
+  PROFIT
+  BREAK_EVEN
+  LOSS
+}
+
+enum SupplierAccountType {
+  BANK
+  CASH
+  OTHER
+}
+
+enum PaymentStatus {
+  PENDING
+  PARTIAL
+  PAID
+}
+
+enum PurchasePaymentType {
+  CUSTOMER_PAYMENT
+  SUPPLIER_PAYMENT
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REFUNDED
+  CANCELLED
+}
+
+enum AccountUnit {
+  CNY
+  ACCOUNT_CREDIT
+}
+
+enum PromotionAccountOwnerType {
+  CUSTOMER
+  SUPPLIER
+}
+
+enum PromotionAccountUnit {
+  ACCOUNT_CREDIT
+}
+
+enum PromotionTransactionBusinessType {
+  CUSTOMER_CREDIT
+  SUPPLIER_CREDIT
+  ADJUSTMENT
+  OTHER
+}
+
+enum CustomerWalletTransactionType {
+  OPENING_BALANCE
+  ADJUSTMENT_RED
+  ADJUSTMENT_BLUE
+  MANUAL_ADJUSTMENT
+  RECEIVE_POSTING
+  RECEIVE_REFUND
+}
+
+enum CustomerWalletType {
+  FINANCE_V
+  EXTERNAL_PROCUREMENT
+}
+
+enum BankTransactionDirection {
+  INCOME
+  EXPENSE
+}
+
+enum BankTransactionStatus {
+  CONFIRMING
+  UNPROCESSED
+  MATCHED
+  RECEIPT_CREATED
+  RECEIPT_CONFIRMED
+  IGNORED
+}
+
+enum ReceiveRecordStatus {
+  PENDING_MATCH
+  PENDING_CONFIRMATION
+  CONFIRMED
+  CANCELLED
+}
+
+enum ReceivePostingStatus {
+  POSTED
+  REVERSED
+}
+
+enum ReceiveInvoiceStatus {
+  UNISSUED
+  PARTIAL
+  ISSUED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  PROCESSING
+  REVIEWING
+  APPROVED
+  REJECTED
+  ISSUED
+  VOIDED
+}
+
+enum InvoiceOcrStatus {
+  PENDING
+  PROCESSING
+  SUCCESS
+  FAILED
+}
+
+enum ReceivePaymentNature {
+  PUBLIC
+  PRIVATE
+}
+
+enum InvoiceTaskStatus {
+  PENDING
+  REVIEWING
+  APPROVED
+  REJECTED
+  COMPLETED
+}
 
 model User {
   id           String       @id @default(uuid()) @db.Uuid
@@ -160,6 +348,11 @@ model User {
   createdReceivePostings ReceivePosting[] @relation("ReceivePostingCreator")
   receiveServiceFees ReceiveServiceFee[] @relation("ReceiveServiceFeeOperator")
   createdInvoices Invoice[] @relation("InvoiceCreator")
+  createdInvoiceOcrRecords InvoiceOcrRecord[]
+  createdInvoiceDetails InvoiceDetail[] @relation("InvoiceDetailCreator")
+  createdInvoiceTasks InvoiceTask[] @relation("InvoiceTaskCreator")
+  reviewedInvoiceTasks InvoiceTask[] @relation("InvoiceTaskReviewer")
+  completedInvoiceTasks InvoiceTask[] @relation("InvoiceTaskCompleter")
   confirmedInvoices Invoice[] @relation("InvoiceConfirmer")
   voidedInvoices Invoice[] @relation("InvoiceVoider")
 
@@ -336,6 +529,9 @@ model Customer {
   receiveRecords ReceiveRecord[]
   receivePostings ReceivePosting[]
   invoices Invoice[]
+  invoiceProfiles CustomerInvoiceProfile[]
+  receiveRecordDetails ReceiveRecordDetail[]
+  invoiceTasks InvoiceTask[]
   customerSettlements Settlement[] @relation("CustomerSettlements")
 
   @@index([status])
@@ -514,6 +710,8 @@ model Organization {
   receiveRecords ReceiveRecord[]
   receivePostings ReceivePosting[]
   invoices Invoice[]
+  invoiceOcrRecords InvoiceOcrRecord[]
+  invoiceTasks InvoiceTask[]
   sourcingSetting SourcingSetting?
   @@index([parentId])
   @@index([type, status])
@@ -813,6 +1011,9 @@ model ReceiveRecord {
   serviceFeeAmount  Decimal            @default(0) @map("service_fee_amount") @db.Decimal(20, 2)
   walletCreditAmount Decimal           @default(0) @map("wallet_credit_amount") @db.Decimal(20, 2)
   invoiceEligibleAmount Decimal        @default(0) @map("invoice_eligible_amount") @db.Decimal(20, 2)
+  unBillingAmount    Decimal           @default(0) @map("un_billing_amount") @db.Decimal(20, 2)
+  billingAmount      Decimal           @default(0) @map("billing_amount") @db.Decimal(20, 2)
+  billedAmount       Decimal           @default(0) @map("billed_amount") @db.Decimal(20, 2)
   invoiceStatus     ReceiveInvoiceStatus @default(UNISSUED) @map("invoice_status")
   currency          String             @default("CNY") @db.Char(3)
   receivedAt        DateTime           @map("received_at")
@@ -836,6 +1037,8 @@ model ReceiveRecord {
   postings          ReceivePosting[]
   serviceFeeDetails ReceiveServiceFee[]
   refunds           Refund[]
+  invoiceApplicationSources InvoiceApplicationReceiveRecord[]
+  details ReceiveRecordDetail[]
 
   @@index([organizationId, status, receivedAt])
   @@index([customerId, receivedAt])
@@ -867,6 +1070,89 @@ model ReceivePosting {
   @@index([organizationId, createdAt])
   @@index([receiveRecordId, createdAt])
   @@map("receive_postings")
+}
+
+model ReceiveRecordDetail {
+  id              String               @id @default(uuid()) @db.Uuid
+  receiveRecordId String               @map("receive_record_id") @db.Uuid
+  customerId      String               @map("customer_id") @db.Uuid
+  type            ReceivePaymentNature
+  amount          Decimal              @db.Decimal(20, 2)
+  createdAt       DateTime             @default(now()) @map("created_at")
+  updatedAt       DateTime             @updatedAt @map("updated_at")
+  receiveRecord   ReceiveRecord        @relation(fields: [receiveRecordId], references: [id], onDelete: Cascade)
+  customer        Customer             @relation(fields: [customerId], references: [id])
+  invoiceTask     InvoiceTask?
+
+  @@index([receiveRecordId, type])
+  @@index([customerId, type, createdAt])
+  @@map("receive_record_details")
+}
+
+model CustomerInvoiceProfile {
+  id                    String        @id @default(uuid()) @db.Uuid
+  customerId            String        @map("customer_id") @db.Uuid
+  titleName             String        @map("title_name") @db.VarChar(150)
+  taxpayerCode          String?       @map("taxpayer_code") @db.VarChar(100)
+  address               String?       @db.VarChar(255)
+  phone                 String?       @db.VarChar(50)
+  bankName              String?       @map("bank_name") @db.VarChar(150)
+  bankAccount           String?       @map("bank_account") @db.VarChar(100)
+  defaultInvoiceContent String?       @map("default_invoice_content") @db.VarChar(255)
+  isDefault             Boolean       @default(false) @map("is_default")
+  enabled               Boolean       @default(true)
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  customer              Customer      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  invoiceTasks          InvoiceTask[]
+
+  @@index([customerId, enabled])
+  @@index([customerId, isDefault])
+  @@map("customer_invoice_profiles")
+}
+
+model InvoiceTask {
+  id                    String              @id @default(uuid()) @db.Uuid
+  taskNo                String              @unique @map("task_no") @db.VarChar(60)
+  organizationId        String              @map("organization_id") @db.Uuid
+  customerId            String              @map("customer_id") @db.Uuid
+  receiveRecordDetailId String              @unique @map("receive_record_detail_id") @db.Uuid
+  invoiceProfileId      String?             @map("invoice_profile_id") @db.Uuid
+  publicAmount          Decimal             @map("public_amount") @db.Decimal(20, 2)
+  invoiceAmount         Decimal             @map("invoice_amount") @db.Decimal(20, 2)
+  payerName             String?             @map("payer_name") @db.VarChar(120)
+  payerAccount          String?             @map("payer_account") @db.VarChar(120)
+  titleName             String?             @map("title_name") @db.VarChar(150)
+  taxpayerCode          String?             @map("taxpayer_code") @db.VarChar(100)
+  address               String?             @db.VarChar(255)
+  phone                 String?             @db.VarChar(50)
+  bankName              String?             @map("bank_name") @db.VarChar(150)
+  bankAccount           String?             @map("bank_account") @db.VarChar(100)
+  invoiceContent        String?             @map("invoice_content") @db.VarChar(255)
+  remark                String?             @db.VarChar(255)
+  status                InvoiceTaskStatus   @default(PENDING)
+  createdBy             String              @map("created_by") @db.Uuid
+  submittedAt           DateTime?           @map("submitted_at")
+  reviewedBy            String?             @map("reviewed_by") @db.Uuid
+  reviewedAt            DateTime?           @map("reviewed_at")
+  approvalRemark        String?             @map("approval_remark") @db.VarChar(255)
+  rejectReason          String?             @map("reject_reason") @db.VarChar(255)
+  completedBy           String?             @map("completed_by") @db.Uuid
+  completedAt           DateTime?           @map("completed_at")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  organization          Organization        @relation(fields: [organizationId], references: [id])
+  customer              Customer            @relation(fields: [customerId], references: [id])
+  receiveRecordDetail   ReceiveRecordDetail @relation(fields: [receiveRecordDetailId], references: [id], onDelete: Cascade)
+  invoiceProfile        CustomerInvoiceProfile? @relation(fields: [invoiceProfileId], references: [id], onDelete: SetNull)
+  creator               User                @relation("InvoiceTaskCreator", fields: [createdBy], references: [id])
+  reviewer              User?               @relation("InvoiceTaskReviewer", fields: [reviewedBy], references: [id])
+  completer             User?               @relation("InvoiceTaskCompleter", fields: [completedBy], references: [id])
+  invoiceDetails        InvoiceDetail[]
+
+  @@index([organizationId, status, createdAt])
+  @@index([customerId, status, createdAt])
+  @@map("invoice_tasks")
 }
 
 model ReceiveServiceFee {
@@ -909,6 +1195,12 @@ model Invoice {
   status           InvoiceStatus  @default(DRAFT)
   clientRequestId  String?        @unique @map("client_request_id") @db.VarChar(100)
   createdBy        String         @map("created_by") @db.Uuid
+  submittedAt      DateTime?      @map("submitted_at")
+  reviewedBy       String?        @map("reviewed_by") @db.Uuid
+  reviewedAt       DateTime?      @map("reviewed_at")
+  approvalRemark   String?        @map("approval_remark") @db.VarChar(255)
+  rejectReason     String?        @map("reject_reason") @db.VarChar(255)
+  approvedAmount   Decimal?       @map("approved_amount") @db.Decimal(20, 2)
   confirmedBy      String?        @map("confirmed_by") @db.Uuid
   confirmedAt      DateTime?      @map("confirmed_at")
   voidedBy         String?        @map("voided_by") @db.Uuid
@@ -925,6 +1217,10 @@ model Invoice {
   creator          User           @relation("InvoiceCreator", fields: [createdBy], references: [id])
   confirmer        User?          @relation("InvoiceConfirmer", fields: [confirmedBy], references: [id])
   voider           User?          @relation("InvoiceVoider", fields: [voidedBy], references: [id])
+  applicationItems InvoiceApplicationItem[]
+  receiveSources   InvoiceApplicationReceiveRecord[]
+  ocrRecords       InvoiceOcrRecord[]
+  invoiceDetails   InvoiceDetail[]
 
   @@index([organizationId, status, createdAt])
   @@index([customerId, status, createdAt])
@@ -933,6 +1229,91 @@ model Invoice {
   @@index([accountId])
   @@index([businessNo])
   @@map("invoices")
+}
+
+model InvoiceApplicationItem {
+  id        String   @id @default(uuid()) @db.Uuid
+  invoiceId String   @map("invoice_id") @db.Uuid
+  amount    Decimal  @db.Decimal(20, 2)
+  itemType  String?  @map("item_type") @db.VarChar(50)
+  content   String?  @db.VarChar(255)
+  remark    String?  @db.VarChar(255)
+  createdAt DateTime @default(now()) @map("created_at")
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceDetails InvoiceDetail[]
+
+  @@index([invoiceId, createdAt])
+  @@map("invoice_application_items")
+}
+
+model InvoiceDetail {
+  id                     String                @id @default(uuid()) @db.Uuid
+  invoiceId              String?               @map("invoice_apply_id") @db.Uuid
+  invoiceTaskId          String?               @map("invoice_task_id") @db.Uuid
+  invoiceApplicationItemId String?             @map("invoice_apply_invoice_id") @db.Uuid
+  amount                 Decimal               @default(0) @db.Decimal(20, 2)
+  invoiceType            String                @map("invoice_type") @db.VarChar(50)
+  invoiceContent         String?               @map("invoice_content") @db.VarChar(255)
+  invoiceCode            String?               @map("invoice_code") @db.VarChar(100)
+  invoiceUrl              String?              @map("invoice_url") @db.VarChar(500)
+  imageUrl               String?              @map("image_url") @db.VarChar(500)
+  filePath               String?              @map("file_path") @db.VarChar(500)
+  originalFileName       String?              @map("original_file_name") @db.VarChar(255)
+  mimeType               String?              @map("mime_type") @db.VarChar(100)
+  invoiceDate            DateTime?            @map("invoice_date")
+  remark                 String?              @db.VarChar(255)
+  createdBy              String                @map("created_by") @db.Uuid
+  createdAt              DateTime              @default(now()) @map("create_time")
+  updatedAt              DateTime              @updatedAt @map("update_time")
+  invoice                Invoice?              @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoiceTask            InvoiceTask?          @relation(fields: [invoiceTaskId], references: [id], onDelete: Cascade)
+  invoiceApplicationItem InvoiceApplicationItem? @relation(fields: [invoiceApplicationItemId], references: [id], onDelete: SetNull)
+  creator                User                  @relation("InvoiceDetailCreator", fields: [createdBy], references: [id])
+
+  @@index([invoiceId, createdAt])
+  @@index([invoiceTaskId, createdAt])
+  @@index([invoiceApplicationItemId])
+  @@map("invoice_details")
+}
+
+model InvoiceApplicationReceiveRecord {
+  invoiceId       String        @map("invoice_id") @db.Uuid
+  receiveRecordId String        @map("receive_record_id") @db.Uuid
+  amount          Decimal       @db.Decimal(20, 2)
+  invoice         Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  receiveRecord   ReceiveRecord @relation(fields: [receiveRecordId], references: [id], onDelete: Restrict)
+
+  @@id([invoiceId, receiveRecordId])
+  @@index([receiveRecordId])
+  @@map("invoice_application_receive_records")
+}
+
+model InvoiceOcrRecord {
+  id               String          @id @default(uuid()) @db.Uuid
+  invoiceId        String?         @map("invoice_id") @db.Uuid
+  organizationId   String          @map("organization_id") @db.Uuid
+  fileId           String          @map("file_id") @db.Uuid
+  originalFileName String          @map("original_file_name") @db.VarChar(255)
+  filePath         String          @map("file_path") @db.VarChar(500)
+  mimeType         String          @map("mime_type") @db.VarChar(100)
+  fileSizeBytes    Int             @map("file_size_bytes")
+  status           InvoiceOcrStatus @default(PENDING)
+  provider         String          @db.VarChar(50)
+  model            String?         @db.VarChar(100)
+  rawResult        Json?           @map("raw_result")
+  parsedResult     Json?           @map("parsed_result")
+  fieldConfidence  Json?           @map("field_confidence")
+  errorMessage     String?         @map("error_message") @db.VarChar(500)
+  createdBy        String          @map("created_by") @db.Uuid
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  invoice          Invoice?        @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  organization     Organization    @relation(fields: [organizationId], references: [id])
+  creator          User            @relation(fields: [createdBy], references: [id])
+
+  @@index([invoiceId, createdAt])
+  @@index([status, createdAt])
+  @@map("invoice_ocr_records")
 }
 
 model AdSubject {

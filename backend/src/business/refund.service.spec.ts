@@ -13,7 +13,7 @@ function createFixture() {
   const tx: any = {
     $queryRaw: async () => [],
     purchaseOrder: { findUnique: async () => order },
-    purchaseOrderPayment: { findFirst: async ({ where }: any) => where.paymentType === PurchasePaymentType.CUSTOMER_PAYMENT ? { id: 'payment-a', amount: new Prisma.Decimal('10000.00') } : null },
+    purchaseOrderPayment: { findFirst: async ({ where }: any) => where.paymentType === PurchasePaymentType.CUSTOMER_PAYMENT ? { id: 'payment-a', amount: new Prisma.Decimal('10000.00') } : null, aggregate: async () => ({ _sum: { amount: new Prisma.Decimal('10000.00') } }) },
     refund: {
       findUnique: async ({ where }: any) => where.id ? refund : refund,
       create: async ({ data }: any) => { refundCreates += 1; refund = { id: 'refund-a', createdAt: new Date(), updatedAt: new Date(), ...data }; return refund; },
@@ -24,7 +24,7 @@ function createFixture() {
     auditLog: { create: async () => undefined },
   };
   const prisma: any = { $transaction: async (callback: (value: any) => unknown) => callback(tx), refund: tx.refund, purchaseOrder: { findUnique: async () => order } };
-  const scope: any = { isSuperAdmin: () => true, assertOrganizationAccess: async () => undefined, getOrganizationIds: async () => undefined };
+  const scope: any = { isSuperAdmin: () => false, assertOrganizationAccess: async () => undefined, getOrganizationIds: async () => undefined };
   const cashflow: any = { createTransactionInTransaction: async (_tx: unknown, input: any) => { transactionInputs.push(input); return { transactionNo: 'TX-REFUND-1', balanceBefore: '10000.00', balanceAfter: '9000.00' }; } };
   const service = new RefundService(prisma, scope, cashflow);
   return { service, get order() { return order; }, get refund() { return refund; }, get refundCreates() { return refundCreates; }, transactionInputs };

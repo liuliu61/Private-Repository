@@ -111,7 +111,7 @@ export class BusinessService {
 
   async createCustomerPolicy(dto: CreateCustomerPolicyDto, context: AccessContext) {
     if (!this.scope.isSuperAdmin(context) && !context.roles.includes('FINANCE')) throw new ForbiddenException('没有维护客户返点政策的权限');
-    this.assertPolicyScope(dto.customerId, dto.adSubjectId, dto.adAccountId, '客户');
+    this.assertPolicyScope('客户', dto.customerId, dto.adSubjectId, dto.adAccountId);
     const rate = money(dto.rate);
     this.validateRate(rate);
     const effectiveFrom = new Date(dto.effectiveFrom); const effectiveTo = dto.effectiveTo ? new Date(dto.effectiveTo) : null;
@@ -124,7 +124,7 @@ export class BusinessService {
 
   async createSupplierPolicy(dto: CreateSupplierPolicyDto, context: AccessContext) {
     if (!this.scope.isSuperAdmin(context) && !context.roles.includes('FINANCE')) throw new ForbiddenException('没有维护供应商返点政策的权限');
-    this.assertPolicyScope(dto.supplierId, dto.adSubjectId, dto.adAccountId, '供应商');
+    this.assertPolicyScope('供应商', dto.supplierId, dto.adSubjectId, dto.adAccountId);
     if (dto.adAccountId && !dto.adSubjectId) {
       const account = await this.prisma.adAccount.findUnique({ where: { id: dto.adAccountId }, select: { subjectId: true, platform: true } });
       if (!account) throw new NotFoundException('广告账户不存在');
@@ -217,7 +217,7 @@ export class BusinessService {
     if (!this.scope.canFinance(context)) throw new ForbiddenException('没有完成对账的权限');
     const row = await this.prisma.reconciliation.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('对账单不存在');
-    await this.scope.assertAccountAccess(row.accountId, context);
+    if (row.accountId) await this.scope.assertAccountAccess(row.accountId, context);
     if (row.difference === null || !row.difference.isZero()) throw new BadRequestException('对账存在差异，不能完成');
     return this.prisma.reconciliation.update({ where: { id }, data: { status: ReconciliationStatus.COMPLETED, completedBy: context.sub, completedAt: new Date() } });
   }
@@ -240,7 +240,7 @@ export class BusinessService {
     return { items, total, page: query.page, pageSize: query.pageSize };
   }
 
-  private assertPolicyScope(...values: Array<string | undefined>, label: string): void {
+  private assertPolicyScope(label: string, ...values: Array<string | undefined>): void {
     if (values.filter(Boolean).length !== 1) throw new BadRequestException(`${label}政策必须且只能配置一个命中范围`);
   }
 

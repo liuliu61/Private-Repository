@@ -12,6 +12,7 @@ test('订单利润汇总只使用实际人民币收入、成本和费用', async
       findMany: async () => [{ id: 'order-a', orderNo: 'PO-A', businessTime: new Date('2026-09-10T00:00:00Z'), customerCashAmount: new Prisma.Decimal('50000.00'), supplierCashAmount: new Prisma.Decimal('47826.09'), operatingFeeAmount: new Prisma.Decimal('0.00'), grossProfit: new Prisma.Decimal('-2173.91'), profitStatus: 'LOSS', customerPolicyVersionId: 'customer-v1', supplierPolicyVersionId: 'supplier-v1' }],
       count: async () => 1,
     },
+    refund: { groupBy: async () => [] },
     auditLog: { create: async ({ data }: { data: unknown }) => { auditCalls.push(data); } },
     $transaction: async (queries: Promise<unknown>[]) => Promise.all(queries),
   } as never;
@@ -53,6 +54,7 @@ test('亏损订单按实际人民币金额返回 LOSS，不按返点比例差计
       findMany: async () => [{ id: 'order-loss', orderNo: 'PO-LOSS', businessTime: new Date('2026-09-10T00:00:00Z'), customerCashAmount: new Prisma.Decimal('50000.00'), supplierCashAmount: new Prisma.Decimal('40000.00'), operatingFeeAmount: new Prisma.Decimal('0.00'), grossProfit: new Prisma.Decimal('-10000.00'), profitStatus: 'LOSS', customerPolicyVersionId: 'customer-v1', supplierPolicyVersionId: 'supplier-v1' }],
       count: async () => 1,
     },
+    refund: { groupBy: async () => [] },
     auditLog: { create: async () => undefined },
     $transaction: async (queries: Promise<unknown>[]) => Promise.all(queries),
   } as never;

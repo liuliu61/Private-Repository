@@ -2,8 +2,10 @@
 CREATE TYPE "AccountUnit" AS ENUM ('CNY', 'ACCOUNT_CREDIT');
 
 ALTER TABLE "supplier_accounts"
+  ALTER COLUMN "currency" DROP DEFAULT,
   ALTER COLUMN "currency" TYPE "AccountUnit"
-  USING CASE WHEN "currency" = 'ACCOUNT_CREDIT' THEN 'ACCOUNT_CREDIT'::"AccountUnit" ELSE 'CNY'::"AccountUnit" END;
+  USING CASE WHEN "currency" = 'ACCOUNT_CREDIT' THEN 'ACCOUNT_CREDIT'::"AccountUnit" ELSE 'CNY'::"AccountUnit" END,
+  ALTER COLUMN "currency" SET DEFAULT 'CNY'::"AccountUnit";
 
 CREATE TYPE "PromotionAccountOwnerType" AS ENUM ('CUSTOMER', 'SUPPLIER');
 CREATE TYPE "PromotionAccountUnit" AS ENUM ('ACCOUNT_CREDIT');

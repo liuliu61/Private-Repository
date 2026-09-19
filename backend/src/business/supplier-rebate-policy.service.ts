@@ -119,11 +119,11 @@ export class SupplierRebatePolicyService {
     return this.prisma.$transaction(async (tx) => {
       const policy = await tx.supplierRebatePolicy.findFirst({ where: { id: policyId, supplierId } });
       if (!policy) throw new NotFoundException({ success: false, code: 'SUPPLIER_REBATE_POLICY_NOT_FOUND', message: '该供应商成本返点政策不存在' });
-      if (policy.status === RebateRuleStatus.DISABLED) return { id: policy.id, supplierId, status: policy.status };
-      await tx.supplierRebatePolicy.update({ where: { id: policy.id }, data: { status: RebateRuleStatus.DISABLED, updatedBy: context.sub } });
-      await tx.supplierRebatePolicyVersion.updateMany({ where: { policyId: policy.id, status: RebateRuleStatus.ACTIVE }, data: { status: RebateRuleStatus.DISABLED } });
-      await tx.auditLog.create({ data: { operatorId: context.sub, organizationId: supplier.organizationId, actionType: 'SUPPLIER_REBATE_POLICY_DISABLE', businessType: 'SUPPLIER_REBATE_POLICY', businessId: policy.id, result: 'SUCCESS', beforeData: { status: policy.status }, afterData: { status: RebateRuleStatus.DISABLED } } });
-      return { id: policy.id, supplierId, status: RebateRuleStatus.DISABLED };
+      if (policy.status === RebateRuleStatus.INACTIVE) return { id: policy.id, supplierId, status: policy.status };
+      await tx.supplierRebatePolicy.update({ where: { id: policy.id }, data: { status: RebateRuleStatus.INACTIVE, updatedBy: context.sub } });
+      await tx.supplierRebatePolicyVersion.updateMany({ where: { policyId: policy.id, status: RebateRuleStatus.ACTIVE }, data: { status: RebateRuleStatus.INACTIVE } });
+      await tx.auditLog.create({ data: { operatorId: context.sub, organizationId: supplier.organizationId, actionType: 'SUPPLIER_REBATE_POLICY_DISABLE', businessType: 'SUPPLIER_REBATE_POLICY', businessId: policy.id, result: 'SUCCESS', beforeData: { status: policy.status }, afterData: { status: RebateRuleStatus.INACTIVE } } });
+      return { id: policy.id, supplierId, status: RebateRuleStatus.INACTIVE };
     });
   }
 

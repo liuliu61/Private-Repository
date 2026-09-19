@@ -21,7 +21,7 @@ export class GrossProfitCalculator {
     const supplierCashAmount = input.supplierCashAmount.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
     const operatingFeeAmount = (input.operatingFeeAmount ?? new Prisma.Decimal(0)).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
     const otherCost = (input.otherCost ?? operatingFeeAmount).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
-    const grossProfit = supplierCashAmount.sub(customerCashAmount).sub(otherCost).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+    const grossProfit = customerCashAmount.sub(supplierCashAmount).sub(otherCost).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
     const profitStatus = grossProfit.gt(0) ? ProfitStatus.PROFIT : grossProfit.lt(0) ? ProfitStatus.LOSS : ProfitStatus.BREAK_EVEN;
     return { grossProfit, profitStatus, otherCost };
   }

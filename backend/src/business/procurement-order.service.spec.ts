@@ -38,7 +38,7 @@ test('创建订单保存客户和供应商政策快照，并完成成本与毛�
   const cashflow = {} as never;
   const service = new ProcurementOrderService(prisma, scope, policyResolver, calculator, new SupplierCostCalculator(calculator), new GrossProfitCalculator(), cashflow);
 
-  await service.create({ organizationId: 'org-a', customerId: 'customer-a', supplierId: 'supplier-a', platform: SupplierPlatform.DOUYIN, subjectId: 'subject-a', accountId: 'account-a', cashAccountId: 'cash-account-a', baseAmount: '10000.00', businessTime: '2026-09-10T10:00:00.000Z' }, { sub: 'user-a', username: '用户A', roles: ['FINANCE'], permissions: ['PROCUREMENT_CREATE'] });
+  await service.create({ organizationId: 'org-a', customerId: 'customer-a', supplierId: 'supplier-a', platform: SupplierPlatform.DOUYIN, transactionType: 'TRANSFER_IN', subjectId: 'subject-a', accountId: 'account-a', cashAccountId: 'cash-account-a', baseAmount: '10000.00', businessTime: '2026-09-10T10:00:00.000Z' }, { sub: 'user-a', username: '用户A', roles: ['FINANCE'], permissions: ['PROCUREMENT_CREATE'] });
 
   assert.equal(created[0].customerPolicyVersionId, 'customer-version');
   assert.equal(created[0].supplierPolicyVersionId, 'supplier-version');

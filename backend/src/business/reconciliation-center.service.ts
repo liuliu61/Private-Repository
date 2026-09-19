@@ -68,7 +68,8 @@ export class ReconciliationCenterService {
     return this.prisma.$transaction(async (tx) => {
       const row = await this.lock(tx, id, context);
       if (row.status === ReconciliationStatus.CONFIRMED) throw new ConflictException('已确认的对账记录禁止重新检查');
-      if (![ReconciliationStatus.DRAFT, ReconciliationStatus.FAILED].includes(row.status)) throw new ConflictException('当前对账状态不允许检查');
+      const checkableStatuses: ReconciliationStatus[] = [ReconciliationStatus.DRAFT, ReconciliationStatus.FAILED];
+      if (!checkableStatuses.includes(row.status)) throw new ConflictException('当前对账状态不允许检查');
       await tx.reconciliation.update({ where: { id }, data: { status: ReconciliationStatus.CHECKING } });
       const snapshot = await this.calculate({ organizationId: row.organizationId, accountId: row.accountId, promotionAccountId: row.promotionAccountId }, row.periodStart, row.periodEnd, tx);
       const status = snapshot.difference.isZero() && snapshot.profitAnomalies.length === 0 ? ReconciliationStatus.PASSED : ReconciliationStatus.FAILED;
@@ -109,7 +110,7 @@ export class ReconciliationCenterService {
   private async calculate(target: { organizationId: string | null; accountId: string | null; promotionAccountId: string | null }, start: Date, end: Date, client: PrismaService | Prisma.TransactionClient = this.prisma) {
     const rows: any[] = target.accountId
       ? await client.transaction.findMany({ where: { accountId: target.accountId }, select: { businessType: true, changeAmount: true, occurredAt: true } })
-      : await client.promotionTransaction.findMany({ where: { promotionAccountId: target.promotionAccountId }, select: { businessType: true, changeAmount: true, occurredAt: true } });
+      : await client.promotionTransaction.findMany({ where: { promotionAccountId: target.promotionAccountId! }, select: { businessType: true, changeAmount: true, occurredAt: true } });
     const before = rows.filter((row) => row.occurredAt < start).reduce((sum, row) => sum.add(row.changeAmount), zero());
     const periodRows = rows.filter((row) => row.occurredAt >= start && row.occurredAt < end);
     const account = target.accountId ? await client.account.findUnique({ where: { id: target.accountId }, select: { openingBalance: true, currentBalance: true } }) : await client.promotionAccount.findUnique({ where: { id: target.promotionAccountId! }, select: { currentBalance: true } });
@@ -125,8 +126,8 @@ export class ReconciliationCenterService {
   }
 
   private totals(rows: any[], cny: boolean) {
-    const incomeTypes = cny ? [TransactionBusinessType.RECEIPT, TransactionBusinessType.CUSTOMER_PAYMENT, TransactionBusinessType.RECHARGE, TransactionBusinessType.REBATE] : [PromotionTransactionBusinessType.CUSTOMER_CREDIT, PromotionTransactionBusinessType.SUPPLIER_CREDIT];
-    const expenseTypes = cny ? [TransactionBusinessType.DEDUCTION, TransactionBusinessType.SUPPLIER_PAYMENT] : [];
+    const incomeTypes: Array<TransactionBusinessType | PromotionTransactionBusinessType> = cny ? [TransactionBusinessType.RECEIPT, TransactionBusinessType.CUSTOMER_PAYMENT, TransactionBusinessType.RECHARGE, TransactionBusinessType.REBATE] : [PromotionTransactionBusinessType.CUSTOMER_CREDIT, PromotionTransactionBusinessType.SUPPLIER_CREDIT];
+    const expenseTypes: TransactionBusinessType[] = cny ? [TransactionBusinessType.DEDUCTION, TransactionBusinessType.SUPPLIER_PAYMENT] : [];
     const incomeAmount = rows.filter((row) => incomeTypes.includes(row.businessType) && row.changeAmount.gt(0)).reduce((sum, row) => sum.add(row.changeAmount), zero());
     const expenseAmount = rows.filter((row) => expenseTypes.includes(row.businessType) && row.changeAmount.lt(0)).reduce((sum, row) => sum.add(row.changeAmount.abs()), zero());
     const refundTypes = cny ? [TransactionBusinessType.REFUND, TransactionBusinessType.CUSTOMER_REFUND] : [];

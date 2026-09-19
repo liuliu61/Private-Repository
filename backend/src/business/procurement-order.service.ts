@@ -71,7 +71,7 @@ export class ProcurementOrderService {
           supplierId: dto.supplierId,
           supplierAccountId: dto.supplierAccountId || null,
           platform: dto.platform,
-          transactionType: dto.transactionType,
+          transactionType: dto.transactionType ?? PurchaseOrderTransactionType.TRANSFER_IN,
           businessType: dto.businessType?.trim() || null,
           businessTime,
           inboundAccountId: dto.inboundAccountId?.trim() || null,
@@ -314,7 +314,8 @@ export class ProcurementOrderService {
   }
 
   private assertPaymentOrderStatus(order: Prisma.PurchaseOrderGetPayload<{}>): void {
-    if (![PurchaseOrderStatus.CONFIRMED, PurchaseOrderStatus.SETTLED].includes(order.status)) throw new ConflictException('订单必须已确认后才能录入实际收付款');
+    const paymentStatuses: PurchaseOrderStatus[] = [PurchaseOrderStatus.CONFIRMED, PurchaseOrderStatus.SETTLED];
+    if (!paymentStatuses.includes(order.status)) throw new ConflictException('订单必须已确认后才能录入实际收付款');
   }
 
   private paymentView(payment: { id: string; paymentType: PurchasePaymentType; businessNo: string; amount: Prisma.Decimal; occurredAt: Date; companyTransactionNo: string | null; supplierTransactionNo: string | null; idempotencyKey: string }) {

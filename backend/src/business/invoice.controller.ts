@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { Request } from 'express';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Request, Response } from 'express';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { BusinessIdParamDto, CreateInvoiceDto, CustomerIdParamDto, InvoiceQueryDto, InvoiceVoidDto, UpdateInvoiceDraftDto } from './business.dto';
+import { BusinessIdParamDto, CreateInvoiceApplicationDto, CreateInvoiceDto, CustomerIdParamDto, InvoiceQueryDto, InvoiceReviewDto, InvoiceVoidDto, UpdateInvoiceApplicationDto, UpdateInvoiceDetailDto, UpdateInvoiceDraftDto, UploadInvoiceDetailDto } from './business.dto';
 import { InvoiceService } from './invoice.service';
 
 interface AuthenticatedRequest extends Request { user: { sub: string; username: string; roles: string[]; permissions: string[] }; }
@@ -11,6 +12,20 @@ interface AuthenticatedRequest extends Request { user: { sub: string; username: 
 export class InvoiceController {
   constructor(private readonly service: InvoiceService) {}
 
+  @Get('invoices/applications') listApplications(@Query() query: InvoiceQueryDto, @Req() request: AuthenticatedRequest) { return this.service.listApplications(query, request.user); }
+  @Get('invoices/applications/:id') getApplication(@Param() params: BusinessIdParamDto, @Req() request: AuthenticatedRequest) { return this.service.getApplicationById(params.id, request.user); }
+  @Post('invoices/applications') createApplication(@Body() dto: CreateInvoiceApplicationDto, @Req() request: AuthenticatedRequest) { return this.service.createApplication(dto, request.user); }
+  @Patch('invoices/applications/:id') updateApplication(@Param() params: BusinessIdParamDto, @Body() dto: UpdateInvoiceApplicationDto, @Req() request: AuthenticatedRequest) { return this.service.updateApplication(params.id, dto, request.user); }
+  @Post('invoices/applications/:id/submit') submitApplication(@Param() params: BusinessIdParamDto, @Req() request: AuthenticatedRequest) { return this.service.submitApplication(params.id, request.user); }
+  @Post('invoices/applications/:id/approve') approveApplication(@Param() params: BusinessIdParamDto, @Body() dto: InvoiceReviewDto, @Req() request: AuthenticatedRequest) { return this.service.approveApplication(params.id, dto, request.user); }
+  @Post('invoices/applications/:id/reject') rejectApplication(@Param() params: BusinessIdParamDto, @Body() dto: InvoiceReviewDto, @Req() request: AuthenticatedRequest) { return this.service.rejectApplication(params.id, dto, request.user); }
+  @Post('invoices/applications/:id/revoke') revokeApplication(@Param() params: BusinessIdParamDto, @Req() request: AuthenticatedRequest) { return this.service.revokeApplication(params.id, request.user); }
+  @Get('invoices/applications/:id/details') listInvoiceDetails(@Param() params: BusinessIdParamDto, @Req() request: AuthenticatedRequest) { return this.service.listInvoiceDetails(params.id, request.user); }
+  @Post('invoices/applications/:id/details/upload') @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } })) uploadInvoiceDetail(@Param() params: BusinessIdParamDto, @Body() dto: UploadInvoiceDetailDto, @UploadedFile() file: any, @Req() request: AuthenticatedRequest) { return this.service.uploadInvoiceDetail(params.id, dto, file, request.user); }
+  @Post('invoices/applications/:id/details/complete') completeInvoiceApplication(@Param() params: BusinessIdParamDto, @Req() request: AuthenticatedRequest) { return this.service.completeInvoiceApplication(params.id, request.user); }
+  @Patch('invoices/applications/:id/details/:detailId') updateInvoiceDetail(@Param() params: BusinessIdParamDto & { detailId: string }, @Body() dto: UpdateInvoiceDetailDto, @Req() request: AuthenticatedRequest) { return this.service.updateInvoiceDetail(params.id, params.detailId, dto, request.user); }
+  @Delete('invoices/applications/:id/details/:detailId') deleteInvoiceDetail(@Param() params: BusinessIdParamDto & { detailId: string }, @Req() request: AuthenticatedRequest) { return this.service.deleteInvoiceDetail(params.id, params.detailId, request.user); }
+  @Get('invoices/applications/:id/details/:detailId/file') async invoiceDetailFile(@Param() params: BusinessIdParamDto & { detailId: string }, @Req() request: AuthenticatedRequest, @Res() response: Response) { const file = await this.service.getInvoiceDetailFile(params.id, params.detailId, request.user); response.type(file.mimeType); return response.sendFile(file.path); }
   @Get('invoices') list(@Query() query: InvoiceQueryDto, @Req() request: AuthenticatedRequest) { return this.service.list(query, request.user); }
   @Get('invoices/:id') getById(@Param() params: BusinessIdParamDto, @Req() request: AuthenticatedRequest) { return this.service.getById(params.id, request.user); }
   @Post('invoices') create(@Body() dto: CreateInvoiceDto, @Req() request: AuthenticatedRequest) { return this.service.create(dto, request.user); }

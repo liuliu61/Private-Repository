@@ -15,6 +15,10 @@ tmp/
 temp/
 *.tmp
 backend/prisma/dev.db
+backend/storage/invoices/
+services/ocr-service/.venv/
+services/ocr-service/__pycache__/
+services/ocr-service/.pytest_cache/
 *.db
 *.db-journal
 *.sqlite
@@ -25,3 +29,4 @@ backend/prisma/dev.db
 *.swo
 .DS_Store
 Thumbs.db
+backend/pgdata/

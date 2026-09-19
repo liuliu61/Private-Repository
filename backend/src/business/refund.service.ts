@@ -20,7 +20,8 @@ export class RefundService {
 
     return this.prisma.$transaction(async (tx) => {
       const order = await this.lockOrder(tx, purchaseOrderId, context);
-      if (![PurchaseOrderStatus.CONFIRMED, PurchaseOrderStatus.SETTLED].includes(order.status)) throw new ConflictException('订单必须已确认后才能申请退款');
+      const refundableOrderStatuses: PurchaseOrderStatus[] = [PurchaseOrderStatus.CONFIRMED, PurchaseOrderStatus.SETTLED];
+      if (!refundableOrderStatuses.includes(order.status)) throw new ConflictException('订单必须已确认后才能申请退款');
       if (!order.customerId) throw new BadRequestException('订单未关联客户，无法申请退款');
       const paidAmount = await this.paidAmount(tx, purchaseOrderId);
       if (paidAmount.lte(0)) throw new ConflictException({ success: false, code: 'CUSTOMER_PAYMENT_REQUIRED', message: '客户尚未实际付款，不能申请退款' });
@@ -44,7 +45,8 @@ export class RefundService {
     this.assertPermission(context, 'FINANCE_REFUND_APPROVE');
     return this.prisma.$transaction(async (tx) => {
       const refund = await this.lockRefund(tx, id, context);
-      if ([RefundStatus.APPROVED, RefundStatus.REFUNDED].includes(refund.status)) return { idempotent: true, ...this.view(refund) };
+      const approvedRefundStatuses: RefundStatus[] = [RefundStatus.APPROVED, RefundStatus.REFUNDED];
+      if (approvedRefundStatuses.includes(refund.status)) return { idempotent: true, ...this.view(refund) };
       if (refund.status !== RefundStatus.PENDING) throw new ConflictException('该退款记录当前状态不允许审批');
       const updated = await tx.refund.update({ where: { id }, data: { status: RefundStatus.APPROVED, approvedBy: context.sub, approvedAt: new Date() } });
       await this.writeAudit(tx, context, refund.organizationId, 'REFUND_APPROVE', id, { status: refund.status }, { status: updated.status, approvedBy: context.sub });

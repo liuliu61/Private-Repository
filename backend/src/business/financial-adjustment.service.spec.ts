@@ -47,6 +47,7 @@ test('创建、审批、执行CNY调整并生成ADJUSTMENT流水', async () => {
   await service.approve(created.id, createContext);
   const executed = await service.execute(created.id, createContext);
   assert.equal(executed.adjustment.status, FinancialAdjustmentStatus.EXECUTED);
+  assert.ok(executed.transaction);
   assert.equal(executed.transaction.businessType, 'ADJUSTMENT');
   assert.equal(executed.transaction.changeAmount, '100.10');
   assert.equal(getRow().executedBy, createContext.sub);
@@ -57,6 +58,7 @@ test('支出调整生成负数变动，重复执行幂等且不产生第二次�
   const created = await service.create({ accountId: 'account-a', accountType: AccountUnit.CNY, type: FinancialAdjustmentType.EXPENSE, amount: '0.30', reason: '银行手续费' }, createContext);
   await service.approve(created.id, createContext);
   const first = await service.execute(created.id, createContext);
+  assert.ok(first.transaction);
   assert.equal(first.transaction.changeAmount, '-0.30');
   const countBefore = getUpdateCount();
   const second = await service.execute(created.id, createContext);
@@ -85,6 +87,7 @@ test('ACCOUNT_CREDIT调整只调用推广账户流水，不触碰CNY账户', asy
   const created = await service.create({ promotionAccountId: 'promotion-a', accountType: AccountUnit.ACCOUNT_CREDIT, type: FinancialAdjustmentType.INCOME, amount: '0.10', reason: '账户币调账' }, createContext);
   await service.approve(created.id, createContext);
   const result = await service.execute(created.id, createContext);
+  assert.ok(result.transaction && 'promotionAccountId' in result.transaction);
   assert.equal(result.transaction.promotionAccountId, 'promotion-a');
   assert.equal(result.transaction.changeAmount, '0.10');
 });

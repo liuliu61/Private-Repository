@@ -10,6 +10,8 @@ function fixture() {
   const banks: any[] = [];
   const receives: any[] = [];
   const cashflowCalls: any[] = [];
+  const receiveDetails: any[] = [];
+  const invoiceTasks: any[] = [];
   const account = { id: ids.account, organizationId: ids.organization, currency: 'CNY', status: 'ACTIVE' };
   const customer = { id: ids.customer, name: '客户A', customerCode: 'C001', agentId: ids.organization };
   const tx: any = {
@@ -24,11 +26,13 @@ function fixture() {
       update: async ({ where: { id }, data }: any) => { const row = banks.find((item) => item.id === id); Object.assign(row, data); return row; },
     },
     receiveRecord: {
-      findUnique: async ({ where: { id } }: any) => { const row = receives.find((item) => item.id === id); return row ? { ...row, transaction: row.transaction || null, bankTransaction: banks.find((item) => item.id === row.bankTransactionId) } : null; },
+      findUnique: async ({ where: { id } }: any) => { const row = receives.find((item) => item.id === id); return row ? { ...row, transaction: row.transaction || null, bankTransaction: banks.find((item) => item.id === row.bankTransactionId), details: receiveDetails.filter((detail) => detail.receiveRecordId === id) } : null; },
       create: async ({ data }: any) => { const row = { id: `receive-${receives.length + 1}`, receiveNo: `RC-${receives.length + 1}`, postedAmount: new Prisma.Decimal(0), refundedAmount: new Prisma.Decimal(0), ...data }; receives.push(row); return row; },
       update: async ({ where: { id }, data }: any) => { const row = receives.find((item) => item.id === id); Object.assign(row, data); return row; },
     },
     receivePosting: { create: async ({ data }: any) => ({ id: 'posting-1', postingNo: 'RP-1', ...data }) },
+    receiveRecordDetail: { create: async ({ data }: any) => { const row = { id: `detail-${receiveDetails.length + 1}`, ...data }; receiveDetails.push(row); return row; } },
+    invoiceTask: { create: async ({ data }: any) => { const row = { id: `task-${invoiceTasks.length + 1}`, ...data }; invoiceTasks.push(row); return row; } },
     receiveServiceFee: { create: async ({ data }: any) => ({ id: 'fee-1', ...data }) },
     auditLog: { create: async () => undefined },
   };
@@ -36,7 +40,7 @@ function fixture() {
   const scope: any = { isSuperAdmin: () => false, getOrganizationIds: async () => [ids.organization], assertOrganizationAccess: async (id: string) => { if (id !== ids.organization) throw new Error('PERMISSION_DENIED'); } };
   const cashflow: any = { createTransactionInTransaction: async (_tx: unknown, input: any) => { cashflowCalls.push(input); return { id: 'transaction-1', transactionNo: 'TX-1', accountId: input.accountId, businessType: input.businessType, businessNo: input.businessNo, changeAmount: input.changeAmount, balanceBefore: new Prisma.Decimal('0.00'), balanceAfter: new Prisma.Decimal('30000.00'), occurredAt: input.occurredAt, operatorId: input.operatorId, remark: input.remark }; } };
   const wallet: any = { applyReceivePostingInTransaction: async () => ({ idempotent: false, transaction: { transactionNo: 'CWTX-1' } }) };
-  return { service: new ReceivingService(prisma, cashflow, scope, wallet), banks, receives, cashflowCalls };
+  return { service: new ReceivingService(prisma, cashflow, scope, wallet), banks, receives, receiveDetails, invoiceTasks, cashflowCalls };
 }
 
 async function importAndConfirm(f: ReturnType<typeof fixture>) {
@@ -59,21 +63,34 @@ test('保存银行流水不生成收款，确认到账后才幂等生成收款�
   assert.equal(f.banks[0].status, BankTransactionStatus.RECEIPT_CONFIRMED);
 });
 
-test('付款30000、服务费2000时V钱包只入账28000，开票口径保存30000', async () => {
+test('付款30000、服务费2000时V钱包只入账28000，对公/对私按明细生成开票任务', async () => {
   const f = fixture();
   const { confirmed } = await importAndConfirm(f);
-  const posted = await f.service.confirmReceiveRecord(confirmed.receiveRecord.id, { serviceFeeAmount: '2000.00' }, context);
+  const posted = await f.service.confirmReceiveRecord(confirmed.receiveRecord.id, { serviceFeeAmount: '2000.00', details: [{ type: 'PUBLIC', amount: '18000.00' }, { type: 'PRIVATE', amount: '12000.00' }] }, context);
   assert.equal(posted.receiveRecord.walletCreditAmount, '28000.00');
-  assert.equal(posted.receiveRecord.invoiceEligibleAmount, '30000.00');
+  assert.equal(posted.receiveRecord.invoiceEligibleAmount, '0.00');
+  assert.equal(posted.receiveRecord.unBillingAmount, '0.00');
+  assert.equal(posted.receiveRecord.billingAmount, '0.00');
+  assert.equal(posted.receiveRecord.billedAmount, '0.00');
   assert.equal(posted.receiveRecord.postedAmount, '28000.00');
   assert.equal(f.cashflowCalls.length, 1);
   assert.equal(f.receives[0].status, ReceiveRecordStatus.CONFIRMED);
+  assert.deepEqual(f.receiveDetails.map((detail) => [detail.type, detail.amount.toFixed(2)]), [['PUBLIC', '18000.00'], ['PRIVATE', '12000.00']]);
+  assert.equal(f.invoiceTasks.length, 1);
+  assert.equal(f.invoiceTasks[0].invoiceAmount.toFixed(2), '18000.00');
+});
+
+test('全部对私入账不会生成开票任务', async () => {
+  const f = fixture();
+  const { confirmed } = await importAndConfirm(f);
+  await f.service.confirmReceiveRecord(confirmed.receiveRecord.id, { serviceFeeAmount: '0.00', details: [{ type: 'PRIVATE', amount: '30000.00' }] }, context);
+  assert.equal(f.invoiceTasks.length, 0);
 });
 
 test('收款确认失败时不应提前改变收款状态', async () => {
   const f = fixture();
   const { confirmed } = await importAndConfirm(f);
   const failing = new ReceivingService((f.service as any).prisma, { createTransactionInTransaction: async () => { throw new Error('模拟流水写入失败'); } } as any, (f.service as any).scope, (f.service as any).customerWallet);
-  await assert.rejects(() => failing.confirmReceiveRecord(confirmed.receiveRecord.id, { serviceFeeAmount: '0.00' }, context), /模拟流水写入失败/);
+  await assert.rejects(() => failing.confirmReceiveRecord(confirmed.receiveRecord.id, { serviceFeeAmount: '0.00', details: [{ type: 'PUBLIC', amount: '30000.00' }] }, context), /模拟流水写入失败/);
   assert.equal(f.receives[0].status, ReceiveRecordStatus.PENDING_CONFIRMATION);
 });

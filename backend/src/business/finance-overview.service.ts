@@ -96,7 +96,7 @@ export class FinanceOverviewService {
   }
 
   private incomeExpense(rows: Array<{ changeAmount: Prisma.Decimal }>) { return rows.reduce((result, row) => row.changeAmount.gte(0) ? { income: result.income.add(row.changeAmount), expense: result.expense } : { income: result.income, expense: result.expense.add(row.changeAmount.abs()) }, { income: ZERO(), expense: ZERO() }); }
-  private sum(values: Array<Prisma.Decimal | null | undefined>) { return values.reduce((total, value) => total.add(value ?? ZERO()), ZERO()); }
+  private sum(values: Array<Prisma.Decimal | null | undefined>): Prisma.Decimal { return values.reduce<Prisma.Decimal>((total, value) => total.add(value ?? ZERO()), ZERO()); }
   private optionalMoney(value: Prisma.Decimal | null | undefined) { return value === null || value === undefined ? null : moneyToString(value); }
   private dateRange(query: FinanceDateQueryDto): Prisma.DateTimeFilter | undefined { if (!query.startDate && !query.endDate) return undefined; return { gte: query.startDate ? new Date(query.startDate) : undefined, lt: query.endDate ? new Date(query.endDate) : undefined }; }
   private queryScope(query: FinanceDateQueryDto) { return { startDate: query.startDate ?? null, endDate: query.endDate ?? null }; }
