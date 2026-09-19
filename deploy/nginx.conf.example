@@ -1,0 +1,71 @@
+# ============================================================
+# 宝塔 Nginx 配置模板（HTTP + HTTPS）
+# ============================================================
+#
+# 部署步骤：
+#   1. 复制本文件到宝塔 Nginx 配置目录：
+#      cp deploy/nginx.conf.example /www/server/panel/vhost/nginx/你的域名.conf
+#
+#   2. 编辑文件，把所有 qd.yqjxa.cn 替换成你的域名
+#      （共 4 处：server_name × 2、ssl_certificate × 2、日志 × 2）
+#
+#   3. 确认 SSL 证书已申请（宝塔 → 网站 → SSL → Let's Encrypt）
+#      证书默认路径：/www/server/panel/vhost/ssl/你的域名/
+#
+#   4. 确认前端端口（默认 3003）和后端端口（默认 3001）
+#      如需修改，改下面 proxy_pass 对应的端口
+#
+#   5. 测试并重载：
+#      nginx -t && nginx -s reload
+#
+# 常见问题：
+#   - 502 Bad Gateway：检查 pm2 list 确认进程在线，netstat -tlnp | grep 端口
+#   - HTTPS 访问 502 但 HTTP 正常：本文件缺少 443 块，用本模板替换
+#   - SSL 证书路径不对：宝塔申请后证书在 /www/server/panel/vhost/ssl/域名/
+# ============================================================
+
+# HTTP 80 —— 强制跳转到 HTTPS
+server {
+    listen 80;
+    server_name qd.yqjxa.cn;
+    return 301 https://$host$request_uri;
+}
+
+# HTTPS 443 —— 反向代理到前端和后端
+server {
+    listen 443 ssl http2;
+    server_name qd.yqjxa.cn;
+
+    # SSL 证书（宝塔申请 Let's Encrypt 后的默认路径）
+    ssl_certificate     /www/server/panel/vhost/ssl/qd.yqjxa.cn/fullchain.pem;
+    ssl_certificate_key /www/server/panel/vhost/ssl/qd.yqjxa.cn/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+    ssl_ciphers HIGH:!aNULL:!MD5;
+
+    # 前端 Next.js（默认端口 3003）
+    location / {
+        proxy_pass http://127.0.0.1:3003;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+    }
+
+    # 后端 API（默认端口 3001）
+    location /api/ {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_read_timeout 300s;
+    }
+
+    access_log /www/wwwlogs/qd.yqjxa.cn.log;
+    error_log  /www/wwwlogs/qd.yqjxa.cn.error.log;
+}

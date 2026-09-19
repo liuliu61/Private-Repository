@@ -6,6 +6,10 @@ import { CashflowModule } from './cashflow/cashflow.module';
 import { RebateModule } from './rebate/rebate.module';
 import { CommonModule } from './common/common.module';
 import { BusinessModule } from './business/business.module';
+import { AppController } from './app.controller';
 
-@Module({ imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, CommonModule, AuthModule, CashflowModule, RebateModule, BusinessModule] })
+@Module({
+  imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, CommonModule, AuthModule, CashflowModule, RebateModule, BusinessModule],
+  controllers: [AppController],
+})
 export class AppModule {}
