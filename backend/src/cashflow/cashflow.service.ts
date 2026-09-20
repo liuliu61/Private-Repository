@@ -11,8 +11,10 @@ import {
   CreateSupplierAccountTransactionInput,
   CreatePromotionTransactionInput,
   PaginatedTransactionsView,
+  PaginatedUnifiedTransactionsView,
   TransactionQueryInput,
   TransactionView,
+  UnifiedTransactionView,
 } from './cashflow.types';
 import { moneyToString, toMoney } from './utils/money.util';
 import { AccessScopeService } from '../common/access-scope.service';
@@ -201,5 +203,117 @@ export class CashflowService {
 
   private toTransactionView(transaction: { id: string; transactionNo: string; accountId: string | null; supplierAccountId: string | null; businessType: TransactionBusinessType; businessNo: string; changeAmount: Prisma.Decimal; balanceBefore: Prisma.Decimal; balanceAfter: Prisma.Decimal; occurredAt: Date; operatorId: string; remark: string | null; adjustmentId?: string | null }): TransactionView {
     return { id: transaction.id, transactionNo: transaction.transactionNo, accountId: transaction.accountId ?? null, supplierAccountId: transaction.supplierAccountId ?? null, businessType: transaction.businessType, businessNo: transaction.businessNo, changeAmount: moneyToString(transaction.changeAmount), balanceBefore: moneyToString(transaction.balanceBefore), balanceAfter: moneyToString(transaction.balanceAfter), occurredAt: transaction.occurredAt, operatorId: transaction.operatorId, remark: transaction.remark, adjustmentId: transaction.adjustmentId ?? null };
+  }
+
+  async getAllTransactions(input: TransactionQueryInput = {}, accessContext: AccountAccessContext): Promise<PaginatedUnifiedTransactionsView> {
+    await this.assertAccountReadable(accessContext, undefined);
+    const page = input.page ?? 1;
+    const pageSize = input.pageSize ?? 20;
+    if (!Number.isInteger(page) || page < 1) throw new BadRequestException('页码必须是大于等于 1 的整数');
+    if (!Number.isInteger(pageSize) || pageSize < 1 || pageSize > 100) throw new BadRequestException('每页数量必须是 1 到 100 之间的整数');
+
+    const occurredAtFilter: Prisma.DateTimeFilter | undefined = (input.startDate || input.endDate) ? {
+      gte: input.startDate,
+      lte: input.endDate,
+    } : undefined;
+
+    // 每种流水最多取 300 条，合并后排序分页
+    const [accountTxs, walletTxs, promotionTxs, accounts, wallets, promotionAccounts] = await Promise.all([
+      this.prisma.transaction.findMany({
+        where: {
+          businessType: input.businessType as TransactionBusinessType | undefined,
+          businessNo: input.businessNo,
+          transactionNo: input.transactionNo,
+          operatorId: input.operatorId,
+          occurredAt: occurredAtFilter,
+        },
+        orderBy: [{ occurredAt: 'desc' }, { transactionNo: 'desc' }],
+        take: 300,
+      }),
+      this.prisma.customerWalletTransaction.findMany({
+        where: {
+          businessNo: input.businessNo,
+          transactionNo: input.transactionNo,
+          operatorId: input.operatorId,
+          occurredAt: occurredAtFilter,
+        },
+        orderBy: [{ occurredAt: 'desc' }, { transactionNo: 'desc' }],
+        take: 300,
+        include: { wallet: { select: { walletName: true } } },
+      }),
+      this.prisma.promotionTransaction.findMany({
+        where: {
+          businessNo: input.businessNo,
+          transactionNo: input.transactionNo,
+          operatorId: input.operatorId,
+          occurredAt: occurredAtFilter,
+        },
+        orderBy: [{ occurredAt: 'desc' }, { transactionNo: 'desc' }],
+        take: 300,
+        include: { promotionAccount: { select: { accountName: true } } },
+      }),
+      this.prisma.account.findMany({ select: { id: true, name: true } }),
+      this.prisma.customerWallet.findMany({ select: { id: true, walletName: true } }),
+      this.prisma.promotionAccount.findMany({ select: { id: true, accountName: true } }),
+    ]);
+
+    const accountMap = new Map(accounts.map(a => [a.id, a.name]));
+    const walletMap = new Map(wallets.map(w => [w.id, w.walletName]));
+    const promotionMap = new Map(promotionAccounts.map(p => [p.id, p.accountName]));
+
+    const unified: UnifiedTransactionView[] = [
+      ...accountTxs.map(t => ({
+        id: t.id,
+        transactionNo: t.transactionNo,
+        source: 'ACCOUNT' as const,
+        sourceName: t.accountId ? (accountMap.get(t.accountId) || '资金账户') : '资金账户',
+        businessType: t.businessType,
+        businessNo: t.businessNo,
+        changeAmount: moneyToString(t.changeAmount),
+        balanceBefore: moneyToString(t.balanceBefore),
+        balanceAfter: moneyToString(t.balanceAfter),
+        occurredAt: t.occurredAt,
+        operatorId: t.operatorId,
+        remark: t.remark,
+      })),
+      ...walletTxs.map(t => ({
+        id: t.id,
+        transactionNo: t.transactionNo,
+        source: 'CUSTOMER_WALLET' as const,
+        sourceName: t.wallet?.walletName || walletMap.get(t.walletId) || '客户钱包',
+        businessType: t.businessType,
+        businessNo: t.businessNo || '',
+        changeAmount: moneyToString(t.changeAmount),
+        balanceBefore: moneyToString(t.balanceBefore),
+        balanceAfter: moneyToString(t.balanceAfter),
+        occurredAt: t.occurredAt,
+        operatorId: t.operatorId,
+        remark: t.remark,
+      })),
+      ...promotionTxs.map(t => ({
+        id: t.id,
+        transactionNo: t.transactionNo,
+        source: 'PROMOTION_ACCOUNT' as const,
+        sourceName: t.promotionAccount?.accountName || promotionMap.get(t.promotionAccountId) || '推广账户',
+        businessType: t.businessType,
+        businessNo: t.businessNo,
+        changeAmount: moneyToString(t.changeAmount),
+        balanceBefore: moneyToString(t.balanceBefore),
+        balanceAfter: moneyToString(t.balanceAfter),
+        occurredAt: t.occurredAt,
+        operatorId: t.operatorId,
+        remark: t.remark,
+      })),
+    ];
+
+    unified.sort((a, b) => b.occurredAt.getTime() - a.occurredAt.getTime() || b.transactionNo.localeCompare(a.transactionNo));
+
+    const start = (page - 1) * pageSize;
+    return {
+      items: unified.slice(start, start + pageSize),
+      total: unified.length,
+      page,
+      pageSize,
+    };
   }
 }

@@ -228,7 +228,6 @@ enum PromotionTransactionBusinessType {
   CUSTOMER_CREDIT
   SUPPLIER_CREDIT
   ADJUSTMENT
-  REFUND
   OTHER
 }
 
@@ -239,8 +238,6 @@ enum CustomerWalletTransactionType {
   MANUAL_ADJUSTMENT
   RECEIVE_POSTING
   RECEIVE_REFUND
-  PROMOTION_ACCOUNT_CREDIT
-  PROMOTION_ACCOUNT_REFUND
 }
 
 enum CustomerWalletType {
@@ -368,7 +365,6 @@ model User {
   paymentOaApprovers PaymentPostingOaApply[] @relation("PaymentOaApprover")
   serviceOrderCreators ServiceOrder[] @relation("ServiceOrderCreator")
   serviceOrderConfirmers ServiceOrder[] @relation("ServiceOrderConfirmer")
-  tableColumnConfigs TableColumnConfig[]
 
   @@map("users")
 }
@@ -718,7 +714,6 @@ model Organization {
   accounts Account[]
   suppliers Supplier[]
   promotionAccounts PromotionAccount[]
-  channels Channel[]
   adSubjects AdSubject[]
   purchaseOrders PurchaseOrder[]
   settlements Settlement[]
@@ -808,29 +803,6 @@ model Reconciliation {
   @@map("reconciliations")
 }
 
-model Channel {
-  id                       String   @id @default(uuid()) @db.Uuid
-  organizationId           String   @map("organization_id") @db.Uuid
-  name                     String   @db.VarChar(100)
-  code                     String?  @db.VarChar(50)
-  platform                 String?  @db.VarChar(50)
-  defaultCostRebatePublic  Decimal  @default(0) @map("default_cost_rebate_public") @db.Decimal(5, 2)
-  defaultCostRebatePrivate Decimal  @default(0) @map("default_cost_rebate_private") @db.Decimal(5, 2)
-  status                   ChannelStatus @default(ACTIVE)
-  remark                   String?  @db.VarChar(255)
-  createdAt                DateTime @default(now()) @map("created_at")
-  updatedAt                DateTime @updatedAt @map("updated_at")
-  organization             Organization @relation(fields: [organizationId], references: [id])
-
-  @@index([organizationId, status])
-  @@map("channels")
-}
-
-enum ChannelStatus {
-  ACTIVE
-  INACTIVE
-}
-
 model Supplier {
   id String @id @default(uuid()) @db.Uuid
   name String @db.VarChar(100)
@@ -879,10 +851,6 @@ model PromotionAccount {
   customerId      String?                   @map("customer_id") @db.Uuid
   supplierId      String?                   @map("supplier_id") @db.Uuid
   accountName     String                    @map("account_name") @db.VarChar(100)
-  platform        String?                   @map("platform") @db.VarChar(50)
-  platformAccountId String?                 @map("platform_account_id") @db.VarChar(100)
-  accountCategory String?                   @map("account_category") @db.VarChar(50)
-  channelName     String?                   @map("channel_name") @db.VarChar(100)
   unit            PromotionAccountUnit      @default(ACCOUNT_CREDIT)
   currentBalance  Decimal                   @default(0) @map("current_balance") @db.Decimal(20, 2)
   status          AccountStatus             @default(ACTIVE)
@@ -918,15 +886,6 @@ model PromotionTransaction {
   operatorId         String                            @map("operator_id") @db.Uuid
   adjustmentId       String?                           @unique @map("adjustment_id") @db.Uuid
   remark             String?                           @db.VarChar(255)
-  customerRebate     Decimal?                          @map("customer_rebate") @db.Decimal(5, 2)
-  costRebate         Decimal?                          @map("cost_rebate") @db.Decimal(5, 2)
-  remitAmount        Decimal?                          @map("remit_amount") @db.Decimal(20, 2)
-  additionalFee      Decimal?                          @map("additional_fee") @db.Decimal(20, 2)
-  operateFee         Decimal?                          @map("operate_fee") @db.Decimal(20, 2)
-  profit             Decimal?                          @map("profit") @db.Decimal(20, 2)
-  accountCategory    String?                           @map("account_category") @db.VarChar(50)
-  channelName        String?                           @map("channel_name") @db.VarChar(100)
-  paymentNature      String?                           @map("payment_nature") @db.VarChar(20)
   promotionAccount   PromotionAccount                  @relation(fields: [promotionAccountId], references: [id])
   operator           User                              @relation("PromotionTransactionOperator", fields: [operatorId], references: [id])
   financialAdjustment FinancialAdjustment?              @relation("FinancialAdjustmentPromotionTransaction", fields: [adjustmentId], references: [id])
@@ -1946,6 +1905,7 @@ model ConsumptionRecord {
   rebateAmount    Decimal   @default(0) @map("rebate_amount") @db.Decimal(18, 4)
   serviceCost     Decimal   @default(0) @map("service_cost") @db.Decimal(18, 4)
   profitAmount    Decimal   @default(0) @map("profit_amount") @db.Decimal(18, 4)
+  recordSource    String    @default('MANUAL') @map("record_source") @db.VarChar(20)
   remark          String?   @db.VarChar(500)
   createdBy       String?   @map("created_by") @db.Uuid
   createdAt       DateTime  @default(now()) @map("created_at")
@@ -1956,17 +1916,4 @@ model ConsumptionRecord {
   @@index([organizationId, consumptionDate])
   @@index([adAccountId, consumptionDate])
   @@map("consumption_records")
-}
-
-model TableColumnConfig {
-  id             String   @id @default(uuid()) @db.Uuid
-  userId         String   @map("user_id") @db.Uuid
-  tableKey       String   @map("table_key") @db.VarChar(100)
-  columns        String   @db.Text
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-  user           User     @relation(fields: [userId], references: [id])
-  @@unique([userId, tableKey])
-  @@index([userId])
-  @@map("table_column_configs")
 }

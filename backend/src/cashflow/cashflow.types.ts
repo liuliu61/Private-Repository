@@ -97,6 +97,28 @@ export interface AccountSummaryView {
   periodOther: string;
 }
 
+export interface UnifiedTransactionView {
+  id: string;
+  transactionNo: string;
+  source: 'ACCOUNT' | 'CUSTOMER_WALLET' | 'PROMOTION_ACCOUNT';
+  sourceName: string;
+  businessType: string;
+  businessNo: string;
+  changeAmount: string;
+  balanceBefore: string;
+  balanceAfter: string;
+  occurredAt: Date;
+  operatorId: string;
+  remark: string | null;
+}
+
+export interface PaginatedUnifiedTransactionsView {
+  items: UnifiedTransactionView[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface PaginatedTransactionsView {
   items: TransactionView[];
   total: number;

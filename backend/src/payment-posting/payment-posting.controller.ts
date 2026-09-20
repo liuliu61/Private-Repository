@@ -1,5 +1,8 @@
-import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Patch, Delete, Body, Param, Query, Req, UseGuards } from '@nestjs/common';
+import { Request } from 'express';
 import { PaymentPostingService } from './payment-posting.service';
+import { AccessContext } from '../common/access-scope.service';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import {
   CreatePaymentPostingApplyDto,
   UpdatePaymentPostingApplyDto,
@@ -9,15 +12,12 @@ import {
   ListPaymentPostingQueryDto,
 } from './payment-posting.dto';
 
-interface AuthenticatedRequest {
-  user: {
-    sub: string;
-    organizationId: string;
-    roles: string[];
-  };
+interface AuthenticatedRequest extends Request {
+  user: AccessContext;
 }
 
 @Controller('payment-posting')
+@UseGuards(JwtAuthGuard)
 export class PaymentPostingController {
   constructor(private readonly service: PaymentPostingService) {}
 

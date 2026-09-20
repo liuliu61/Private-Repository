@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AccessContext, AccessScopeService } from '../common/access-scope.service';
 import {
   CreatePaymentPostingApplyDto,
   UpdatePaymentPostingApplyDto,
@@ -9,15 +10,9 @@ import {
   ListPaymentPostingQueryDto,
 } from './payment-posting.dto';
 
-interface AccessContext {
-  sub: string;
-  organizationId: string;
-  roles: string[];
-}
-
 @Injectable()
 export class PaymentPostingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private readonly scope: AccessScopeService) {}
 
   private generateApplyNo(): string {
     const now = new Date();
@@ -35,7 +30,9 @@ export class PaymentPostingService {
 
   async list(query: ListPaymentPostingQueryDto, context: AccessContext) {
     const { page = 1, pageSize = 10, status, customerId, applyNo, oaFlowNo } = query;
-    const where: any = { organizationId: context.organizationId };
+    const orgIds = await this.scope.getOrganizationIds(context);
+    const where: any = {};
+    if (orgIds) where.organizationId = { in: orgIds };
     if (status) where.status = status;
     if (customerId) where.customerId = customerId;
     if (applyNo) where.applyNo = { contains: applyNo };
@@ -67,7 +64,7 @@ export class PaymentPostingService {
 
   async getById(id: string, context: AccessContext) {
     const apply = await this.prisma.paymentPostingApply.findFirst({
-      where: { id, organizationId: context.organizationId },
+      where: { id, organizationId: (await this.scope.getOrganizationIds(context))?.[0] },
       include: {
         customer: true,
         creator: { select: { id: true, displayName: true, username: true } },
@@ -89,7 +86,7 @@ export class PaymentPostingService {
   async create(dto: CreatePaymentPostingApplyDto, context: AccessContext) {
     // 校验客户
     const customer = await this.prisma.customer.findFirst({
-      where: { id: dto.customerId, agentId: context.organizationId },
+      where: { id: dto.customerId, agentId: (await this.scope.getOrganizationIds(context))?.[0] },
     });
     if (!customer) throw new BadRequestException('客户不存在或不属于当前组织');
 
@@ -97,7 +94,7 @@ export class PaymentPostingService {
     const receiveRecords = await this.prisma.receiveRecord.findMany({
       where: {
         id: { in: dto.paymentRecordIds },
-        organizationId: context.organizationId,
+        organizationId: (await this.scope.getOrganizationIds(context))?.[0],
         customerId: dto.customerId,
       },
     });
@@ -114,7 +111,7 @@ export class PaymentPostingService {
     // 查询已补款金额
     const existingApplies = await this.prisma.paymentPostingApply.findMany({
       where: {
-        organizationId: context.organizationId,
+        organizationId: (await this.scope.getOrganizationIds(context))?.[0],
         customerId: dto.customerId,
         status: { in: ['REVIEWING', 'APPROVED', 'PAID', 'COMPLETED'] },
         receiveRecords: { some: { receiveRecordId: { in: dto.paymentRecordIds } } },
@@ -127,12 +124,16 @@ export class PaymentPostingService {
       throw new BadRequestException(`补款金额 ${totalAmount} 超过可补款金额 ${availableAmount}`);
     }
 
+    const orgIds = await this.scope.getOrganizationIds(context);
+    if (!orgIds || orgIds.length === 0) throw new ForbiddenException('用户未关联组织');
+    const organizationId = orgIds[0];
+
     const applyNo = this.generateApplyNo();
 
     const apply = await this.prisma.paymentPostingApply.create({
       data: {
         applyNo,
-        organizationId: context.organizationId,
+        organizationId,
         customerId: dto.customerId,
         applyType: dto.applyType || 'RECHARGE',
         totalAmount,
@@ -173,7 +174,7 @@ export class PaymentPostingService {
 
   async update(id: string, dto: UpdatePaymentPostingApplyDto, context: AccessContext) {
     const apply = await this.prisma.paymentPostingApply.findFirst({
-      where: { id, organizationId: context.organizationId },
+      where: { id, organizationId: (await this.scope.getOrganizationIds(context))?.[0] },
     });
     if (!apply) throw new NotFoundException('补款申请不存在');
     if (apply.status !== 'DRAFT') throw new BadRequestException('只有草稿状态可以修改');
@@ -227,7 +228,7 @@ export class PaymentPostingService {
 
   async submit(id: string, context: AccessContext) {
     const apply = await this.prisma.paymentPostingApply.findFirst({
-      where: { id, organizationId: context.organizationId },
+      where: { id, organizationId: (await this.scope.getOrganizationIds(context))?.[0] },
       include: { details: true },
     });
     if (!apply) throw new NotFoundException('补款申请不存在');
@@ -264,7 +265,7 @@ export class PaymentPostingService {
 
   async approve(id: string, dto: PaymentPostingReviewDto, context: AccessContext) {
     const apply = await this.prisma.paymentPostingApply.findFirst({
-      where: { id, organizationId: context.organizationId },
+      where: { id, organizationId: (await this.scope.getOrganizationIds(context))?.[0] },
     });
     if (!apply) throw new NotFoundException('补款申请不存在');
     if (apply.status !== 'REVIEWING') throw new BadRequestException('只有审核中状态可以审核');
@@ -291,7 +292,7 @@ export class PaymentPostingService {
 
   async reject(id: string, dto: PaymentPostingReviewDto, context: AccessContext) {
     const apply = await this.prisma.paymentPostingApply.findFirst({
-      where: { id, organizationId: context.organizationId },
+      where: { id, organizationId: (await this.scope.getOrganizationIds(context))?.[0] },
     });
     if (!apply) throw new NotFoundException('补款申请不存在');
     if (apply.status !== 'REVIEWING') throw new BadRequestException('只有审核中状态可以驳回');
@@ -318,7 +319,7 @@ export class PaymentPostingService {
 
   async revoke(id: string, context: AccessContext) {
     const apply = await this.prisma.paymentPostingApply.findFirst({
-      where: { id, organizationId: context.organizationId },
+      where: { id, organizationId: (await this.scope.getOrganizationIds(context))?.[0] },
     });
     if (!apply) throw new NotFoundException('补款申请不存在');
     if (!['DRAFT', 'REVIEWING', 'REJECTED'].includes(apply.status)) {
@@ -336,7 +337,7 @@ export class PaymentPostingService {
 
   async pay(id: string, dto: PaymentPostingPayDto, context: AccessContext) {
     const apply = await this.prisma.paymentPostingApply.findFirst({
-      where: { id, organizationId: context.organizationId },
+      where: { id, organizationId: (await this.scope.getOrganizationIds(context))?.[0] },
     });
     if (!apply) throw new NotFoundException('补款申请不存在');
     if (apply.status !== 'APPROVED') throw new BadRequestException('只有审核通过状态可以付款');
@@ -398,7 +399,7 @@ export class PaymentPostingService {
 
   async complete(id: string, dto: PaymentPostingCompleteDto, context: AccessContext) {
     const apply = await this.prisma.paymentPostingApply.findFirst({
-      where: { id, organizationId: context.organizationId },
+      where: { id, organizationId: (await this.scope.getOrganizationIds(context))?.[0] },
     });
     if (!apply) throw new NotFoundException('补款申请不存在');
     if (apply.status !== 'PAID') throw new BadRequestException('只有已付款状态可以完成');
@@ -417,7 +418,7 @@ export class PaymentPostingService {
 
   async retryOa(id: string, context: AccessContext) {
     const apply = await this.prisma.paymentPostingApply.findFirst({
-      where: { id, organizationId: context.organizationId },
+      where: { id, organizationId: (await this.scope.getOrganizationIds(context))?.[0] },
     });
     if (!apply) throw new NotFoundException('补款申请不存在');
     if (apply.status !== 'REVIEWING') throw new BadRequestException('只有审核中状态可以重试OA');
@@ -446,7 +447,7 @@ export class PaymentPostingService {
 
   async listOaRecords(applyId: string, context: AccessContext) {
     const apply = await this.prisma.paymentPostingApply.findFirst({
-      where: { id: applyId, organizationId: context.organizationId },
+      where: { id: applyId, organizationId: (await this.scope.getOrganizationIds(context))?.[0] },
     });
     if (!apply) throw new NotFoundException('补款申请不存在');
 

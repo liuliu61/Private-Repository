@@ -55,7 +55,17 @@ export class BusinessService {
     const agentId = dto.agentId ?? (await this.scope.getOrganizationIds(context))?.[0];
     if (!agentId && !this.scope.isSuperAdmin(context)) throw new BadRequestException('请先配置客户所属组织');
     if (agentId) await this.scope.assertOrganizationAccess(agentId, context);
-    return this.prisma.customer.create({ data: { customerCode: dto.customerCode, name: dto.name, fullName: dto.fullName, contact: dto.contact, phone: dto.phone, departmentId: dto.departmentId, agentId, remark: dto.remark } });
+    const customer = await this.prisma.customer.create({ data: { customerCode: dto.customerCode, name: dto.name, fullName: dto.fullName, contact: dto.contact, phone: dto.phone, departmentId: dto.departmentId, agentId, remark: dto.remark } });
+    // 创建客户后自动创建默认财务V钱包（如果不存在）
+    if (agentId) {
+      try {
+        const existing = await this.prisma.customerWallet.findUnique({ where: { customerId_walletType: { customerId: customer.id, walletType: 'FINANCE_V' } } });
+        if (!existing) {
+          await this.prisma.customerWallet.create({ data: { customerId: customer.id, organizationId: agentId, walletName: `${customer.name}财务V钱包`, walletType: 'FINANCE_V', unit: 'CNY' } });
+        }
+      } catch { /* 自动创建钱包失败不影响客户创建 */ }
+    }
+    return customer;
   }
 
   async listSuppliers(query: ListQueryDto, context: AccessContext) {

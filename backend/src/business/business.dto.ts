@@ -51,6 +51,36 @@ export class CreateSupplierAccountDto {
 
 export class CreatePromotionAccountDto {
   @IsString() @IsNotEmpty() @MaxLength(100) accountName!: string;
+  @IsOptional() @IsString() @MaxLength(50) platform?: string;
+  @IsOptional() @IsString() @MaxLength(100) platformAccountId?: string;
+  @IsOptional() @IsString() @MaxLength(50) accountCategory?: string;
+  @IsOptional() @IsString() @MaxLength(100) channelName?: string;
+}
+
+export class PromotionAccountCreditDto {
+  @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '充值金额格式不正确' }) amount!: string;
+  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '客户返点格式不正确' }) customerRebate?: string;
+  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '成本返点格式不正确' }) costRebate?: string;
+  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '打款金额格式不正确' }) remitAmount?: string;
+  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '额外费用格式不正确' }) additionalFee?: string;
+  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '运营费用格式不正确' }) operateFee?: string;
+  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '利润格式不正确' }) profit?: string;
+  @IsOptional() @IsString() @MaxLength(50) accountCategory?: string;
+  @IsOptional() @IsString() @MaxLength(100) channelName?: string;
+  @IsOptional() @IsString() @MaxLength(20) paymentNature?: string;
+  @IsOptional() @IsUUID('4', { message: '客户钱包ID格式不正确' }) customerWalletId?: string;
+  @IsOptional() @IsString() @MaxLength(255) remark?: string;
+}
+
+export class PromotionAccountRefundDto {
+  @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '退款金额格式不正确' }) amount!: string;
+  @IsUUID('4', { message: '客户钱包ID格式不正确' }) customerWalletId!: string;
+  @IsOptional() @IsString() @MaxLength(255) remark?: string;
+}
+
+export class PromotionAccountTransactionQueryDto {
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) page?: number = 1;
+  @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize?: number = 20;
 }
 
 export class RecordCustomerCreditDto {
@@ -229,14 +259,19 @@ export class CustomerPolicyIdParamDto extends CustomerIdParamDto {
 
 export class CustomerPolicyAtQueryDto {
   @IsOptional() @IsDateString({}, { message: '业务时间格式不正确' }) at?: string;
+  @IsOptional() @IsUUID('4', { message: '主体ID格式不正确' }) subjectId?: string;
+  @IsOptional() @IsUUID('4', { message: '广告账户ID格式不正确' }) accountId?: string;
 }
 
 export class CustomerPolicyListQueryDto extends CustomerPolicyAtQueryDto {
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) page = 1;
   @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) pageSize = 20;
+  @IsOptional() @IsBoolean() @Transform(({ value }) => value === 'true' || value === true) allDimensions?: boolean;
 }
 
 export class CreateCustomerRebatePolicyVersionDto {
+  @IsOptional() @IsUUID('4', { message: '主体ID格式不正确' }) subjectId?: string;
+  @IsOptional() @IsUUID('4', { message: '广告账户ID格式不正确' }) accountId?: string;
   @IsEnum(RebateRuleType) rebateType!: RebateRuleType;
   @IsEnum(RebateCalculationMode) calculationMode!: RebateCalculationMode;
   @Matches(rate) rate!: string;
