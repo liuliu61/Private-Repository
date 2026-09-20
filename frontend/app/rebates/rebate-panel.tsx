@@ -7,19 +7,10 @@ import {
 } from 'antd';
 import { PlusOutlined, ReloadOutlined, CalculatorOutlined, CheckOutlined } from '@ant-design/icons';
 
+
+import { apiRequest } from '../utils/api';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
-async function request(path: string, options: RequestInit = {}, token: string) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...options.headers },
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message || `请求失败 ${res.status}`);
-  }
-  return res.json();
-}
 
 interface RebatePanelProps {
   token: string;
@@ -40,14 +31,14 @@ export default function RebatePanel({ token, customers, suppliers, onError }: Re
 
   const fetchRules = useCallback(async () => {
     try {
-      const data = await request('/rebate-rules', {}, token);
+      const data = await apiRequest('/rebate-rules', token, {});
       setRules(Array.isArray(data) ? data : data.items || []);
     } catch (e: any) { onError(e.message); }
   }, [token, onError]);
 
   const fetchRecords = useCallback(async () => {
     try {
-      const data = await request('/rebates?page=1&pageSize=50', {}, token);
+      const data = await apiRequest('/rebates?page=1&pageSize=50', token, {});
       setRecords(Array.isArray(data) ? data : data.items || []);
     } catch (e: any) { onError(e.message); }
   }, [token, onError]);
@@ -56,7 +47,7 @@ export default function RebatePanel({ token, customers, suppliers, onError }: Re
 
   const handleCreateRule = async (values: any) => {
     try {
-      await request('/rebate-rules', { method: 'POST', body: JSON.stringify(values) }, token);
+      await apiRequest('/rebate-rules', token, { method: 'POST', body: JSON.stringify(values) });
       message.success('创建成功');
       setCreateModalOpen(false);
       form.resetFields();
@@ -67,7 +58,7 @@ export default function RebatePanel({ token, customers, suppliers, onError }: Re
   const handleCalculate = async (values: any) => {
     setLoading(true);
     try {
-      const result = await request('/rebates/calculate', { method: 'POST', body: JSON.stringify(values) }, token);
+      const result = await apiRequest('/rebates/calculate', token, { method: 'POST', body: JSON.stringify(values) });
       message.success('计算成功');
       setCalcModalOpen(false);
       calcForm.resetFields();
@@ -77,7 +68,7 @@ export default function RebatePanel({ token, customers, suppliers, onError }: Re
 
   const handleConfirm = async (id: string) => {
     try {
-      await request(`/rebates/${id}/confirm`, { method: 'POST' }, token);
+      await apiRequest(`/rebates/${id}/confirm`, token, { method: 'POST' });
       message.success('确认成功');
       fetchRecords();
     } catch (e: any) { onError(e.message); }

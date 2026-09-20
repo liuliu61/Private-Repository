@@ -1,19 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { apiRequest } from '../utils/api';
 import { Button, Card, Descriptions, Form, Input, Modal, Select, Space, Statistic, Table, Tag } from 'antd';
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 type Customer = { id: string; name: string; customerCode: string };
 type Invoice = { id: string; invoiceNo: string; invoiceNumber?: string; amount: string; status: string; redFlushStatus?: string; customer?: { name: string; customerCode: string }; purchaseOrder?: { orderNo: string }; receiveRecord?: { receiveNo: string }; businessNo?: string; invoiceDate?: string; createdAt: string; remark?: string };
 type Balance = { sourceAmount: string; invoicedAmount: string; uninvoicedAmount: string };
-
-async function request<T>(path: string, token: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options?.headers || {}) } });
-  const data = await response.json();
-  if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join('；') : data.message || '请求失败');
-  return data;
-}
 
 const statusName: Record<string, string> = { DRAFT: '草稿', PROCESSING: '开票中', ISSUED: '已开票', VOIDED: '已作废' };
 
@@ -33,7 +26,7 @@ export default function InvoicePanel({ token, customers, onError }: { token: str
     try {
       const params = new URLSearchParams({ page: '1', pageSize: '100' });
       Object.entries(values).forEach(([key, value]) => { if (value) params.set(key, value); });
-      const result = await request<{ items: Invoice[]; summary: typeof summary }>(`/invoices?${params.toString()}`, token);
+      const result = await apiRequest<{ items: Invoice[]; summary: typeof summary }>(`/invoices?${params.toString()}`, token);
       setRows(result.items); setSummary(result.summary);
     } catch (error) { onError(error instanceof Error ? error.message : '发票查询失败'); }
     finally { setLoading(false); }
@@ -43,22 +36,22 @@ export default function InvoicePanel({ token, customers, onError }: { token: str
 
   async function loadBalance(customerId?: string) {
     if (!customerId) { setBalance(null); return; }
-    try { setBalance(await request<Balance>(`/customers/${customerId}/invoice-balance`, token)); }
+    try { setBalance(await apiRequest<Balance>(`/customers/${customerId}/invoice-balance`, token)); }
     catch (error) { onError(error instanceof Error ? error.message : '未开票金额查询失败'); }
   }
 
   async function create(values: Record<string, string>) {
-    try { await request('/invoices', token, { method: 'POST', body: JSON.stringify(values) }); setCreateOpen(false); form.resetFields(); setBalance(null); await refresh(filterForm.getFieldsValue()); }
+    try { await apiRequest('/invoices', token, { method: 'POST', body: JSON.stringify(values) }); setCreateOpen(false); form.resetFields(); setBalance(null); await refresh(filterForm.getFieldsValue()); }
     catch (error) { onError(error instanceof Error ? error.message : '发票创建失败'); }
   }
 
   async function action(path: string, message: string, body?: unknown) {
-    try { await request(path, token, { method: 'POST', body: body ? JSON.stringify(body) : undefined }); await refresh(filterForm.getFieldsValue()); }
+    try { await apiRequest(path, token, { method: 'POST', body: body ? JSON.stringify(body) : undefined }); await refresh(filterForm.getFieldsValue()); }
     catch (error) { onError(error instanceof Error ? error.message : message); }
   }
 
   async function showDetail(id: string) {
-    try { setDetail(await request(`/invoices/${id}`, token)); setDetailOpen(true); }
+    try { setDetail(await apiRequest(`/invoices/${id}`, token)); setDetailOpen(true); }
     catch (error) { onError(error instanceof Error ? error.message : '发票详情查询失败'); }
   }
 

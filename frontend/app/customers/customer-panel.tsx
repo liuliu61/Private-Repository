@@ -1,25 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { apiRequest } from '../utils/api';
 import {
   Card, Table, Button, Tag, Space, Modal, Form, Input,
   message, Descriptions, Row, Col
 } from 'antd';
 import { PlusOutlined, ReloadOutlined, EyeOutlined } from '@ant-design/icons';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
-
-async function request(path: string, options: RequestInit = {}, token: string) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...options.headers },
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message || `请求失败 ${res.status}`);
-  }
-  return res.json();
-}
 
 interface CustomerPanelProps {
   token: string;
@@ -40,7 +27,7 @@ export default function CustomerPanel({ token, onError }: CustomerPanelProps) {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await request(`/customers?page=${page}&pageSize=${pageSize}`, {}, token);
+      const res = await apiRequest(`/customers?page=${page}&pageSize=${pageSize}`, token, {});
       setData(res.items || res || []);
       setTotal(res.total || (res.items ? res.total : res.length) || 0);
     } catch (e: any) { onError(e.message); } finally { setLoading(false); }
@@ -50,7 +37,7 @@ export default function CustomerPanel({ token, onError }: CustomerPanelProps) {
 
   const handleCreate = async (values: any) => {
     try {
-      await request('/customers', { method: 'POST', body: JSON.stringify(values) }, token);
+      await apiRequest('/customers', token, { method: 'POST', body: JSON.stringify(values) });
       message.success('客户创建成功');
       setCreateModalOpen(false);
       form.resetFields();
@@ -60,7 +47,7 @@ export default function CustomerPanel({ token, onError }: CustomerPanelProps) {
 
   const openDetail = async (record: any) => {
     try {
-      const detail = await request(`/customers/${record.id}`, {}, token);
+      const detail = await apiRequest(`/customers/${record.id}`, token, {});
       setCurrentCustomer(detail);
       setDetailModalOpen(true);
     } catch (e: any) {

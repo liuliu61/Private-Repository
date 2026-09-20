@@ -1,25 +1,12 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { apiRequest } from '../utils/api';
 import {
   Card, Table, Button, Tag, Space, Modal, Form, Input, Select,
   message, Descriptions, Row, Col, Divider, Avatar, Typography
 } from 'antd';
 import { ReloadOutlined, PlusOutlined, UserOutlined } from '@ant-design/icons';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
-
-async function request(path: string, options: RequestInit = {}, token: string) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...options.headers },
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message || `请求失败 ${res.status}`);
-  }
-  return res.json();
-}
 
 interface SettingsPanelProps {
   token: string;
@@ -30,16 +17,42 @@ export default function SettingsPanel({ token, onError }: SettingsPanelProps) {
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'org' | 'users' | 'about'>('org');
+  const [activeTab, setActiveTab] = useState<'org' | 'password' | 'about'>('org');
+  const [pwdForm] = Form.useForm();
+  const [pwdLoading, setPwdLoading] = useState(false);
 
   const fetchOrganizations = useCallback(async () => {
     try {
-      const data = await request('/organizations?page=1&pageSize=50', {}, token);
+      const data = await apiRequest('/organizations?page=1&pageSize=50', token, {});
       setOrganizations(Array.isArray(data) ? data : data.items || []);
     } catch (e: any) { onError(e.message); }
   }, [token, onError]);
 
   useEffect(() => { fetchOrganizations(); }, [fetchOrganizations]);
+
+  const handleChangePassword = async (values: any) => {
+    if (values.newPassword !== values.confirmPassword) {
+      message.error('两次输入的新密码不一致');
+      return;
+    }
+    setPwdLoading(true);
+    try {
+      await apiRequest('/auth/change-password', token, {
+        method: 'POST',
+        body: JSON.stringify({ oldPassword: values.oldPassword, newPassword: values.newPassword }),
+      });
+      message.success('密码修改成功，请重新登录');
+      pwdForm.resetFields();
+      setTimeout(() => {
+        localStorage.removeItem('token');
+        window.location.href = '/login';
+      }, 1500);
+    } catch (e: any) {
+      onError(e.message);
+    } finally {
+      setPwdLoading(false);
+    }
+  };
 
   const orgColumns = [
     { title: '组织名称', dataIndex: 'name', key: 'name', width: 200 },
@@ -58,10 +71,11 @@ export default function SettingsPanel({ token, onError }: SettingsPanelProps) {
         title="系统设置"
         tabList={[
           { key: 'org', tab: '组织管理' },
+          { key: 'password', tab: '修改密码' },
           { key: 'about', tab: '关于系统' },
         ]}
         activeTabKey={activeTab}
-        onTabChange={(key) => setActiveTab(key as 'org' | 'users' | 'about')}
+        onTabChange={(key) => setActiveTab(key as 'org' | 'password' | 'about')}
         extra={<Button icon={<ReloadOutlined />} onClick={fetchOrganizations}>刷新</Button>}
       >
         {activeTab === 'org' && (
@@ -71,6 +85,28 @@ export default function SettingsPanel({ token, onError }: SettingsPanelProps) {
             </Typography.Paragraph>
             <Table rowKey="id" dataSource={organizations} columns={orgColumns} loading={loading}
               pagination={{ pageSize: 10, showTotal: (t: number) => `共 ${t} 个组织` }} scroll={{ x: 800 }} />
+          </div>
+        )}
+
+        {activeTab === 'password' && (
+          <div style={{ maxWidth: 480 }}>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+              修改当前登录账号的密码。密码修改成功后需要重新登录。
+            </Typography.Paragraph>
+            <Form form={pwdForm} layout="vertical" onFinish={handleChangePassword}>
+              <Form.Item name="oldPassword" label="旧密码" rules={[{ required: true, message: '请输入旧密码' }]}>
+                <Input.Password placeholder="请输入当前密码" />
+              </Form.Item>
+              <Form.Item name="newPassword" label="新密码" rules={[{ required: true, message: '请输入新密码' }, { min: 6, message: '密码至少 6 位' }]}>
+                <Input.Password placeholder="请输入新密码（至少 6 位）" />
+              </Form.Item>
+              <Form.Item name="confirmPassword" label="确认新密码" rules={[{ required: true, message: '请再次输入新密码' }]}>
+                <Input.Password placeholder="请再次输入新密码" />
+              </Form.Item>
+              <Form.Item>
+                <Button type="primary" htmlType="submit" loading={pwdLoading}>确认修改</Button>
+              </Form.Item>
+            </Form>
           </div>
         )}
 

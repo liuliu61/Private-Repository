@@ -1,20 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Button, Card, Descriptions, Form, Input, Modal, Select, Space, Table, Tag } from 'antd';
+import { apiRequest } from '../utils/api';
+import { Button, Card, Descriptions, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag } from 'antd';
 import { generateWalletAdjustNo, generateWalletOpeningNo, generateCommonBusinessNo } from '../utils/businessNo';
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 type Customer = { id: string; name: string; customerCode: string };
 type Wallet = { id: string; customerId: string; walletName: string; unit: string; cashBalance: string; groupBalance: string; totalBalance: string; creditLimit: string; creditUsed: string; creditAvailable: string; advanceOutstanding: string; status: string; customer?: Customer };
 type WalletTransaction = { id: string; transactionNo: string; businessType: string; businessNo?: string | null; changeAmount: string; balanceBefore: string; balanceAfter: string; operatorId: string; occurredAt: string; remark?: string | null };
-
-async function request<T>(path: string, token: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options?.headers || {}) } });
-  const data = await response.json();
-  if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join('；') : data.message || '请求失败');
-  return data;
-}
 
 const typeName: Record<string, string> = {
   OPENING_BALANCE: '期初余额',
@@ -59,7 +52,7 @@ export default function CustomerWalletPanel({ token, customers, onError }: { tok
     setLoading(true);
     try {
       const query = selectedCustomer ? `&customerId=${selectedCustomer}` : '';
-      const result = await request<{ items: Wallet[]; total: number }>(`/customer-wallets?page=1&pageSize=100${query}`, token);
+      const result = await apiRequest<{ items: Wallet[]; total: number }>(`/customer-wallets?page=1&pageSize=100${query}`, token);
       setRows(result.items); setTotal(result.total);
     } catch (error) { onError(error instanceof Error ? error.message : '客户钱包查询失败'); }
     finally { setLoading(false); }
@@ -68,12 +61,12 @@ export default function CustomerWalletPanel({ token, customers, onError }: { tok
   useEffect(() => { void refresh(); }, [token, selectedCustomer]);
 
   async function create(values: { customerId: string; walletName?: string }) {
-    try { await request('/customer-wallets', token, { method: 'POST', body: JSON.stringify(values) }); setCreateOpen(false); form.resetFields(); await refresh(); }
+    try { await apiRequest('/customer-wallets', token, { method: 'POST', body: JSON.stringify(values) }); setCreateOpen(false); form.resetFields(); await refresh(); }
     catch (error) { onError(error instanceof Error ? error.message : '客户钱包创建失败'); }
   }
 
   async function showDetail(wallet: Wallet) {
-    try { const [detail, result] = await Promise.all([request<Wallet>(`/customer-wallets/${wallet.id}`, token), request<{ items: WalletTransaction[] }>(`/customer-wallets/${wallet.id}/transactions?page=1&pageSize=20`, token)]); setSelected(detail); setTransactions(result.items); }
+    try { const [detail, result] = await Promise.all([apiRequest<Wallet>(`/customer-wallets/${wallet.id}`, token), apiRequest<{ items: WalletTransaction[] }>(`/customer-wallets/${wallet.id}/transactions?page=1&pageSize=20`, token)]); setSelected(detail); setTransactions(result.items); }
     catch (error) { onError(error instanceof Error ? error.message : '钱包详情查询失败'); }
   }
 
@@ -81,7 +74,7 @@ export default function CustomerWalletPanel({ token, customers, onError }: { tok
     if (!selected) return;
     const path = actionType === 'opening' ? 'opening-balance' : actionType === 'adjust' ? 'adjust' : actionType;
     const body = actionType === 'adjust' ? { ...values, type: values.type || 'MANUAL_ADJUSTMENT' } : values;
-    try { await request(`/customer-wallets/${selected.id}/${path}`, token, { method: 'POST', body: JSON.stringify(body) }); setActionOpen(false); actionForm.resetFields(); await showDetail(selected); await refresh(); }
+    try { await apiRequest(`/customer-wallets/${selected.id}/${path}`, token, { method: 'POST', body: JSON.stringify(body) }); setActionOpen(false); actionForm.resetFields(); await showDetail(selected); await refresh(); }
     catch (error) { onError(error instanceof Error ? error.message : '钱包操作失败'); }
   }
 
@@ -105,7 +98,7 @@ export default function CustomerWalletPanel({ token, customers, onError }: { tok
   async function submitRepay(values: Record<string, string>) {
     if (!selected) return;
     try {
-      await request(`/customer-wallets/${selected.id}/advance/repay`, token, { method: 'POST', body: JSON.stringify(values) });
+      await apiRequest(`/customer-wallets/${selected.id}/advance/repay`, token, { method: 'POST', body: JSON.stringify(values) });
       setRepayOpen(false); repayForm.resetFields();
       await showDetail(selected); await refresh();
     } catch (error) { onError(error instanceof Error ? error.message : '垫款还款失败'); }
@@ -121,10 +114,17 @@ export default function CustomerWalletPanel({ token, customers, onError }: { tok
   async function submitWaive(values: Record<string, string>) {
     if (!selected) return;
     try {
-      await request(`/customer-wallets/${selected.id}/advance/waive`, token, { method: 'POST', body: JSON.stringify(values) });
+      await apiRequest(`/customer-wallets/${selected.id}/advance/waive`, token, { method: 'POST', body: JSON.stringify(values) });
       setWaiveOpen(false); waiveForm.resetFields();
       await showDetail(selected); await refresh();
     } catch (error) { onError(error instanceof Error ? error.message : '垫款豁免失败'); }
+  }
+
+  async function cancelCredit(wallet: Wallet) {
+    try {
+      await apiRequest(`/customer-wallets/${wallet.id}/credit`, token, { method: 'POST', body: JSON.stringify({ creditLimit: '0', creditUsed: '0' }) });
+      await refresh();
+    } catch (error) { onError(error instanceof Error ? error.message : '取消授信失败'); }
   }
   return <Card title="客户钱包" extra={<Space><Select allowClear value={selectedCustomer} onChange={setSelectedCustomer} placeholder="筛选客户" style={{ width: 180 }} options={customers.map((item) => ({ value: item.id, label: `${item.name}（${item.customerCode}）` }))} /><Button type="primary" onClick={() => setCreateOpen(true)}>创建钱包</Button></Space>} loading={loading}>
     <Table rowKey="id" dataSource={rows} scroll={{ x: 1200 }} pagination={{ current: 1, pageSize: 20, total, showSizeChanger: false }} columns={[
@@ -138,7 +138,7 @@ export default function CustomerWalletPanel({ token, customers, onError }: { tok
       { title: '授信额度', dataIndex: 'creditLimit', width: 100 },
       { title: '授信余额', dataIndex: 'creditAvailable', width: 100, render: (v: string) => <span style={{ color: '#10b981', fontWeight: 600 }}>{v}</span> },
       { title: '状态', dataIndex: 'status', width: 80, render: (value: string) => <Tag color={value === 'ACTIVE' ? 'green' : 'default'}>{value === 'ACTIVE' ? '正常' : '停用'}</Tag> },
-      { title: '操作', width: 280, fixed: 'right', render: (_: unknown, row: Wallet) => <Space size={4} wrap><Button type="link" size="small" onClick={() => void showDetail(row)}>详情</Button><Button type="link" size="small" onClick={() => openAction(row, 'opening')}>期初</Button><Button type="link" size="small" onClick={() => openAction(row, 'adjust')}>调整</Button><Button type="link" size="small" onClick={() => openAction(row, 'credit')}>授信</Button><Button type="link" size="small" onClick={() => openAction(row, 'advance')}>垫款</Button>{Number(row.advanceOutstanding) > 0 && <><Button type="link" size="small" style={{ color: '#1677ff' }} onClick={() => openRepay(row)}>还款</Button><Button type="link" size="small" style={{ color: '#faad14' }} onClick={() => openWaive(row)}>豁免</Button></>}</Space> },
+      { title: '操作', width: 220, fixed: 'right', render: (_: unknown, row: Wallet) => <Space size={4} wrap><Button type="link" size="small" onClick={() => void showDetail(row)}>详情</Button><Button type="link" size="small" onClick={() => openAction(row, 'opening')}>期初</Button><Button type="link" size="small" onClick={() => openAction(row, 'adjust')}>调整</Button><Button type="link" size="small" onClick={() => openAction(row, 'credit')}>授信</Button><Button type="link" size="small" onClick={() => openAction(row, 'advance')}>垫款</Button></Space> },
     ]} />
     <Modal title="创建客户钱包" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => form.submit()} okText="保存" cancelText="取消"><Form form={form} layout="vertical" onFinish={create}><Form.Item name="customerId" label="客户" rules={[{ required: true, message: '请选择客户' }]}><Select options={customers.map((item) => ({ value: item.id, label: `${item.name}（${item.customerCode}）` }))} placeholder="请选择客户" /></Form.Item><Form.Item name="walletName" label="钱包名称"><Input maxLength={100} placeholder="默认使用客户名称加钱包" /></Form.Item></Form></Modal>
     <Modal title="钱包详情" open={Boolean(selected) && !actionOpen} onCancel={() => setSelected(null)} footer={null} width={1000}>{selected && <>
@@ -166,7 +166,13 @@ export default function CustomerWalletPanel({ token, customers, onError }: { tok
         { title: '备注', dataIndex: 'remark', width: 150, ellipsis: true, render: (v: string) => v || '-' },
       ]} />
     </>}</Modal>
-    <Modal title={actionType === 'opening' ? '录入期初余额' : actionType === 'adjust' ? '钱包调整' : actionType === 'credit' ? '修改授信' : '修改垫款'} open={actionOpen} onCancel={() => setActionOpen(false)} onOk={() => actionForm.submit()} okText="提交" cancelText="取消"><Form form={actionForm} layout="vertical" onFinish={submitAction}>{actionType === 'adjust' && <><Form.Item name="type" label="调整类型" initialValue="MANUAL_ADJUSTMENT"><Select options={[{ value: 'ADJUSTMENT_RED', label: '红冲（减少）' }, { value: 'ADJUSTMENT_BLUE', label: '蓝补（增加）' }, { value: 'MANUAL_ADJUSTMENT', label: '手工调整' }]} /></Form.Item><Form.Item name="direction" label="手工调整方向"><Select allowClear options={[{ value: 'INCOME', label: '增加' }, { value: 'EXPENSE', label: '减少' }]} /></Form.Item></>}{actionType === 'credit' && <><Form.Item name="creditLimit" label="授信额度"><Input placeholder="例如 10000.00" /></Form.Item><Form.Item name="creditUsed" label="授信已使用"><Input placeholder="可选" /></Form.Item></>}{actionType === 'advance' ? <Form.Item name="advanceOutstanding" label="垫款未还" rules={[{ required: true, message: '请输入垫款金额' }]}><Input /></Form.Item> : actionType !== 'credit' && <Form.Item name="amount" label="金额" rules={[{ required: true, message: '请输入金额' }]}><Input placeholder="最多两位小数" /></Form.Item>}<Form.Item name="businessNo" label="业务单号"><Input maxLength={100} disabled /></Form.Item><Form.Item name="idempotencyKey" label="幂等键"><Input maxLength={100} placeholder="重复提交时保持一致" /></Form.Item><Form.Item name="remark" label="备注"><Input.TextArea maxLength={255} /></Form.Item></Form></Modal>
+    <Modal title={actionType === 'opening' ? '录入期初余额' : actionType === 'adjust' ? '钱包调整' : actionType === 'credit' ? '修改授信' : '修改垫款'} open={actionOpen} onCancel={() => setActionOpen(false)} footer={[
+      actionType === 'credit' && Number(selected?.creditLimit) > 0 && <Button key="cancelCredit" danger onClick={() => { void cancelCredit(selected as Wallet); setActionOpen(false); }}>取消授信</Button>,
+      actionType === 'advance' && Number(selected?.advanceOutstanding) > 0 && <Button key="repay" type="primary" onClick={() => { openRepay(selected as Wallet); setActionOpen(false); }}>还款</Button>,
+      actionType === 'advance' && Number(selected?.advanceOutstanding) > 0 && <Button key="waive" style={{ color: '#faad14', borderColor: '#faad14' }} onClick={() => { openWaive(selected as Wallet); setActionOpen(false); }}>豁免</Button>,
+      <Button key="cancel" onClick={() => setActionOpen(false)}>取消</Button>,
+      <Button key="submit" type="primary" onClick={() => void actionForm.submit()}>提交</Button>,
+    ]}><Form form={actionForm} layout="vertical" onFinish={submitAction}>{actionType === 'adjust' && <><Form.Item name="type" label="调整类型" initialValue="MANUAL_ADJUSTMENT"><Select options={[{ value: 'ADJUSTMENT_RED', label: '红冲（减少）' }, { value: 'ADJUSTMENT_BLUE', label: '蓝补（增加）' }, { value: 'MANUAL_ADJUSTMENT', label: '手工调整' }]} /></Form.Item><Form.Item name="direction" label="手工调整方向"><Select allowClear options={[{ value: 'INCOME', label: '增加' }, { value: 'EXPENSE', label: '减少' }]} /></Form.Item></>}{actionType === 'credit' && <><Form.Item name="creditLimit" label="授信额度"><Input placeholder="例如 10000.00" /></Form.Item><Form.Item name="creditUsed" label="授信已使用"><Input placeholder="可选" /></Form.Item></>}{actionType === 'advance' ? <Form.Item name="advanceOutstanding" label="垫款未还" rules={[{ required: true, message: '请输入垫款金额' }]}><Input /></Form.Item> : actionType !== 'credit' && <Form.Item name="amount" label="金额" rules={[{ required: true, message: '请输入金额' }]}><Input placeholder="最多两位小数" /></Form.Item>}<Form.Item name="businessNo" label="业务单号"><Input maxLength={100} disabled /></Form.Item><Form.Item name="idempotencyKey" label="幂等键"><Input maxLength={100} placeholder="重复提交时保持一致" /></Form.Item><Form.Item name="remark" label="备注"><Input.TextArea maxLength={255} /></Form.Item></Form></Modal>
     <Modal title="垫款还款" open={repayOpen} onCancel={() => setRepayOpen(false)} onOk={() => repayForm.submit()} okText="确认还款" cancelText="取消" width={480}>
       <Form form={repayForm} layout="vertical" onFinish={submitRepay}>
         <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>

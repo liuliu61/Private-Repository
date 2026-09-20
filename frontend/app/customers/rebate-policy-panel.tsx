@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { apiRequest } from '../utils/api';
 import { Alert, Button, Card, Form, Input, Modal, Select, Space, Table, Tag, Typography, Tabs } from 'antd';
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 type Customer = { id: string; name: string; customerCode: string };
 type AdSubject = { id: string; name: string; subjectId?: string };
@@ -16,13 +16,6 @@ type Policy = {
   rate: string; effectiveFrom: string; effectiveTo: string | null;
   status: string; policyStatus: string; createdAt: string; createdBy: string | null; remark: string | null;
 };
-
-async function request<T>(path: string, token: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options?.headers || {}) } });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data?.message || '请求失败');
-  return data;
-}
 
 function formatType(type: Policy['rebateType']) { return type === 'FIXED_ADD' ? '固定返点' : '私反客户政策'; }
 function formatMode(mode: Policy['calculationMode']) { return mode === 'CASH_TO_CREDIT' ? '人民币 → 账户币' : '账户币 → 人民币'; }
@@ -50,7 +43,7 @@ export default function RebatePolicyPanel({ token, customers: propCustomers, onE
   useEffect(() => {
     async function loadCustomers() {
       try {
-        const res = await request<{ items: Customer[] } | Customer[]>('/customers?page=1&pageSize=100', token);
+        const res = await apiRequest<{ items: Customer[] } | Customer[]>('/customers?page=1&pageSize=100', token);
         const list = Array.isArray(res) ? res : (res.items || []);
         setLocalCustomers(list);
       } catch { /* 加载失败时用 props 里的 */ }
@@ -66,7 +59,7 @@ export default function RebatePolicyPanel({ token, customers: propCustomers, onE
   useEffect(() => {
     async function loadSubjects() {
       try {
-        const res = await request<{ items: AdSubject[] } | AdSubject[]>('/ad-subjects?page=1&pageSize=200', token);
+        const res = await apiRequest<{ items: AdSubject[] } | AdSubject[]>('/ad-subjects?page=1&pageSize=200', token);
         const list = Array.isArray(res) ? res : (res.items || []);
         setSubjects(list);
       } catch { setSubjects([]); }
@@ -78,7 +71,7 @@ export default function RebatePolicyPanel({ token, customers: propCustomers, onE
   useEffect(() => {
     async function loadAccounts() {
       try {
-        const res = await request<{ items: AdAccount[] } | AdAccount[]>('/ad-accounts?page=1&pageSize=200', token);
+        const res = await apiRequest<{ items: AdAccount[] } | AdAccount[]>('/ad-accounts?page=1&pageSize=200', token);
         const list = Array.isArray(res) ? res : (res.items || []);
         setAccounts(list);
       } catch { setAccounts([]); }
@@ -96,14 +89,14 @@ export default function RebatePolicyPanel({ token, customers: propCustomers, onE
     setLoading(true);
     try {
       const params = new URLSearchParams({ page: '1', pageSize: '100', allDimensions: 'true' });
-      const rows = await request<{ items: Policy[] }>(`/customers/${id}/rebate-policies?${params.toString()}`, token);
+      const rows = await apiRequest<{ items: Policy[] }>(`/customers/${id}/rebate-policies?${params.toString()}`, token);
       setHistory(rows.items);
       // 当前政策按维度查询
       const currentParams = new URLSearchParams();
       if (dimension === 'subject' && subjectId) currentParams.set('subjectId', subjectId);
       if (dimension === 'account' && subjectId) currentParams.set('subjectId', subjectId);
       if (dimension === 'account' && accountId) currentParams.set('accountId', accountId);
-      try { setCurrent(await request<Policy>(`/customers/${id}/rebate-policy?${currentParams.toString()}`, token)); } catch { setCurrent(null); }
+      try { setCurrent(await apiRequest<Policy>(`/customers/${id}/rebate-policy?${currentParams.toString()}`, token)); } catch { setCurrent(null); }
     } catch (error) { onError(error instanceof Error ? error.message : '返点政策查询失败'); }
     finally { setLoading(false); }
   }
@@ -131,14 +124,14 @@ export default function RebatePolicyPanel({ token, customers: propCustomers, onE
         if (subjectId) body.subjectId = subjectId;
         if (accountId) body.accountId = accountId;
       }
-      await request(`/customers/${customerId}/rebate-policies`, token, { method: 'POST', body: JSON.stringify(body) });
+      await apiRequest(`/customers/${customerId}/rebate-policies`, token, { method: 'POST', body: JSON.stringify(body) });
       setModalOpen(false); form.resetFields(); await refresh();
     } catch (error) { onError(error instanceof Error ? error.message : '返点政策保存失败'); }
   }
 
   async function disablePolicy(policyId: string) {
     if (!customerId) return;
-    try { await request(`/customers/${customerId}/rebate-policies/${policyId}/disable`, token, { method: 'POST' }); await refresh(); }
+    try { await apiRequest(`/customers/${customerId}/rebate-policies/${policyId}/disable`, token, { method: 'POST' }); await refresh(); }
     catch (error) { onError(error instanceof Error ? error.message : '返点政策停用失败'); }
   }
 

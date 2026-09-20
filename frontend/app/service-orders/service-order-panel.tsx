@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { apiRequest } from '../utils/api';
 import { Alert, Button, Card, Descriptions, Drawer, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, Typography, message } from 'antd';
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 type Customer = { id: string; name: string; customerCode: string };
 type ReceiveRecord = { id: string; receiveNo: string; amount: number; receivedAt: string; customerName?: string };
@@ -16,13 +16,6 @@ type ServiceOrder = {
   receiveRecords?: Array<{ id: string; receiveRecordId: string; amount: string; serviceFee: string; receiveRecord?: ReceiveRecord }>;
   purchaseRecords?: Array<{ id: string; purchaseOrderId?: string; adAccountId?: string; transferAmount: string; receivableAmount: string; remark?: string }>;
 };
-
-async function request<T>(path: string, token: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options?.headers || {}) } });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data?.message || '请求失败');
-  return data;
-}
 
 const statusMap: Record<string, { text: string; color: string }> = {
   DRAFT: { text: '草稿', color: 'default' },
@@ -55,7 +48,7 @@ export default function ServiceOrderPanel({ token, customers: propCustomers, onE
   useEffect(() => {
     async function loadCustomers() {
       try {
-        const res = await request<{ items: Customer[] } | Customer[]>('/customers?page=1&pageSize=100', token);
+        const res = await apiRequest<{ items: Customer[] } | Customer[]>('/customers?page=1&pageSize=100', token);
         const list = Array.isArray(res) ? res : (res.items || []);
         setLocalCustomers(list);
       } catch { /* 忽略 */ }
@@ -66,7 +59,7 @@ export default function ServiceOrderPanel({ token, customers: propCustomers, onE
   useEffect(() => {
     async function loadReceives() {
       try {
-        const res = await request<{ items: ReceiveRecord[] } | ReceiveRecord[]>('/receive-records?page=1&pageSize=100', token);
+        const res = await apiRequest<{ items: ReceiveRecord[] } | ReceiveRecord[]>('/receive-records?page=1&pageSize=100', token);
         const list = Array.isArray(res) ? res : (res.items || []);
         setReceiveRecords(list);
       } catch { setReceiveRecords([]); }
@@ -79,7 +72,7 @@ export default function ServiceOrderPanel({ token, customers: propCustomers, onE
   async function refresh() {
     setLoading(true);
     try {
-      const res = await request<{ items: ServiceOrder[] }>('/service-orders?page=1&pageSize=100', token);
+      const res = await apiRequest<{ items: ServiceOrder[] }>('/service-orders?page=1&pageSize=100', token);
       setOrders(res.items);
     } catch (error) { onError(error instanceof Error ? error.message : '服务订单查询失败'); }
     finally { setLoading(false); }
@@ -96,7 +89,7 @@ export default function ServiceOrderPanel({ token, customers: propCustomers, onE
         totalReceivableAmount: receiveItems.reduce((sum, item) => sum + item.amount, 0),
         creditAmount: purchaseItems.reduce((sum, item) => sum + item.transferAmount, 0),
       };
-      await request('/service-orders', token, { method: 'POST', body: JSON.stringify(body) });
+      await apiRequest('/service-orders', token, { method: 'POST', body: JSON.stringify(body) });
       message.success('服务订单创建成功');
       setModalOpen(false); form.resetFields(); setReceiveItems([]); setPurchaseItems([]);
       await refresh();
@@ -105,7 +98,7 @@ export default function ServiceOrderPanel({ token, customers: propCustomers, onE
 
   async function handleSubmit(id: string) {
     try {
-      await request(`/service-orders/${id}/submit`, token, { method: 'POST' });
+      await apiRequest(`/service-orders/${id}/submit`, token, { method: 'POST' });
       message.success('已提交，待客户确认');
       await refresh();
     } catch (error) { message.error(error instanceof Error ? error.message : '提交失败'); }
@@ -117,7 +110,7 @@ export default function ServiceOrderPanel({ token, customers: propCustomers, onE
       content: '确认后该服务订单将成为合规有效凭证，确认操作不可撤销。',
       onOk: async () => {
         try {
-          await request(`/service-orders/${id}/confirm`, token, { method: 'POST', body: JSON.stringify({}) });
+          await apiRequest(`/service-orders/${id}/confirm`, token, { method: 'POST', body: JSON.stringify({}) });
           message.success('服务订单已确认');
           await refresh();
         } catch (error) { message.error(error instanceof Error ? error.message : '确认失败'); }
@@ -131,7 +124,7 @@ export default function ServiceOrderPanel({ token, customers: propCustomers, onE
       content: '确定要取消该服务订单吗？',
       onOk: async () => {
         try {
-          await request(`/service-orders/${id}/cancel`, token, { method: 'POST' });
+          await apiRequest(`/service-orders/${id}/cancel`, token, { method: 'POST' });
           message.success('已取消');
           await refresh();
         } catch (error) { message.error(error instanceof Error ? error.message : '取消失败'); }
@@ -141,7 +134,7 @@ export default function ServiceOrderPanel({ token, customers: propCustomers, onE
 
   async function viewDetail(id: string) {
     try {
-      const order = await request<ServiceOrder>(`/service-orders/${id}`, token);
+      const order = await apiRequest<ServiceOrder>(`/service-orders/${id}`, token);
       setCurrent(order);
       setDetailOpen(true);
     } catch (error) { message.error(error instanceof Error ? error.message : '查询详情失败'); }

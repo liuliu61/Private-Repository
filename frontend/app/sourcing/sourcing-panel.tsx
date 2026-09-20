@@ -1,5 +1,6 @@
 'use client';
 
+import { apiRequest } from '../utils/api';
 import { Alert, Button, Card, Descriptions, message, Modal, Space, Switch, Table, Tabs, Tag, Typography, Input, Select, Form } from 'antd';
 import { useEffect, useState } from 'react';
 import { ReloadOutlined, EyeOutlined, EditOutlined } from '@ant-design/icons';
@@ -10,14 +11,7 @@ type CustomerWallet = { id: string; customerId: string; customerName?: string; c
 type WalletTransaction = { id: string; walletId: string; amount: string; balanceAfter: string; type: string; remark?: string; createdAt: string; relatedOrderNo?: string };
 type PartnerWallet = { id: string; accountName: string; currentBalance: string; unit: string; status: string; supplierName: string };
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
-async function apiRequest<T>(path: string, token: string, options: RequestInit = {}): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options.headers || {}) } });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body?.message || '请求失败');
-  return body as T;
-}
 
 export default function SourcingPanel({ token, suppliers, customers, onError }: { token: string; suppliers: Supplier[]; customers: Customer[]; onError: (error: string) => void }) {
   const [useCustomerWallet, setUseCustomerWallet] = useState(false);

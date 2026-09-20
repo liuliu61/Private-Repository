@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { apiRequest } from '../utils/api';
 import {
   Card, Table, Button, Tag, Space, Modal, Form, Input, Select,
   message, Descriptions, Tabs, Statistic, Row, Col
@@ -8,16 +9,6 @@ import {
 import { PlusOutlined, ReloadOutlined, EyeOutlined, WalletOutlined } from '@ant-design/icons';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
-
-async function request(path: string, token: string, options?: RequestInit) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options?.headers || {}) },
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data?.message || `请求失败 ${res.status}`);
-  return data;
-}
 
 interface Customer { id: string; name: string; customerCode: string; }
 interface PromotionAccount {
@@ -52,7 +43,7 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
     if (!selectedCustomer) { setData([]); return; }
     setLoading(true);
     try {
-      const rows = await request(`/customers/${selectedCustomer}/promotion-accounts`, token) as PromotionAccount[] | { items: PromotionAccount[] };
+      const rows = await apiRequest(`/customers/${selectedCustomer}/promotion-accounts`, token) as PromotionAccount[] | { items: PromotionAccount[] };
       setData(Array.isArray(rows) ? rows : (rows.items || []));
     } catch (e: any) { onError(e.message); } finally { setLoading(false); }
   }, [token, selectedCustomer, onError]);
@@ -62,7 +53,7 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
   const handleCreate = async (values: any) => {
     if (!selectedCustomer) return;
     try {
-      await request(`/customers/${selectedCustomer}/promotion-accounts`, token, {
+      await apiRequest(`/customers/${selectedCustomer}/promotion-accounts`, token, {
         method: 'POST', body: JSON.stringify(values),
       });
       message.success('推广账户创建成功');
@@ -75,7 +66,7 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
     setDetailModalOpen(true);
     // 尝试加载交易记录（如果有API）
     try {
-      const txs = await request(`/promotion-accounts/${record.id}/transactions?page=1&pageSize=50`, token);
+      const txs = await apiRequest(`/promotion-accounts/${record.id}/transactions?page=1&pageSize=50`, token);
       setTransactions(Array.isArray(txs) ? txs : (txs.items || []));
     } catch { setTransactions([]); }
   };
@@ -86,7 +77,7 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
     rechargeForm.resetFields();
     // 加载客户钱包并默认选中第一个
     try {
-      const ws = await request(`/customer-wallets?customerId=${record.customerId}`, token);
+      const ws = await apiRequest(`/customer-wallets?customerId=${record.customerId}`, token);
       const walletList = Array.isArray(ws) ? ws : (ws.items || []);
       setWallets(walletList);
       if (walletList.length > 0) {
@@ -105,7 +96,7 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
       const operateFee = Number(values.operateFee) || 0;
       const remitAmount = amount / (1 + customerRebate / 100);
       const profit = remitAmount - amount / (1 + costRebate / 100) - additionalFee - operateFee;
-      await request(`/promotion-accounts/${currentAccount.id}/credit`, token, {
+      await apiRequest(`/promotion-accounts/${currentAccount.id}/credit`, token, {
         method: 'POST',
         body: JSON.stringify({
           amount: String(amount),
@@ -133,7 +124,7 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
     refundForm.resetFields();
     // 加载客户钱包并默认选中第一个
     try {
-      const ws = await request(`/customer-wallets?customerId=${record.customerId}`, token);
+      const ws = await apiRequest(`/customer-wallets?customerId=${record.customerId}`, token);
       const walletList = Array.isArray(ws) ? ws : (ws.items || []);
       setWallets(walletList);
       if (walletList.length > 0) {
@@ -145,7 +136,7 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
   const handleRefund = async (values: any) => {
     if (!currentAccount) return;
     try {
-      await request(`/promotion-accounts/${currentAccount.id}/refund`, token, {
+      await apiRequest(`/promotion-accounts/${currentAccount.id}/refund`, token, {
         method: 'POST',
         body: JSON.stringify({
           amount: String(values.refundAmount),

@@ -1,48 +1,32 @@
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
-
-async function request(path: string, options: RequestInit = {}, token: string) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-      ...options.headers,
-    },
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(err.message || `请求失败 ${res.status}`);
-  }
-  return res.json();
-}
+import { apiRequest } from '../utils/api';
 
 export const paymentPostingApi = {
   list: (params: Record<string, any>, token: string) => {
     const qs = new URLSearchParams(params).toString();
-    return request(`/payment-posting/applies?${qs}`, {}, token);
+    return apiRequest(`/payment-posting/applies?${qs}`, token, {});
   },
   getById: (id: string, token: string) =>
-    request(`/payment-posting/applies/${id}`, {}, token),
+    apiRequest(`/payment-posting/applies/${id}`, token, {}),
   create: (data: any, token: string) =>
-    request('/payment-posting/applies', { method: 'POST', body: JSON.stringify(data) }, token),
+    apiRequest('/payment-posting/applies', token, { method: 'POST', body: JSON.stringify(data) }),
   update: (id: string, data: any, token: string) =>
-    request(`/payment-posting/applies/${id}`, { method: 'PATCH', body: JSON.stringify(data) }, token),
+    apiRequest(`/payment-posting/applies/${id}`, token, { method: 'PATCH', body: JSON.stringify(data) }),
   submit: (id: string, token: string) =>
-    request(`/payment-posting/applies/${id}/submit`, { method: 'POST' }, token),
+    apiRequest(`/payment-posting/applies/${id}/submit`, token, { method: 'POST' }),
   approve: (id: string, data: any, token: string) =>
-    request(`/payment-posting/applies/${id}/approve`, { method: 'POST', body: JSON.stringify(data) }, token),
+    apiRequest(`/payment-posting/applies/${id}/approve`, token, { method: 'POST', body: JSON.stringify(data) }),
   reject: (id: string, data: any, token: string) =>
-    request(`/payment-posting/applies/${id}/reject`, { method: 'POST', body: JSON.stringify(data) }, token),
+    apiRequest(`/payment-posting/applies/${id}/reject`, token, { method: 'POST', body: JSON.stringify(data) }),
   revoke: (id: string, token: string) =>
-    request(`/payment-posting/applies/${id}/revoke`, { method: 'POST' }, token),
+    apiRequest(`/payment-posting/applies/${id}/revoke`, token, { method: 'POST' }),
   pay: (id: string, data: any, token: string) =>
-    request(`/payment-posting/applies/${id}/pay`, { method: 'POST', body: JSON.stringify(data) }, token),
+    apiRequest(`/payment-posting/applies/${id}/pay`, token, { method: 'POST', body: JSON.stringify(data) }),
   complete: (id: string, data: any, token: string) =>
-    request(`/payment-posting/applies/${id}/complete`, { method: 'POST', body: JSON.stringify(data) }, token),
+    apiRequest(`/payment-posting/applies/${id}/complete`, token, { method: 'POST', body: JSON.stringify(data) }),
   retryOa: (id: string, token: string) =>
-    request(`/payment-posting/applies/${id}/retry-oa`, { method: 'POST' }, token),
+    apiRequest(`/payment-posting/applies/${id}/retry-oa`, token, { method: 'POST' }),
   listOaRecords: (id: string, token: string) =>
-    request(`/payment-posting/applies/${id}/oa-records`, {}, token),
+    apiRequest(`/payment-posting/applies/${id}/oa-records`, token, {}),
 };
 
 export const PAYMENT_STATUS_MAP: Record<string, { label: string; color: string }> = {

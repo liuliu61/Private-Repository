@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -19,5 +19,22 @@ export class AuthService {
     const permissions = user.userRoles.flatMap((item) => item.role.permissions.map((item) => item.permission.code));
     const accessToken = await this.jwt.signAsync({ sub: user.id, username: user.username, roles, permissions });
     return { accessToken, user: { id: user.id, username: user.username, displayName: user.displayName, roles, permissions } };
+  }
+
+  async changePassword(userId: string, oldPassword: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('用户不存在');
+    if (!(await bcrypt.compare(oldPassword, user.passwordHash))) {
+      throw new BadRequestException('旧密码错误');
+    }
+    if (oldPassword === newPassword) {
+      throw new BadRequestException('新密码不能与旧密码相同');
+    }
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+    return { success: true, message: '密码修改成功' };
   }
 }

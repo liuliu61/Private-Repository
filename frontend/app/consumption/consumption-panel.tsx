@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { apiRequest } from '../utils/api';
 import { Alert, Button, Card, Col, DatePicker, Form, Input, InputNumber, Modal, Row, Select, Space, Statistic, Table, Tag, Typography, message } from 'antd';
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 type Customer = { id: string; name: string; customerCode: string };
 type ConsumptionRecord = {
@@ -17,13 +17,6 @@ type Overview = {
   topCustomers: Array<{ customerId: string; customerName: string; creditAmount: string; profit: string }>;
   dailyTrend: Array<{ date: string; creditAmount: string; profit: string }>;
 };
-
-async function request<T>(path: string, token: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options?.headers || {}) } });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data?.message || '请求失败');
-  return data;
-}
 
 function formatMoney(value: string | number) {
   const num = typeof value === 'string' ? parseFloat(value) : value;
@@ -43,7 +36,7 @@ export default function ConsumptionPanel({ token, customers: propCustomers, onEr
   useEffect(() => {
     async function loadCustomers() {
       try {
-        const res = await request<{ items: Customer[] } | Customer[]>('/customers?page=1&pageSize=100', token);
+        const res = await apiRequest<{ items: Customer[] } | Customer[]>('/customers?page=1&pageSize=100', token);
         const list = Array.isArray(res) ? res : (res.items || []);
         setLocalCustomers(list);
       } catch { /* 忽略 */ }
@@ -61,8 +54,8 @@ export default function ConsumptionPanel({ token, customers: propCustomers, onEr
       if (filterDate?.[0]) params.set('startDate', filterDate[0]);
       if (filterDate?.[1]) params.set('endDate', filterDate[1]);
       const [listData, ov] = await Promise.all([
-        request<{ items: ConsumptionRecord[] }>(`/consumption/records?${params.toString()}`, token),
-        request<Overview>('/consumption/overview', token),
+        apiRequest<{ items: ConsumptionRecord[] }>(`/consumption/records?${params.toString()}`, token),
+        apiRequest<Overview>('/consumption/overview', token),
       ]);
       setRecords(listData.items);
       setOverview(ov);
@@ -74,7 +67,7 @@ export default function ConsumptionPanel({ token, customers: propCustomers, onEr
 
   async function handleCreate(values: Record<string, unknown>) {
     try {
-      await request('/consumption/records', token, { method: 'POST', body: JSON.stringify(values) });
+      await apiRequest('/consumption/records', token, { method: 'POST', body: JSON.stringify(values) });
       message.success('消耗记录创建成功');
       setModalOpen(false); form.resetFields();
       await refresh();
@@ -87,7 +80,7 @@ export default function ConsumptionPanel({ token, customers: propCustomers, onEr
       content: '确定要删除该消耗记录吗？此操作不可撤销。',
       onOk: async () => {
         try {
-          await request(`/consumption/records/${id}`, token, { method: 'DELETE' });
+          await apiRequest(`/consumption/records/${id}`, token, { method: 'DELETE' });
           message.success('已删除');
           await refresh();
         } catch (error) { message.error(error instanceof Error ? error.message : '删除失败'); }

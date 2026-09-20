@@ -5,7 +5,9 @@ import { Alert, Button, Card, Checkbox, Descriptions, Form, Input, Modal, Select
 import { SettingOutlined } from '@ant-design/icons';
 import { generatePurchaseOrderPayNo, generatePurchaseOrderCreditNo } from '../utils/businessNo';
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+
+import { apiRequest } from '../utils/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 interface ColumnConfig { key: string; title: string; visible: boolean; width?: number; fixed?: 'left' | 'right'; }
 
@@ -16,7 +18,7 @@ function useTableColumnConfig(tableKey: string, token: string, defaultColumns: C
   useEffect(() => {
     async function load() {
       try {
-        const response = await fetch(`${apiUrl}/table-config/${tableKey}`, { headers: { Authorization: `Bearer ${token}` } });
+        const response = await fetch(`${API_BASE}/table-config/${tableKey}`, { headers: { Authorization: `Bearer ${token}` } });
         const data = await response.json();
         if (data.columns && Array.isArray(data.columns)) setColumns(data.columns);
       } catch { /* 用默认 */ }
@@ -26,14 +28,14 @@ function useTableColumnConfig(tableKey: string, token: string, defaultColumns: C
   const saveConfig = useCallback(async (newColumns: ColumnConfig[]) => {
     setLoading(true);
     try {
-      await fetch(`${apiUrl}/table-config/${tableKey}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ columns: newColumns }) });
+      await fetch(`${API_BASE}/table-config/${tableKey}`, { method: 'PUT', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ columns: newColumns }) });
       setColumns(newColumns);
     } finally { setLoading(false); }
   }, [tableKey, token]);
   const resetConfig = useCallback(async () => {
     setLoading(true);
     try {
-      await fetch(`${apiUrl}/table-config/${tableKey}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+      await fetch(`${API_BASE}/table-config/${tableKey}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
       setColumns(defaultColumns);
     } finally { setLoading(false); }
   }, [tableKey, token, defaultColumns]);
@@ -81,13 +83,6 @@ type PromotionAccount = { id: string; accountName: string; unit: string; status:
 type Order = { id: string; procurementNo: string; orderNo: string; customerId: string; supplierId: string; platform: string; transactionType?: string; businessType?: string | null; subjectId: string; accountId: string; status: string; baseAmount: string; baseCreditAmount: string | null; customerRebateType: string | null; customerRebateRate: string | null; customerCalculationMode: string | null; customerCashAmount: string | null; customerPaymentAmount: string | null; customerCreditAmount: string | null; customerRebateAmount: string | null; customerReceivable: string | null; customerPaidAmount: string | null; customerReceivableRemaining: string | null; customerPaymentStatus: string | null; customerPromotionAccountId: string | null; customerCreditedAmount: string | null; customerCreditRemaining: string | null; customerCreditStatus: string | null; supplierRebateType: string | null; supplierRebateRate: string | null; supplierCostRate: string | null; supplierCalculationMode: string | null; supplierBaseAmount: string | null; supplierCashAmount: string | null; supplierPaymentAmount: string | null; supplierCreditAmount: string | null; supplierRebateAmount: string | null; supplierPayable: string | null; supplierPaidAmount: string | null; supplierPayableRemaining: string | null; supplierPaymentStatus: string | null; operatingFeeAmount: string | null; costDifference: string | null; grossProfit: string | null; profitStatus: string | null; businessTime: string | null; remark: string | null };
 type Refund = { refundId: string; refundNo: string; purchaseOrderId: string; refundAmount: string; refundReason: string; status: string; applicantId: string; approvedBy?: string | null; executedBy?: string | null; transactionNo?: string | null; createdAt: string; };
 
-async function request<T>(path: string, token: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options?.headers || {}) } });
-  const data = await response.json();
-  if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join('；') : data.message || '请求失败');
-  return data;
-}
-
 const platforms = [{ value: 'DOUYIN', label: '抖音' }, { value: 'KUAISHOU', label: '快手' }, { value: 'XIAOHONGSHU', label: '小红书' }, { value: 'TENCENT', label: '腾讯' }];
 const statusName: Record<string, string> = { DRAFT: '草稿', PENDING_CONFIRMATION: '待确认', CONFIRMED: '已确认', SETTLED: '已结算', CANCELLED: '已取消' };
 const rebateTypeName: Record<string, string> = { FIXED_ADD: '固定返点', PRIVATE_DIVIDE: '私反客户政策' };
@@ -125,40 +120,40 @@ export default function ProcurementOrderPanel({ token, customers, suppliers, onE
 
   async function refresh(nextFilters: Record<string, string> = listFilters) {
     setLoading(true);
-    try { const params = new URLSearchParams({ page: '1', pageSize: '10' }); Object.entries(nextFilters).forEach(([key, value]) => { if (value) params.set(key, value); }); const result = await request<{ items: Order[] }>(`/purchase-orders?${params.toString()}`, token); setOrders(result.items); }
+    try { const params = new URLSearchParams({ page: '1', pageSize: '10' }); Object.entries(nextFilters).forEach(([key, value]) => { if (value) params.set(key, value); }); const result = await apiRequest<{ items: Order[] }>(`/purchase-orders?${params.toString()}`, token); setOrders(result.items); }
     catch (error) { onError(error instanceof Error ? error.message : '外采订单查询失败'); }
     finally { setLoading(false); }
   }
 
-  useEffect(() => { Promise.all([request<Asset[]>('/ad-subjects', token), request<Asset[]>('/ad-accounts', token), request<CashAccount[]>('/accounts?status=ACTIVE', token)]).then(([subjectRows, accountRows, cashAccountRows]) => { setSubjects(subjectRows); setAccounts(accountRows); setCashAccounts(cashAccountRows.filter((item) => item.currency === 'CNY')); }).catch((error) => onError(error instanceof Error ? error.message : '基础数据查询失败')); void refresh(); }, [token]);
+  useEffect(() => { Promise.all([apiRequest<Asset[]>('/ad-subjects', token), apiRequest<Asset[]>('/ad-accounts', token), apiRequest<CashAccount[]>('/accounts?status=ACTIVE', token)]).then(([subjectRows, accountRows, cashAccountRows]) => { setSubjects(subjectRows); setAccounts(accountRows); setCashAccounts(cashAccountRows.filter((item) => item.currency === 'CNY')); }).catch((error) => onError(error instanceof Error ? error.message : '基础数据查询失败')); void refresh(); }, [token]);
 
   const accountOptions = useMemo(() => accounts.map((item) => ({ value: item.id, label: item.name })), [accounts]);
   async function create(values: { customerId: string; supplierId: string; platform: string; transactionType?: string; businessType?: string; subjectId: string; accountId: string; cashAccountId: string; baseAmount: string; businessTime: string; inboundAccountId?: string; inboundAccountName?: string; outboundAccountId?: string; outboundAccountName?: string; clientRequestId?: string; remark?: string }) {
-    try { await request('/purchase-orders', token, { method: 'POST', body: JSON.stringify({ ...values, businessTime: new Date(values.businessTime).toISOString(), baseAmount: values.baseAmount.trim() }) }); setModalOpen(false); form.resetFields(); await refresh(); }
+    try { await apiRequest('/purchase-orders', token, { method: 'POST', body: JSON.stringify({ ...values, businessTime: new Date(values.businessTime).toISOString(), baseAmount: values.baseAmount.trim() }) }); setModalOpen(false); form.resetFields(); await refresh(); }
     catch (error) { onError(error instanceof Error ? error.message : '外采订单创建失败'); }
   }
   async function transition(id: string, action: 'submit' | 'confirm' | 'cancel' | 'settle') {
-    try { await request(`/purchase-orders/${id}/${action}`, token, { method: 'POST' }); await refresh(); }
+    try { await apiRequest(`/purchase-orders/${id}/${action}`, token, { method: 'POST' }); await refresh(); }
     catch (error) { onError(error instanceof Error ? error.message : '订单状态更新失败'); }
   }
   async function showDetail(id: string) {
-    try { const order = await request<Order>(`/purchase-orders/${id}`, token); setSelected(order); try { const refunds = await request<{ items: Refund[]; paidAmount: string; refundedAmount: string; refundableAmount: string }>(`/purchase-orders/${id}/refunds`, token); setRefundRows(refunds.items); setRefundSummary(refunds); } catch { setRefundRows([]); setRefundSummary(null); } setDetailOpen(true); }
+    try { const order = await apiRequest<Order>(`/purchase-orders/${id}`, token); setSelected(order); try { const refunds = await apiRequest<{ items: Refund[]; paidAmount: string; refundedAmount: string; refundableAmount: string }>(`/purchase-orders/${id}/refunds`, token); setRefundRows(refunds.items); setRefundSummary(refunds); } catch { setRefundRows([]); setRefundSummary(null); } setDetailOpen(true); }
     catch (error) { onError(error instanceof Error ? error.message : '订单详情查询失败'); }
   }
 
   async function openRefund(order: Order) {
-    try { const summary = await request<{ items: Refund[]; paidAmount: string; refundedAmount: string; refundableAmount: string }>(`/purchase-orders/${order.id}/refunds`, token); setRefundOrder(order); setRefundRows(summary.items); setRefundSummary(summary); refundForm.resetFields(); refundForm.setFieldsValue({ refundAmount: summary.refundableAmount, idempotencyKey: crypto.randomUUID() }); setRefundOpen(true); }
+    try { const summary = await apiRequest<{ items: Refund[]; paidAmount: string; refundedAmount: string; refundableAmount: string }>(`/purchase-orders/${order.id}/refunds`, token); setRefundOrder(order); setRefundRows(summary.items); setRefundSummary(summary); refundForm.resetFields(); refundForm.setFieldsValue({ refundAmount: summary.refundableAmount, idempotencyKey: crypto.randomUUID() }); setRefundOpen(true); }
     catch (error) { onError(error instanceof Error ? error.message : '退款信息查询失败'); }
   }
 
   async function submitRefund(values: { refundAmount: string; refundReason: string; idempotencyKey: string }) {
     if (!refundOrder) return;
-    try { await request(`/purchase-orders/${refundOrder.id}/refunds`, token, { method: 'POST', body: JSON.stringify({ ...values, refundAmount: values.refundAmount.trim() }) }); setRefundOpen(false); await refresh(); await showDetail(refundOrder.id); }
+    try { await apiRequest(`/purchase-orders/${refundOrder.id}/refunds`, token, { method: 'POST', body: JSON.stringify({ ...values, refundAmount: values.refundAmount.trim() }) }); setRefundOpen(false); await refresh(); await showDetail(refundOrder.id); }
     catch (error) { onError(error instanceof Error ? error.message : '退款申请失败'); }
   }
 
   async function processRefund(id: string, action: 'approve' | 'reject' | 'execute') {
-    try { await request(`/refunds/${id}/${action}`, token, { method: 'POST' }); if (refundOrder) { const summary = await request<{ items: Refund[]; paidAmount: string; refundedAmount: string; refundableAmount: string }>(`/purchase-orders/${refundOrder.id}/refunds`, token); setRefundRows(summary.items); setRefundSummary(summary); } if (selected) await showDetail(selected.id); }
+    try { await apiRequest(`/refunds/${id}/${action}`, token, { method: 'POST' }); if (refundOrder) { const summary = await apiRequest<{ items: Refund[]; paidAmount: string; refundedAmount: string; refundableAmount: string }>(`/purchase-orders/${refundOrder.id}/refunds`, token); setRefundRows(summary.items); setRefundSummary(summary); } if (selected) await showDetail(selected.id); }
     catch (error) { onError(error instanceof Error ? error.message : '退款处理失败'); }
   }
 
@@ -166,7 +161,7 @@ export default function ProcurementOrderPanel({ token, customers, suppliers, onE
     setPaymentOrder(order); setPaymentType(type); paymentForm.resetFields();
     paymentForm.setFieldsValue({ occurredAt: new Date().toISOString().slice(0, 16), idempotencyKey: crypto.randomUUID(), businessNo: generatePurchaseOrderPayNo() });
     if (type === 'supplier') {
-      try { setSupplierAccounts(await request<SupplierAccount[]>(`/suppliers/${order.supplierId}/accounts`, token)); }
+      try { setSupplierAccounts(await apiRequest<SupplierAccount[]>(`/suppliers/${order.supplierId}/accounts`, token)); }
       catch (error) { onError(error instanceof Error ? error.message : '一级代理资金账户查询失败'); return; }
     }
     setPaymentOpen(true);
@@ -176,20 +171,20 @@ export default function ProcurementOrderPanel({ token, customers, suppliers, onE
     if (!paymentOrder) return;
     const path = `/purchase-orders/${paymentOrder.id}/${paymentType === 'customer' ? 'customer-payment' : 'supplier-payment'}`;
     const body = { ...values, actualAmount: values.actualAmount.trim(), occurredAt: new Date(values.occurredAt).toISOString() };
-    try { await request(path, token, { method: 'POST', body: JSON.stringify(body) }); setPaymentOpen(false); await refresh(); if (detailOpen) await showDetail(paymentOrder.id); }
+    try { await apiRequest(path, token, { method: 'POST', body: JSON.stringify(body) }); setPaymentOpen(false); await refresh(); if (detailOpen) await showDetail(paymentOrder.id); }
     catch (error) { onError(error instanceof Error ? error.message : '收付款录入失败'); }
   }
 
   async function openCredit(order: Order) {
     setCreditOrder(order); creditForm.resetFields();
     creditForm.setFieldsValue({ occurredAt: new Date().toISOString().slice(0, 16), idempotencyKey: crypto.randomUUID(), creditAmount: order.customerCreditRemaining || order.customerCreditAmount || '', businessNo: generatePurchaseOrderCreditNo() });
-    try { setPromotionAccounts(await request<PromotionAccount[]>(`/customers/${order.customerId}/promotion-accounts`, token)); setCreditOpen(true); }
+    try { setPromotionAccounts(await apiRequest<PromotionAccount[]>(`/customers/${order.customerId}/promotion-accounts`, token)); setCreditOpen(true); }
     catch (error) { onError(error instanceof Error ? error.message : '客户推广账户查询失败'); }
   }
 
   async function submitCredit(values: { promotionAccountId: string; creditAmount: string; businessNo: string; idempotencyKey: string; occurredAt: string; remark?: string }) {
     if (!creditOrder) return;
-    try { await request(`/purchase-orders/${creditOrder.id}/customer-credit`, token, { method: 'POST', body: JSON.stringify({ ...values, creditAmount: values.creditAmount.trim(), occurredAt: new Date(values.occurredAt).toISOString() }) }); setCreditOpen(false); await refresh(); if (detailOpen) await showDetail(creditOrder.id); }
+    try { await apiRequest(`/purchase-orders/${creditOrder.id}/customer-credit`, token, { method: 'POST', body: JSON.stringify({ ...values, creditAmount: values.creditAmount.trim(), occurredAt: new Date(values.occurredAt).toISOString() }) }); setCreditOpen(false); await refresh(); if (detailOpen) await showDetail(creditOrder.id); }
     catch (error) { onError(error instanceof Error ? error.message : '客户账户币到账失败'); }
   }
 

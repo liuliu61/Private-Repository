@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { apiRequest } from '../utils/api';
 import { Button, Card, Form, Input, InputNumber, Modal, Select, Space, Table, Tag, message, Popconfirm } from 'antd';
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 
 interface Channel {
   id: string;
@@ -16,16 +16,6 @@ interface Channel {
   remark?: string | null;
   createdAt: string;
   updatedAt: string;
-}
-
-async function request<T>(path: string, token: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, {
-    ...options,
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options?.headers || {}) },
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join('；') : data.message || '请求失败');
-  return data;
 }
 
 const platformOptions = [
@@ -50,7 +40,7 @@ export default function ChannelPanel({ token, onError }: { token: string; onErro
   async function refresh() {
     setLoading(true);
     try {
-      const result = await request<{ items: Channel[]; total: number }>('/channels?page=1&pageSize=100', token);
+      const result = await apiRequest<{ items: Channel[]; total: number }>('/channels?page=1&pageSize=100', token);
       setRows(result.items);
       setTotal(result.total);
     } catch (error) {
@@ -86,10 +76,10 @@ export default function ChannelPanel({ token, onError }: { token: string; onErro
   const handleSubmit = async (values: any) => {
     try {
       if (editing) {
-        await request(`/channels/${editing.id}`, token, { method: 'PUT', body: JSON.stringify(values) });
+        await apiRequest(`/channels/${editing.id}`, token, { method: 'PUT', body: JSON.stringify(values) });
         message.success('端口更新成功');
       } else {
-        await request('/channels', token, { method: 'POST', body: JSON.stringify(values) });
+        await apiRequest('/channels', token, { method: 'POST', body: JSON.stringify(values) });
         message.success('端口创建成功');
       }
       setModalOpen(false);
@@ -102,7 +92,7 @@ export default function ChannelPanel({ token, onError }: { token: string; onErro
 
   const handleDelete = async (id: string) => {
     try {
-      await request(`/channels/${id}`, token, { method: 'DELETE' });
+      await apiRequest(`/channels/${id}`, token, { method: 'DELETE' });
       message.success('端口删除成功');
       await refresh();
     } catch (error) {
