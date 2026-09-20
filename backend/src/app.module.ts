@@ -11,10 +11,12 @@ import { ServiceOrderModule } from './service-order/service-order.module';
 import { ConsumptionModule } from './consumption/consumption.module';
 import { TableConfigModule } from './table-config/table-config.module';
 import { ChannelModule } from './channel/channel.module';
+import { SystemModule } from './system/system.module';
+import { BusinessExtModule } from './business-ext/business-ext.module';
 import { AppController } from './app.controller';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, CommonModule, AuthModule, CashflowModule, RebateModule, BusinessModule, PaymentPostingModule, ServiceOrderModule, ConsumptionModule, TableConfigModule, ChannelModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, CommonModule, AuthModule, CashflowModule, RebateModule, BusinessModule, PaymentPostingModule, ServiceOrderModule, ConsumptionModule, TableConfigModule, ChannelModule, SystemModule, BusinessExtModule],
   controllers: [AppController],
 })
 export class AppModule {}

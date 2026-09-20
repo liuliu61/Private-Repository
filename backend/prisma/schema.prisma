@@ -318,9 +318,13 @@ model User {
   username     String       @unique @db.VarChar(50)
   passwordHash String       @map("password_hash") @db.VarChar(255)
   displayName  String       @map("display_name") @db.VarChar(100)
+  phone        String?      @db.VarChar(20)
+  email        String?      @db.VarChar(100)
+  departmentId String?      @map("department_id") @db.Uuid
   status       UserStatus   @default(ACTIVE)
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
+  department   Department?  @relation(fields: [departmentId], references: [id])
   userRoles    UserRole[]
   createdVouchers Voucher[] @relation("VoucherCreator")
   operatedTransactions Transaction[] @relation("TransactionOperator")
@@ -381,6 +385,7 @@ model Role {
   code        String           @unique @db.VarChar(50)
   name        String           @db.VarChar(100)
   description String?          @db.VarChar(255)
+  dataScope   String           @default("ALL") @map("data_scope") @db.VarChar(20)
   createdAt   DateTime         @default(now()) @map("created_at")
   userRoles   UserRole[]
   permissions RolePermission[]
@@ -392,10 +397,16 @@ model Permission {
   id          String           @id @default(uuid()) @db.Uuid
   code        String           @unique @db.VarChar(100)
   name        String           @db.VarChar(100)
+  menuCode    String?          @map("menu_code") @db.VarChar(50)
+  actionType  String           @default("VIEW") @map("action_type") @db.VarChar(20)
+  parentId    String?          @map("parent_id") @db.Uuid
+  sort        Int              @default(0)
   description String?          @db.VarChar(255)
   createdAt   DateTime         @default(now()) @map("created_at")
   roles       RolePermission[]
 
+  @@index([menuCode])
+  @@index([parentId])
   @@map("permissions")
 }
 
@@ -531,12 +542,13 @@ model Customer {
   fullName     String?        @map("full_name") @db.VarChar(100)
   contact      String?        @db.VarChar(100)
   phone        String?        @db.VarChar(50)
-  departmentId String?        @map("department_id") @db.VarChar(100)
+  departmentId String?        @map("department_id") @db.Uuid
   agentId      String?        @map("agent_id") @db.Uuid
   status       CustomerStatus @default(ACTIVE)
   remark       String?        @db.VarChar(255)
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
+  department   Department?    @relation(fields: [departmentId], references: [id])
   agent        Organization?  @relation(fields: [agentId], references: [id])
   rebateRecords RebateRecord[]
   adAccounts   AdAccount[]
@@ -554,6 +566,11 @@ model Customer {
   invoiceTasks InvoiceTask[]
   customerSettlements Settlement[] @relation("CustomerSettlements")
   paymentPostingApplies PaymentPostingApply[]
+  contracts CustomerContract[]
+  paymentAccounts CustomerPaymentAccount[]
+  serviceFeeConfig ServiceFeeConfig?
+  policyChangeRequests CustomerRebatePolicyChangeRequest[]
+  receiveRefunds ReceiveRefund[]
 
   @@index([status])
   @@index([agentId, status])
@@ -599,6 +616,7 @@ model CustomerRebatePolicy {
   adSubject AdSubject? @relation(fields: [adSubjectId], references: [id])
   adAccount AdAccount? @relation(fields: [adAccountId], references: [id])
   versions CustomerRebatePolicyVersion[]
+  changeRequests CustomerRebatePolicyChangeRequest[]
   orders PurchaseOrder[] @relation("PurchaseOrderCustomerPolicy")
   @@index([customerId, status])
   @@index([adSubjectId, status])
@@ -1100,6 +1118,7 @@ model ReceiveRecord {
   postings          ReceivePosting[]
   serviceFeeDetails ReceiveServiceFee[]
   refunds           Refund[]
+  receiveRefunds    ReceiveRefund[]
   invoiceApplicationSources InvoiceApplicationReceiveRecord[]
   details ReceiveRecordDetail[]
   paymentPostingApplies PaymentPostingApplyReceiveRecord[]
@@ -1972,4 +1991,175 @@ model TableColumnConfig {
   @@unique([userId, tableKey])
   @@index([userId])
   @@map("table_column_configs")
+}
+
+// ========== 部门管理 ==========
+model Department {
+  id        String      @id @default(uuid()) @db.Uuid
+  name      String      @db.VarChar(100)
+  code      String      @unique @db.VarChar(50)
+  parentId  String?     @map("parent_id") @db.Uuid
+  sort      Int         @default(0)
+  status    String      @default("ACTIVE") @db.VarChar(20)
+  remark    String?     @db.VarChar(255)
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  parent    Department? @relation("DepartmentParent", fields: [parentId], references: [id])
+  children  Department[] @relation("DepartmentParent")
+  users     User[]
+  customers Customer[]
+
+  @@index([parentId])
+  @@index([status])
+  @@map("departments")
+}
+
+// ========== 客户合同管理 ==========
+enum CustomerContractStatus {
+  DRAFT
+  PENDING_APPROVAL
+  ACTIVE
+  EXPIRING
+  EXPIRED
+  TERMINATED
+}
+
+model CustomerContract {
+  id           String                  @id @default(uuid()) @db.Uuid
+  contractNo   String                  @unique @map("contract_no") @db.VarChar(60)
+  customerId   String                  @map("customer_id") @db.Uuid
+  name         String                  @db.VarChar(200)
+  partyA       String?                 @map("party_a") @db.VarChar(200)
+  partyB       String?                 @map("party_b") @db.VarChar(200)
+  signDate     DateTime?               @map("sign_date") @db.Date
+  effectiveDate DateTime?              @map("effective_date") @db.Date
+  expiryDate   DateTime?               @map("expiry_date") @db.Date
+  amount       Decimal                 @default(0) @db.Decimal(20, 2)
+  status       CustomerContractStatus  @default(DRAFT)
+  remark       String?                 @db.VarChar(500)
+  createdBy    String                  @map("created_by") @db.Uuid
+  approvedBy   String?                 @map("approved_by") @db.Uuid
+  approvedAt   DateTime?               @map("approved_at")
+  createdAt    DateTime                @default(now()) @map("created_at")
+  updatedAt    DateTime                @updatedAt @map("updated_at")
+  customer     Customer                @relation(fields: [customerId], references: [id])
+  attachments  CustomerContractAttachment[]
+
+  @@index([customerId, status])
+  @@index([expiryDate, status])
+  @@map("customer_contracts")
+}
+
+model CustomerContractAttachment {
+  id           String           @id @default(uuid()) @db.Uuid
+  contractId   String           @map("contract_id") @db.Uuid
+  fileName     String           @map("file_name") @db.VarChar(200)
+  fileUrl      String           @map("file_url") @db.VarChar(500)
+  fileSize     Int              @default(0) @map("file_size")
+  fileType     String?          @map("file_type") @db.VarChar(50)
+  uploadedBy   String           @map("uploaded_by") @db.Uuid
+  createdAt    DateTime         @default(now()) @map("created_at")
+  contract     CustomerContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId])
+  @@map("customer_contract_attachments")
+}
+
+// ========== 客户打款账户 ==========
+model CustomerPaymentAccount {
+  id            String   @id @default(uuid()) @db.Uuid
+  customerId    String   @map("customer_id") @db.Uuid
+  accountName   String   @map("account_name") @db.VarChar(100)
+  accountNumber String   @map("account_number") @db.VarChar(50)
+  bankName      String   @map("bank_name") @db.VarChar(100)
+  autoPost      Boolean  @default(false) @map("auto_post")
+  status        String   @default("ACTIVE") @db.VarChar(20)
+  remark        String?  @db.VarChar(255)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  customer      Customer @relation(fields: [customerId], references: [id])
+
+  @@index([customerId, status])
+  @@index([accountNumber])
+  @@map("customer_payment_accounts")
+}
+
+// ========== 服务费配置 ==========
+model ServiceFeeConfig {
+  id            String   @id @default(uuid()) @db.Uuid
+  customerId    String   @unique @map("customer_id") @db.Uuid
+  rate          Decimal  @default(0) @db.Decimal(5, 2)
+  defaultAmount Decimal @default(0) @map("default_amount") @db.Decimal(20, 2)
+  needInvoice   Boolean  @default(true) @map("need_invoice")
+  status        String   @default("ACTIVE") @db.VarChar(20)
+  remark        String?  @db.VarChar(255)
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  customer      Customer @relation(fields: [customerId], references: [id])
+
+  @@index([status])
+  @@map("service_fee_configs")
+}
+
+// ========== 政策变更申请 ==========
+enum PolicyChangeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model CustomerRebatePolicyChangeRequest {
+  id          String                        @id @default(uuid()) @db.Uuid
+  policyId    String                        @map("policy_id") @db.Uuid
+  customerId  String                        @map("customer_id") @db.Uuid
+  changeData  String                        @map("change_data") @db.Text
+  status      PolicyChangeRequestStatus     @default(PENDING)
+  applicantId String                        @map("applicant_id") @db.Uuid
+  approverId  String?                       @map("approver_id") @db.Uuid
+  approvedAt  DateTime?                     @map("approved_at")
+  rejectReason String?                      @map("reject_reason") @db.VarChar(500)
+  remark      String?                       @db.VarChar(255)
+  createdAt   DateTime                      @default(now()) @map("created_at")
+  updatedAt   DateTime                      @updatedAt @map("updated_at")
+  policy      CustomerRebatePolicy          @relation(fields: [policyId], references: [id])
+  customer    Customer                      @relation(fields: [customerId], references: [id])
+
+  @@index([policyId, status])
+  @@index([customerId, status])
+  @@index([applicantId])
+  @@map("customer_rebate_policy_change_requests")
+}
+
+// ========== 收款单退款 ==========
+enum ReceiveRefundStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  EXECUTED
+}
+
+model ReceiveRefund {
+  id              String              @id @default(uuid()) @db.Uuid
+  refundNo        String              @unique @map("refund_no") @db.VarChar(60)
+  receiveRecordId String              @map("receive_record_id") @db.Uuid
+  customerId      String              @map("customer_id") @db.Uuid
+  amount          Decimal             @db.Decimal(20, 2)
+  feeType         String              @default("REFUND") @map("fee_type") @db.VarChar(50)
+  reason          String?             @db.VarChar(500)
+  deductWallet    Boolean             @default(true) @map("deduct_wallet")
+  status          ReceiveRefundStatus @default(PENDING_APPROVAL)
+  applicantId     String              @map("applicant_id") @db.Uuid
+  approverId      String?             @map("approver_id") @db.Uuid
+  approvedAt      DateTime?           @map("approved_at")
+  executedAt      DateTime?           @map("executed_at")
+  remark          String?             @db.VarChar(255)
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  receiveRecord   ReceiveRecord       @relation(fields: [receiveRecordId], references: [id])
+  customer        Customer            @relation(fields: [customerId], references: [id])
+
+  @@index([receiveRecordId, status])
+  @@index([customerId, status])
+  @@index([applicantId])
+  @@map("receive_refunds")
 }
