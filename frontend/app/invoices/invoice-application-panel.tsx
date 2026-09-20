@@ -4,18 +4,13 @@ import { useEffect, useMemo, useState } from 'react';
 import { Button, Card, Checkbox, Descriptions, Form, Input, Modal, Select, Space, Table, Tag, Typography, Upload } from 'antd';
 import { UploadOutlined } from '@ant-design/icons';
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+import { apiRequest } from '../utils/api';
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
+
 type Customer = { id: string; name: string; customerCode: string };
 type Receive = { id: string; receiveNo: string; amount: string; invoiceEligibleAmount: string; unBillingAmount?: string; billingAmount?: string; billedAmount?: string; serviceFeeAmount?: string; status: string; customer?: Customer };
 type InvoiceDetail = { id: string; amount: string; invoiceType: string; invoiceContent?: string; invoiceCode?: string; invoiceUrl?: string; imageUrl?: string; originalFileName?: string };
 type Application = { id: string; invoiceNo: string; amount: string; status: string; createdBy?: string; customer?: Customer; receiveSources?: Array<{ amount: string; receiveRecord?: { receiveNo: string } }>; applicationItems?: Array<{ id?: string; amount: string; itemType?: string }>; invoiceDetails?: InvoiceDetail[]; createdAt: string; reviewedBy?: string; reviewedAt?: string; approvalRemark?: string; rejectReason?: string };
-
-async function request<T>(path: string, token: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options?.headers || {}) } });
-  const data = await response.json();
-  if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join('；') : data.message || '请求失败');
-  return data;
-}
 
 const statusName: Record<string, string> = { DRAFT: '起草', REVIEWING: '审核中', APPROVED: '审核通过', REJECTED: '审核不通过', PROCESSING: '开票中', ISSUED: '完成开票', VOIDED: '已作废' };
 const invoiceTypes = ['增值税电子专用发票', '增值税电子普通发票', '增值税专用发票', '增值税普通发票', '形式发票'];
@@ -50,39 +45,39 @@ export default function InvoiceApplicationPanel({ token, customers, review = fal
 
   async function refresh(values: Record<string, string | undefined> = {}) {
     setLoading(true);
-    try { const params = new URLSearchParams({ page: '1', pageSize: '100' }); Object.entries(values).forEach(([key, value]) => { if (value) params.set(key, value); }); const result = await request<{ items: Application[] }>(`/invoices/applications?${params.toString()}`, token); setRows(result.items); }
+    try { const params = new URLSearchParams({ page: '1', pageSize: '100' }); Object.entries(values).forEach(([key, value]) => { if (value) params.set(key, value); }); const result = await apiRequest<{ items: Application[] }>(`/invoices/applications?${params.toString()}`, token); setRows(result.items); }
     catch (error) { onError(error instanceof Error ? error.message : '发票申请查询失败'); }
     finally { setLoading(false); }
   }
 
-  useEffect(() => { void refresh(); if (!review) void request<{ items: Receive[] }>('/receive-records?page=1&pageSize=100&status=CONFIRMED', token).then((result) => { setReceives(result.items); const sourceId = new URLSearchParams(window.location.search).get('receiveRecordId'); if (sourceId && result.items.some((item) => item.id === sourceId)) form.setFieldValue('receiveRecordIds', [sourceId]); }).catch((error) => onError(error instanceof Error ? error.message : '收款来源查询失败')); }, [token, review, form]);
+  useEffect(() => { void refresh(); if (!review) void apiRequest<{ items: Receive[] }>('/receive-records?page=1&pageSize=100&status=CONFIRMED', token).then((result) => { setReceives(result.items); const sourceId = new URLSearchParams(window.location.search).get('receiveRecordId'); if (sourceId && result.items.some((item) => item.id === sourceId)) form.setFieldValue('receiveRecordIds', [sourceId]); }).catch((error) => onError(error instanceof Error ? error.message : '收款来源查询失败')); }, [token, review, form]);
 
   async function save(values: any, submit: boolean) {
-    try { const payload = { ...values, ocrRecordId, items: values.autoSplit === false ? values.items : undefined }; const result = await request<{ invoice: Application }>('/invoices/applications', token, { method: 'POST', body: JSON.stringify(payload) }); if (submit) await request(`/invoices/applications/${result.invoice.id}/submit`, token, { method: 'POST' }); setCreateOpen(false); form.resetFields(); setOcrRecordId(undefined); setOcrMessage(''); await refresh(filterForm.getFieldsValue()); }
+    try { const payload = { ...values, ocrRecordId, items: values.autoSplit === false ? values.items : undefined }; const result = await apiRequest<{ invoice: Application }>('/invoices/applications', token, { method: 'POST', body: JSON.stringify(payload) }); if (submit) await apiRequest(`/invoices/applications/${result.invoice.id}/submit`, token, { method: 'POST' }); setCreateOpen(false); form.resetFields(); setOcrRecordId(undefined); setOcrMessage(''); await refresh(filterForm.getFieldsValue()); }
     catch (error) { onError(error instanceof Error ? error.message : '发票申请保存失败'); }
   }
 
   async function recognizeInvoice(file: any) {
     if (!file) return;
     setOcrLoading(true); setOcrMessage('识别中...');
-    try { const body = new FormData(); body.append('file', file); const response = await fetch(`${apiUrl}/invoices/ocr`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body }); const result = await response.json(); if (!response.ok || !result.success) throw new Error(result.message || 'AI识别失败，请手工填写'); const data = result.data || {}; form.setFieldsValue({ invoiceNumber: data.invoiceNo || undefined, invoiceDate: data.invoiceDate || undefined, amount: data.totalAmount || data.amountExcludingTax || undefined, invoiceType: data.invoiceType || undefined, invoiceTitle: data.buyerName || undefined, taxNumber: data.buyerTaxNo || undefined, invoiceContent: data.items?.map((item: any) => item.content || item.name).filter(Boolean).join('、') || undefined }); setOcrRecordId(result.rawResultId); setOcrMessage('AI识别完成，请核对识别结果'); }
+    try { const body = new FormData(); body.append('file', file); const response = await fetch(`${API_BASE}/invoices/ocr`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body }); const result = await response.json(); if (!response.ok || !result.success) throw new Error(result.message || 'AI识别失败，请手工填写'); const data = result.data || {}; form.setFieldsValue({ invoiceNumber: data.invoiceNo || undefined, invoiceDate: data.invoiceDate || undefined, amount: data.totalAmount || data.amountExcludingTax || undefined, invoiceType: data.invoiceType || undefined, invoiceTitle: data.buyerName || undefined, taxNumber: data.buyerTaxNo || undefined, invoiceContent: data.items?.map((item: any) => item.content || item.name).filter(Boolean).join('、') || undefined }); setOcrRecordId(result.rawResultId); setOcrMessage('AI识别完成，请核对识别结果'); }
     catch (error) { setOcrMessage('AI识别失败，请手工填写'); onError(error instanceof Error ? error.message : 'AI识别失败，请手工填写'); }
     finally { setOcrLoading(false); }
   }
 
   async function reviewAction(id: string, approved: boolean) {
-    try { if (approved) await request(`/invoices/applications/${id}/approve`, token, { method: 'POST', body: JSON.stringify({}) }); else { const reason = window.prompt('请输入驳回原因'); if (!reason?.trim()) return; await request(`/invoices/applications/${id}/reject`, token, { method: 'POST', body: JSON.stringify({ rejectReason: reason }) }); } await refresh(filterForm.getFieldsValue()); }
+    try { if (approved) await apiRequest(`/invoices/applications/${id}/approve`, token, { method: 'POST', body: JSON.stringify({}) }); else { const reason = window.prompt('请输入驳回原因'); if (!reason?.trim()) return; await apiRequest(`/invoices/applications/${id}/reject`, token, { method: 'POST', body: JSON.stringify({ rejectReason: reason }) }); } await refresh(filterForm.getFieldsValue()); }
     catch (error) { onError(error instanceof Error ? error.message : '发票审核操作失败'); }
   }
-  async function revokeAction(id: string) { try { await request(`/invoices/applications/${id}/revoke`, token, { method: 'POST' }); await refresh(filterForm.getFieldsValue()); } catch (error) { onError(error instanceof Error ? error.message : '发票申请撤回失败'); } }
-  async function showDetail(id: string) { try { setDetail(await request<Application>(`/invoices/applications/${id}`, token)); } catch (error) { onError(error instanceof Error ? error.message : '发票申请详情查询失败'); } }
+  async function revokeAction(id: string) { try { await apiRequest(`/invoices/applications/${id}/revoke`, token, { method: 'POST' }); await refresh(filterForm.getFieldsValue()); } catch (error) { onError(error instanceof Error ? error.message : '发票申请撤回失败'); } }
+  async function showDetail(id: string) { try { setDetail(await apiRequest<Application>(`/invoices/applications/${id}`, token)); } catch (error) { onError(error instanceof Error ? error.message : '发票申请详情查询失败'); } }
   function openUpload(row: Application) { setUploadApplication(row); setUploadFile(null); uploadForm.resetFields(); uploadForm.setFieldValue('amount', '0.00'); }
   async function uploadInvoice(values: any) {
     if (!uploadApplication || !uploadFile) { onError('请选择发票文件'); return; }
-    try { const body = new FormData(); body.append('file', uploadFile); body.append('invoiceType', values.invoiceType); body.append('amount', values.amount || '0.00'); if (values.invoiceCode) body.append('invoiceCode', values.invoiceCode); if (values.invoiceContent) body.append('invoiceContent', values.invoiceContent); if (values.invoiceApplicationItemId) body.append('invoiceApplicationItemId', values.invoiceApplicationItemId); const response = await fetch(`${apiUrl}/invoices/applications/${uploadApplication.id}/details/upload`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body }); const result = await response.json(); if (!response.ok) throw new Error(Array.isArray(result.message) ? result.message.join('；') : result.message || '发票上传失败'); if (uploadApplication.status === 'APPROVED') await request(`/invoices/applications/${uploadApplication.id}/details/complete`, token, { method: 'POST' }); setUploadApplication(null); setUploadFile(null); uploadForm.resetFields(); await refresh(filterForm.getFieldsValue()); }
+    try { const body = new FormData(); body.append('file', uploadFile); body.append('invoiceType', values.invoiceType); body.append('amount', values.amount || '0.00'); if (values.invoiceCode) body.append('invoiceCode', values.invoiceCode); if (values.invoiceContent) body.append('invoiceContent', values.invoiceContent); if (values.invoiceApplicationItemId) body.append('invoiceApplicationItemId', values.invoiceApplicationItemId); const response = await fetch(`${API_BASE}/invoices/applications/${uploadApplication.id}/details/upload`, { method: 'POST', headers: { Authorization: `Bearer ${token}` }, body }); const result = await response.json(); if (!response.ok) throw new Error(Array.isArray(result.message) ? result.message.join('；') : result.message || '发票上传失败'); if (uploadApplication.status === 'APPROVED') await apiRequest(`/invoices/applications/${uploadApplication.id}/details/complete`, token, { method: 'POST' }); setUploadApplication(null); setUploadFile(null); uploadForm.resetFields(); await refresh(filterForm.getFieldsValue()); }
     catch (error) { onError(error instanceof Error ? error.message : '发票上传失败'); }
   }
-  async function viewInvoiceFile(applicationId: string, detailId: string) { try { const response = await fetch(`${apiUrl}/invoices/applications/${applicationId}/details/${detailId}/file`, { headers: { Authorization: `Bearer ${token}` } }); if (!response.ok) throw new Error('发票文件读取失败'); const url = URL.createObjectURL(await response.blob()); window.open(url, '_blank', 'noopener,noreferrer'); } catch (error) { onError(error instanceof Error ? error.message : '发票文件读取失败'); } }
+  async function viewInvoiceFile(applicationId: string, detailId: string) { try { const response = await fetch(`${API_BASE}/invoices/applications/${applicationId}/details/${detailId}/file`, { headers: { Authorization: `Bearer ${token}` } }); if (!response.ok) throw new Error('发票文件读取失败'); const url = URL.createObjectURL(await response.blob()); window.open(url, '_blank', 'noopener,noreferrer'); } catch (error) { onError(error instanceof Error ? error.message : '发票文件读取失败'); } }
 
   const statusOptions = review ? ['REVIEWING', 'APPROVED', 'REJECTED', 'ISSUED'] : ['DRAFT', 'REVIEWING', 'APPROVED', 'REJECTED', 'ISSUED'];
   return <Card title={review ? '发票申请审核' : '发票申请'} loading={loading} extra={!review && <Button type="primary" onClick={() => setCreateOpen(true)}>新建申请</Button>}>

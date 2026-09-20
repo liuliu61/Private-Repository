@@ -33,6 +33,20 @@ export class CashflowController {
     });
   }
 
+  @Get('all')
+  getAllTransactions(@Query() query: GetTransactionsDto, @Req() request: AuthenticatedRequest) {
+    return this.cashflowService.getAllTransactions({
+      businessType: query.businessType as any,
+      businessNo: query.businessNo,
+      transactionNo: query.transactionNo,
+      operatorId: query.operatorId,
+      startDate: query.startDate ? new Date(query.startDate) : undefined,
+      endDate: query.endDate ? new Date(query.endDate) : undefined,
+      page: query.page,
+      pageSize: query.pageSize,
+    }, request.user);
+  }
+
   @Get()
   getTransactions(@Query() query: GetTransactionsDto, @Req() request: AuthenticatedRequest) {
     return this.cashflowService.getTransactions({

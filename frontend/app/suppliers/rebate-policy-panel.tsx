@@ -1,19 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { apiRequest } from '../utils/api';
 import { Alert, Button, Card, Form, Input, Modal, Select, Space, Table, Tag, Typography } from 'antd';
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 type Supplier = { id: string; name: string; platform: string; status: string };
 type Asset = { id: string; name: string; subjectId?: string; subjectCode?: string; platform?: string };
 type Policy = { id: string; policyId: string; supplierId: string; version: number; platform: string | null; subjectId: string | null; accountId: string | null; rebateType: 'FIXED_ADD' | 'PRIVATE_DIVIDE'; calculationMode: 'CASH_TO_CREDIT' | 'CREDIT_TO_CASH'; rate: string; effectiveFrom: string; effectiveTo: string | null; status: string; policyStatus: string; createdBy: string | null };
-
-async function request<T>(path: string, token: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options?.headers || {}) } });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data?.message || '请求失败');
-  return data;
-}
 
 const platforms = [{ value: 'DOUYIN', label: '抖音' }, { value: 'KUAISHOU', label: '快手' }, { value: 'XIAOHONGSHU', label: '小红书' }, { value: 'TENCENT', label: '腾讯' }, { value: 'OTHER', label: '其他' }];
 const platformName = (value: string | null) => platforms.find((item) => item.value === value)?.label || '供应商默认';
@@ -33,15 +26,15 @@ export default function SupplierRebatePolicyPanel({ token, suppliers, onError }:
   const supplier = useMemo(() => suppliers.find((item) => item.id === supplierId), [suppliers, supplierId]);
 
   useEffect(() => { if (!supplierId && suppliers[0]) setSupplierId(suppliers[0].id); }, [supplierId, suppliers]);
-  useEffect(() => { if (!token) return; Promise.all([request<Asset[]>('/ad-subjects', token), request<Asset[]>('/ad-accounts', token)]).then(([subjectRows, accountRows]) => { setSubjects(subjectRows); setAccounts(accountRows); }).catch((error) => onError(error instanceof Error ? error.message : '广告资源查询失败')); }, [token]);
+  useEffect(() => { if (!token) return; Promise.all([apiRequest<Asset[]>('/ad-subjects', token), apiRequest<Asset[]>('/ad-accounts', token)]).then(([subjectRows, accountRows]) => { setSubjects(subjectRows); setAccounts(accountRows); }).catch((error) => onError(error instanceof Error ? error.message : '广告资源查询失败')); }, [token]);
 
   async function refresh(id = supplierId) {
     if (!id) return;
     setLoading(true);
     try {
-      const result = await request<{ items: Policy[] }>(`/suppliers/${id}/rebate-policies?page=1&pageSize=100`, token);
+      const result = await apiRequest<{ items: Policy[] }>(`/suppliers/${id}/rebate-policies?page=1&pageSize=100`, token);
       setPolicies(result.items);
-      try { setCurrent(await request<Policy>(`/suppliers/${id}/rebate-policy`, token)); } catch { setCurrent(null); }
+      try { setCurrent(await apiRequest<Policy>(`/suppliers/${id}/rebate-policy`, token)); } catch { setCurrent(null); }
     } catch (error) { onError(error instanceof Error ? error.message : '成本返点政策查询失败'); }
     finally { setLoading(false); }
   }
@@ -49,12 +42,12 @@ export default function SupplierRebatePolicyPanel({ token, suppliers, onError }:
 
   async function createPolicy(values: { platform?: string; subjectId?: string; accountId?: string; rebateType: Policy['rebateType']; calculationMode: Policy['calculationMode']; rate: string; effectiveFrom: string; effectiveTo?: string; remark?: string }) {
     if (!supplierId) return;
-    try { await request(`/suppliers/${supplierId}/rebate-policies`, token, { method: 'POST', body: JSON.stringify({ ...values, rate: values.rate.trim(), effectiveFrom: new Date(values.effectiveFrom).toISOString(), effectiveTo: values.effectiveTo ? new Date(values.effectiveTo).toISOString() : undefined }) }); setModalOpen(false); form.resetFields(); await refresh(); }
+    try { await apiRequest(`/suppliers/${supplierId}/rebate-policies`, token, { method: 'POST', body: JSON.stringify({ ...values, rate: values.rate.trim(), effectiveFrom: new Date(values.effectiveFrom).toISOString(), effectiveTo: values.effectiveTo ? new Date(values.effectiveTo).toISOString() : undefined }) }); setModalOpen(false); form.resetFields(); await refresh(); }
     catch (error) { onError(error instanceof Error ? error.message : '成本返点政策保存失败'); }
   }
   async function disablePolicy(policyId: string) {
     if (!supplierId) return;
-    try { await request(`/suppliers/${supplierId}/rebate-policies/${policyId}/disable`, token, { method: 'POST' }); await refresh(); }
+    try { await apiRequest(`/suppliers/${supplierId}/rebate-policies/${policyId}/disable`, token, { method: 'POST' }); await refresh(); }
     catch (error) { onError(error instanceof Error ? error.message : '成本返点政策停用失败'); }
   }
 

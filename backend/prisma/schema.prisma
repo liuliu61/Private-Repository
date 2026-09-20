@@ -54,6 +54,7 @@ enum TransactionBusinessType {
   REFUND
   REBATE
   ADJUSTMENT
+  PAYMENT_POSTING
   OTHER
 }
 
@@ -227,6 +228,7 @@ enum PromotionTransactionBusinessType {
   CUSTOMER_CREDIT
   SUPPLIER_CREDIT
   ADJUSTMENT
+  REFUND
   OTHER
 }
 
@@ -237,6 +239,11 @@ enum CustomerWalletTransactionType {
   MANUAL_ADJUSTMENT
   RECEIVE_POSTING
   RECEIVE_REFUND
+  PROMOTION_ACCOUNT_CREDIT
+  PROMOTION_ACCOUNT_REFUND
+  ADVANCE_REPAY
+  ADVANCE_WAIVE
+  CREDIT_UPDATE
 }
 
 enum CustomerWalletType {
@@ -355,6 +362,16 @@ model User {
   completedInvoiceTasks InvoiceTask[] @relation("InvoiceTaskCompleter")
   confirmedInvoices Invoice[] @relation("InvoiceConfirmer")
   voidedInvoices Invoice[] @relation("InvoiceVoider")
+  createdPaymentApplies PaymentPostingApply[] @relation("PaymentApplyCreator")
+  submittedPaymentApplies PaymentPostingApply[] @relation("PaymentApplySubmitter")
+  approvedPaymentApplies PaymentPostingApply[] @relation("PaymentApplyApprover")
+  paidPaymentApplies PaymentPostingApply[] @relation("PaymentApplyPayer")
+  completedPaymentApplies PaymentPostingApply[] @relation("PaymentApplyCompleter")
+  paymentOaApplicants PaymentPostingOaApply[] @relation("PaymentOaApplicant")
+  paymentOaApprovers PaymentPostingOaApply[] @relation("PaymentOaApprover")
+  serviceOrderCreators ServiceOrder[] @relation("ServiceOrderCreator")
+  serviceOrderConfirmers ServiceOrder[] @relation("ServiceOrderConfirmer")
+  tableColumnConfigs TableColumnConfig[]
 
   @@map("users")
 }
@@ -426,6 +443,8 @@ model Account {
   financialAdjustments FinancialAdjustment[]
   bankTransactions BankTransaction[]
   receiveRecords ReceiveRecord[]
+  paymentPayerApplies PaymentPostingApply[] @relation("PaymentPayerAccount")
+  paymentPayeeApplies PaymentPostingApply[] @relation("PaymentPayeeAccount")
 
   @@index([accountType])
   @@index([status])
@@ -494,6 +513,7 @@ model Transaction {
   adjustmentId String? @unique @map("adjustment_id") @db.Uuid
   financialAdjustment FinancialAdjustment? @relation("FinancialAdjustmentTransaction", fields: [adjustmentId], references: [id])
   receiveRecord ReceiveRecord? @relation("ReceiveRecordTransaction")
+  paymentApply PaymentPostingApply? @relation("PaymentApplyTransaction")
 
   @@index([accountId, occurredAt])
   @@index([businessType, occurredAt])
@@ -533,9 +553,12 @@ model Customer {
   receiveRecordDetails ReceiveRecordDetail[]
   invoiceTasks InvoiceTask[]
   customerSettlements Settlement[] @relation("CustomerSettlements")
+  paymentPostingApplies PaymentPostingApply[]
 
   @@index([status])
   @@index([agentId, status])
+  serviceOrders ServiceOrder[]
+  consumptionRecords ConsumptionRecord[]
   @@map("customers")
 }
 
@@ -698,6 +721,7 @@ model Organization {
   accounts Account[]
   suppliers Supplier[]
   promotionAccounts PromotionAccount[]
+  channels Channel[]
   adSubjects AdSubject[]
   purchaseOrders PurchaseOrder[]
   settlements Settlement[]
@@ -712,9 +736,12 @@ model Organization {
   invoices Invoice[]
   invoiceOcrRecords InvoiceOcrRecord[]
   invoiceTasks InvoiceTask[]
+  paymentPostingApplies PaymentPostingApply[]
   sourcingSetting SourcingSetting?
   @@index([parentId])
   @@index([type, status])
+  serviceOrders ServiceOrder[]
+  consumptionRecords ConsumptionRecord[]
   @@map("organizations")
 }
 
@@ -784,6 +811,29 @@ model Reconciliation {
   @@map("reconciliations")
 }
 
+model Channel {
+  id                       String   @id @default(uuid()) @db.Uuid
+  organizationId           String   @map("organization_id") @db.Uuid
+  name                     String   @db.VarChar(100)
+  code                     String?  @db.VarChar(50)
+  platform                 String?  @db.VarChar(50)
+  defaultCostRebatePublic  Decimal  @default(0) @map("default_cost_rebate_public") @db.Decimal(5, 2)
+  defaultCostRebatePrivate Decimal  @default(0) @map("default_cost_rebate_private") @db.Decimal(5, 2)
+  status                   ChannelStatus @default(ACTIVE)
+  remark                   String?  @db.VarChar(255)
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+  organization             Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId, status])
+  @@map("channels")
+}
+
+enum ChannelStatus {
+  ACTIVE
+  INACTIVE
+}
+
 model Supplier {
   id String @id @default(uuid()) @db.Uuid
   name String @db.VarChar(100)
@@ -832,6 +882,10 @@ model PromotionAccount {
   customerId      String?                   @map("customer_id") @db.Uuid
   supplierId      String?                   @map("supplier_id") @db.Uuid
   accountName     String                    @map("account_name") @db.VarChar(100)
+  platform        String?                   @map("platform") @db.VarChar(50)
+  platformAccountId String?                 @map("platform_account_id") @db.VarChar(100)
+  accountCategory String?                   @map("account_category") @db.VarChar(50)
+  channelName     String?                   @map("channel_name") @db.VarChar(100)
   unit            PromotionAccountUnit      @default(ACCOUNT_CREDIT)
   currentBalance  Decimal                   @default(0) @map("current_balance") @db.Decimal(20, 2)
   status          AccountStatus             @default(ACTIVE)
@@ -867,6 +921,15 @@ model PromotionTransaction {
   operatorId         String                            @map("operator_id") @db.Uuid
   adjustmentId       String?                           @unique @map("adjustment_id") @db.Uuid
   remark             String?                           @db.VarChar(255)
+  customerRebate     Decimal?                          @map("customer_rebate") @db.Decimal(5, 2)
+  costRebate         Decimal?                          @map("cost_rebate") @db.Decimal(5, 2)
+  remitAmount        Decimal?                          @map("remit_amount") @db.Decimal(20, 2)
+  additionalFee      Decimal?                          @map("additional_fee") @db.Decimal(20, 2)
+  operateFee         Decimal?                          @map("operate_fee") @db.Decimal(20, 2)
+  profit             Decimal?                          @map("profit") @db.Decimal(20, 2)
+  accountCategory    String?                           @map("account_category") @db.VarChar(50)
+  channelName        String?                           @map("channel_name") @db.VarChar(100)
+  paymentNature      String?                           @map("payment_nature") @db.VarChar(20)
   promotionAccount   PromotionAccount                  @relation(fields: [promotionAccountId], references: [id])
   operator           User                              @relation("PromotionTransactionOperator", fields: [operatorId], references: [id])
   financialAdjustment FinancialAdjustment?              @relation("FinancialAdjustmentPromotionTransaction", fields: [adjustmentId], references: [id])
@@ -1039,11 +1102,13 @@ model ReceiveRecord {
   refunds           Refund[]
   invoiceApplicationSources InvoiceApplicationReceiveRecord[]
   details ReceiveRecordDetail[]
+  paymentPostingApplies PaymentPostingApplyReceiveRecord[]
 
   @@index([organizationId, status, receivedAt])
   @@index([customerId, receivedAt])
   @@index([purchaseOrderId])
   @@index([accountId, receivedAt])
+  serviceOrderReceiveRecords ServiceOrderReceiveRecord[]
   @@map("receive_records")
 }
 
@@ -1462,6 +1527,7 @@ model PurchaseOrder {
   @@index([businessType, businessTime])
   @@index([inboundAccountId])
   @@index([outboundAccountId])
+  serviceOrderPurchaseRecords ServiceOrderPurchaseRecord[]
   @@map("purchase_orders")
 }
 
@@ -1647,4 +1713,263 @@ model AuditLog {
   @@index([organizationId, createdAt])
   @@index([businessType, businessId])
   @@map("audit_logs")
+}
+
+// ============ 充值付款（补款申请） ============
+
+enum PaymentPostingApplyStatus {
+  DRAFT
+  REVIEWING
+  APPROVED
+  REJECTED
+  REVOKED
+  PAID
+  COMPLETED
+}
+
+enum PaymentPostingOaStatus {
+  PENDING
+  PROCESSING
+  APPROVED
+  REJECTED
+  FAILED
+  RETRYING
+}
+
+enum PaymentExpenseType {
+  AD_RECHARGE
+  SERVICE_FEE
+  REFUND
+  OTHER
+}
+
+model PaymentPostingApply {
+  id                String                     @id @default(uuid()) @db.Uuid
+  applyNo           String                     @unique @map("apply_no") @db.VarChar(60)
+  organizationId    String                     @map("organization_id") @db.Uuid
+  customerId        String                     @map("customer_id") @db.Uuid
+  applyType         String                     @default("RECHARGE") @map("apply_type") @db.VarChar(50)
+  totalAmount       Decimal                    @map("total_amount") @db.Decimal(20, 2)
+  paidAmount        Decimal                    @default(0) @map("paid_amount") @db.Decimal(20, 2)
+  serviceFeeAmount  Decimal                    @default(0) @map("service_fee_amount") @db.Decimal(20, 2)
+  actualPayAmount   Decimal                    @default(0) @map("actual_pay_amount") @db.Decimal(20, 2)
+  currency          String                     @default("CNY") @db.Char(3)
+  payerAccountId    String?                    @map("payer_account_id") @db.Uuid
+  payeeAccountId    String?                    @map("payee_account_id") @db.Uuid
+  paymentMethod     String?                    @map("payment_method") @db.VarChar(50)
+  status            PaymentPostingApplyStatus  @default(DRAFT)
+  oaStatus          PaymentPostingOaStatus     @default(PENDING) @map("oa_status")
+  oaFlowNo          String?                    @map("oa_flow_no") @db.VarChar(100)
+  contractNo        String?                    @map("contract_no") @db.VarChar(100)
+  remark            String?                    @db.VarChar(500)
+  attachmentUrl     String?                    @map("attachment_url") @db.VarChar(500)
+  receiptUrl        String?                    @map("receipt_url") @db.VarChar(500)
+  createdBy         String                     @map("created_by") @db.Uuid
+  submittedBy       String?                    @map("submitted_by") @db.Uuid
+  submittedAt       DateTime?                  @map("submitted_at")
+  approvedBy        String?                    @map("approved_by") @db.Uuid
+  approvedAt        DateTime?                  @map("approved_at")
+  paidBy            String?                    @map("paid_by") @db.Uuid
+  paidAt            DateTime?                  @map("paid_at")
+  completedBy       String?                    @map("completed_by") @db.Uuid
+  completedAt       DateTime?                  @map("completed_at")
+  rejectReason      String?                    @map("reject_reason") @db.VarChar(500)
+  createdAt         DateTime                   @default(now()) @map("created_at")
+  updatedAt         DateTime                   @updatedAt @map("updated_at")
+  organization      Organization               @relation(fields: [organizationId], references: [id])
+  customer          Customer                   @relation(fields: [customerId], references: [id])
+  payerAccount      Account?                   @relation("PaymentPayerAccount", fields: [payerAccountId], references: [id])
+  payeeAccount      Account?                   @relation("PaymentPayeeAccount", fields: [payeeAccountId], references: [id])
+  creator           User                       @relation("PaymentApplyCreator", fields: [createdBy], references: [id])
+  submitter         User?                      @relation("PaymentApplySubmitter", fields: [submittedBy], references: [id])
+  approver          User?                      @relation("PaymentApplyApprover", fields: [approvedBy], references: [id])
+  payer             User?                      @relation("PaymentApplyPayer", fields: [paidBy], references: [id])
+  completer         User?                      @relation("PaymentApplyCompleter", fields: [completedBy], references: [id])
+  details           PaymentPostingApplyDetail[]
+  receiveRecords    PaymentPostingApplyReceiveRecord[]
+  oaRecords         PaymentPostingOaApply[]
+  transaction       Transaction?               @relation("PaymentApplyTransaction", fields: [transactionId], references: [id])
+  transactionId     String?                    @unique @map("transaction_id") @db.Uuid
+
+  @@index([organizationId, status, createdAt])
+  @@index([customerId, createdAt])
+  @@index([oaFlowNo])
+  @@map("payment_posting_applies")
+}
+
+model PaymentPostingApplyDetail {
+  id              String              @id @default(uuid()) @db.Uuid
+  applyId         String              @map("apply_id") @db.Uuid
+  expenseTypeId   String?             @map("expense_type_id") @db.VarChar(100)
+  expenseType     PaymentExpenseType  @default(AD_RECHARGE) @map("expense_type")
+  applyAmount     Decimal             @map("apply_amount") @db.Decimal(20, 2)
+  paidAmount      Decimal             @default(0) @map("paid_amount") @db.Decimal(20, 2)
+  serviceFeeAmount Decimal            @default(0) @map("service_fee_amount") @db.Decimal(20, 2)
+  remark          String?             @db.VarChar(255)
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+  apply           PaymentPostingApply @relation(fields: [applyId], references: [id], onDelete: Cascade)
+
+  @@index([applyId])
+  @@index([expenseType])
+  @@map("payment_posting_apply_details")
+}
+
+model PaymentPostingApplyReceiveRecord {
+  id              String              @id @default(uuid()) @db.Uuid
+  applyId         String              @map("apply_id") @db.Uuid
+  receiveRecordId String              @map("receive_record_id") @db.Uuid
+  amount          Decimal             @map("amount") @db.Decimal(20, 2)
+  createdAt       DateTime            @default(now()) @map("created_at")
+  apply           PaymentPostingApply @relation(fields: [applyId], references: [id], onDelete: Cascade)
+  receiveRecord   ReceiveRecord       @relation(fields: [receiveRecordId], references: [id])
+
+  @@unique([applyId, receiveRecordId])
+  @@index([receiveRecordId])
+  @@map("payment_posting_apply_receive_records")
+}
+
+model PaymentPostingOaApply {
+  id              String                 @id @default(uuid()) @db.Uuid
+  applyId         String                 @map("apply_id") @db.Uuid
+  oaFlowNo        String                 @unique @map("oa_flow_no") @db.VarChar(100)
+  oaStatus        PaymentPostingOaStatus @default(PENDING) @map("oa_status")
+  oaType          String                 @default("PAYMENT_APPROVAL") @map("oa_type") @db.VarChar(50)
+  applicantId     String                 @map("applicant_id") @db.Uuid
+  approverId      String?                @map("approver_id") @db.Uuid
+  approvedAt      DateTime?              @map("approved_at")
+  rejectReason    String?                @map("reject_reason") @db.VarChar(500)
+  retryCount      Int                    @default(0) @map("retry_count")
+  lastRetryAt     DateTime?              @map("last_retry_at")
+  errorMessage    String?                @map("error_message") @db.VarChar(500)
+  createdAt       DateTime               @default(now()) @map("created_at")
+  updatedAt       DateTime               @updatedAt @map("updated_at")
+  apply           PaymentPostingApply    @relation(fields: [applyId], references: [id], onDelete: Cascade)
+  applicant       User                   @relation("PaymentOaApplicant", fields: [applicantId], references: [id])
+  approver        User?                  @relation("PaymentOaApprover", fields: [approverId], references: [id])
+
+  @@index([applyId])
+  @@index([oaStatus, createdAt])
+  @@map("payment_posting_oa_applies")
+}
+
+enum ServiceOrderStatus {
+  DRAFT
+  PENDING_CONFIRM
+  CONFIRMED
+  CANCELLED
+}
+
+enum ServiceOrderTransferCategory {
+  AD_ACCOUNT
+  SHARED_WALLET
+}
+
+enum ServiceOrderDeliveryType {
+  BIDDING
+  NON_BIDDING
+}
+
+model ServiceOrder {
+  id                      String                      @id @default(uuid()) @db.Uuid
+  orderNo                 String                      @unique @map("order_no") @db.VarChar(50)
+  customerId              String                      @map("customer_id") @db.Uuid
+  organizationId          String?                     @map("organization_id") @db.Uuid
+  contractSubject         String?                     @map("contract_subject") @db.VarChar(200)
+  transferCategory        ServiceOrderTransferCategory @default(AD_ACCOUNT) @map("transfer_category")
+  deliveryType            ServiceOrderDeliveryType    @default(BIDDING) @map("delivery_type")
+  businessType            String?                     @map("business_type") @db.VarChar(50)
+  totalReceivableAmount   Decimal                     @default(0) @map("total_receivable_amount") @db.Decimal(18, 4)
+  actualReceivedAmount    Decimal                     @default(0) @map("actual_received_amount") @db.Decimal(18, 4)
+  serviceCostAmount       Decimal                     @default(0) @map("service_cost_amount") @db.Decimal(18, 4)
+  creditAmount            Decimal                     @default(0) @map("credit_amount") @db.Decimal(18, 4)
+  serviceFeeAmount        Decimal                     @default(0) @map("service_fee_amount") @db.Decimal(18, 4)
+  status                  ServiceOrderStatus          @default(DRAFT)
+  confirmedBy             String?                     @map("confirmed_by") @db.Uuid
+  confirmedAt             DateTime?                   @map("confirmed_at")
+  confirmedPhone          String?                     @map("confirmed_phone") @db.VarChar(20)
+  confirmedIp             String?                     @map("confirmed_ip") @db.VarChar(50)
+  createdBy               String?                     @map("created_by") @db.Uuid
+  remark                  String?                     @db.VarChar(500)
+  createdAt               DateTime                    @default(now()) @map("created_at")
+  updatedAt               DateTime                    @updatedAt @map("updated_at")
+  customer                Customer                    @relation(fields: [customerId], references: [id])
+  organization            Organization?               @relation(fields: [organizationId], references: [id])
+  creator                 User?                       @relation("ServiceOrderCreator", fields: [createdBy], references: [id])
+  confirmer               User?                       @relation("ServiceOrderConfirmer", fields: [confirmedBy], references: [id])
+  receiveRecords          ServiceOrderReceiveRecord[]
+  purchaseRecords         ServiceOrderPurchaseRecord[]
+  @@index([customerId, status])
+  @@index([organizationId, createdAt])
+  @@map("service_orders")
+}
+
+model ServiceOrderReceiveRecord {
+  id              String        @id @default(uuid()) @db.Uuid
+  serviceOrderId  String        @map("service_order_id") @db.Uuid
+  receiveRecordId String        @map("receive_record_id") @db.Uuid
+  amount          Decimal       @default(0) @db.Decimal(18, 4)
+  serviceFee      Decimal       @default(0) @db.Decimal(18, 4)
+  usedAmount      Decimal       @default(0) @map("used_amount") @db.Decimal(18, 4)
+  createdAt       DateTime      @default(now()) @map("created_at")
+  serviceOrder    ServiceOrder  @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  receiveRecord   ReceiveRecord @relation(fields: [receiveRecordId], references: [id])
+  @@unique([serviceOrderId, receiveRecordId])
+  @@index([receiveRecordId])
+  @@map("service_order_receive_records")
+}
+
+model ServiceOrderPurchaseRecord {
+  id               String        @id @default(uuid()) @db.Uuid
+  serviceOrderId   String        @map("service_order_id") @db.Uuid
+  purchaseOrderId  String?       @map("purchase_order_id") @db.Uuid
+  adAccountId      String?       @map("ad_account_id") @db.Uuid
+  adSubjectId      String?       @map("ad_subject_id") @db.Uuid
+  transferAmount   Decimal       @default(0) @map("transfer_amount") @db.Decimal(18, 4)
+  receivableAmount Decimal       @default(0) @map("receivable_amount") @db.Decimal(18, 4)
+  remark           String?       @db.VarChar(255)
+  createdAt        DateTime      @default(now()) @map("created_at")
+  serviceOrder     ServiceOrder  @relation(fields: [serviceOrderId], references: [id], onDelete: Cascade)
+  purchaseOrder    PurchaseOrder? @relation(fields: [purchaseOrderId], references: [id])
+  @@index([serviceOrderId])
+  @@index([purchaseOrderId])
+  @@map("service_order_purchase_records")
+}
+
+model ConsumptionRecord {
+  id              String    @id @default(uuid()) @db.Uuid
+  recordNo        String    @unique @map("record_no") @db.VarChar(50)
+  customerId      String    @map("customer_id") @db.Uuid
+  organizationId  String?   @map("organization_id") @db.Uuid
+  adAccountId     String?   @map("ad_account_id") @db.Uuid
+  adSubjectId     String?   @map("ad_subject_id") @db.Uuid
+  consumptionDate DateTime  @map("consumption_date")
+  creditAmount    Decimal   @default(0) @map("credit_amount") @db.Decimal(18, 4)
+  cashAmount      Decimal   @default(0) @map("cash_amount") @db.Decimal(18, 4)
+  rebateAmount    Decimal   @default(0) @map("rebate_amount") @db.Decimal(18, 4)
+  serviceCost     Decimal   @default(0) @map("service_cost") @db.Decimal(18, 4)
+  profitAmount    Decimal   @default(0) @map("profit_amount") @db.Decimal(18, 4)
+  remark          String?   @db.VarChar(500)
+  createdBy       String?   @map("created_by") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+  customer        Customer  @relation(fields: [customerId], references: [id])
+  organization    Organization? @relation(fields: [organizationId], references: [id])
+  @@index([customerId, consumptionDate])
+  @@index([organizationId, consumptionDate])
+  @@index([adAccountId, consumptionDate])
+  @@map("consumption_records")
+}
+
+model TableColumnConfig {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  tableKey       String   @map("table_key") @db.VarChar(100)
+  columns        String   @db.Text
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+  user           User     @relation(fields: [userId], references: [id])
+  @@unique([userId, tableKey])
+  @@index([userId])
+  @@map("table_column_configs")
 }

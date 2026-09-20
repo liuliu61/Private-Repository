@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { BusinessIdParamDto, CreateCustomerWalletDto, CustomerWalletListQueryDto, CustomerWalletTransactionQueryDto, WalletAdvanceUpdateDto, WalletAdjustmentDto, WalletCreditUpdateDto, WalletOpeningBalanceDto } from './business.dto';
+import { BusinessIdParamDto, CreateCustomerWalletDto, CustomerWalletListQueryDto, CustomerWalletTransactionQueryDto, WalletAdvanceUpdateDto, WalletAdvanceRepayDto, WalletAdvanceWaiveDto, WalletAdjustmentDto, WalletCreditUpdateDto, WalletOpeningBalanceDto } from './business.dto';
 import { CustomerWalletService } from './customer-wallet.service';
 
 interface AuthenticatedRequest extends Request { user: { sub: string; username: string; roles: string[]; permissions: string[] }; }
@@ -37,4 +37,10 @@ export class CustomerWalletController {
 
   @Post(':id/advance')
   updateAdvance(@Param() params: BusinessIdParamDto, @Body() dto: WalletAdvanceUpdateDto, @Req() request: AuthenticatedRequest) { return this.service.updateAdvance(params.id, dto, request.user); }
+
+  @Post(':id/advance/repay')
+  repayAdvance(@Param() params: BusinessIdParamDto, @Body() dto: WalletAdvanceRepayDto, @Req() request: AuthenticatedRequest) { return this.service.repayAdvance(params.id, dto, request.user); }
+
+  @Post(':id/advance/waive')
+  waiveAdvance(@Param() params: BusinessIdParamDto, @Body() dto: WalletAdvanceWaiveDto, @Req() request: AuthenticatedRequest) { return this.service.waiveAdvance(params.id, dto, request.user); }
 }

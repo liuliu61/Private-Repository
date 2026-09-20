@@ -1,18 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { apiRequest } from '../utils/api';
 import { Button, Card, Descriptions, Form, Input, Modal, Space, Table, Tag } from 'antd';
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 type Settlement = { id: string; settlementNo: string; settlementType: string; customerId?: string | null; supplierId?: string | null; periodStart: string; periodEnd: string; orderCount: number; customerCashAmount: string; customerPaidAmount: string; customerRefundAmount: string; netCustomerCashAmount: string; customerCreditAmount: string; supplierCashAmount: string; supplierPaidAmount: string; supplierCreditAmount: string; supplierPayable: string; grossProfit: string | null; realizedProfit: string | null; status: string };
 type SettlementItem = { id: string; orderId: string; orderNo: string; businessTime: string; cashAmount: string; creditAmount: string; refundAmount: string; grossProfit: string | null };
-
-async function request<T>(path: string, token: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options?.headers || {}) } });
-  const data = await response.json();
-  if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join('；') : data.message || '请求失败');
-  return data;
-}
 
 const statusName: Record<string, string> = { DRAFT: '草稿', GENERATED: '已生成', CONFIRMED: '已确认', SETTLED: '已结算', CANCELLED: '已取消' };
 
@@ -28,7 +21,7 @@ export default function SettlementPanel({ token, mode, customers, suppliers, onE
 
   async function refresh() {
     setLoading(true);
-    try { const result = await request<{ items: Settlement[] }>(`${basePath}?page=1&pageSize=100`, token); setRows(result.items); }
+    try { const result = await apiRequest<{ items: Settlement[] }>(`${basePath}?page=1&pageSize=100`, token); setRows(result.items); }
     catch (error) { onError(error instanceof Error ? error.message : '结算单查询失败'); }
     finally { setLoading(false); }
   }
@@ -36,11 +29,11 @@ export default function SettlementPanel({ token, mode, customers, suppliers, onE
 
   async function generate(values: { entityId: string; periodStart: string; periodEnd: string }) {
     const body = { [isCustomer ? 'customerId' : 'supplierId']: values.entityId, periodStart: new Date(values.periodStart).toISOString(), periodEnd: new Date(values.periodEnd).toISOString() };
-    try { await request(`${basePath}/generate`, token, { method: 'POST', body: JSON.stringify(body) }); setOpen(false); form.resetFields(); await refresh(); }
+    try { await apiRequest(`${basePath}/generate`, token, { method: 'POST', body: JSON.stringify(body) }); setOpen(false); form.resetFields(); await refresh(); }
     catch (error) { onError(error instanceof Error ? error.message : '结算单生成失败'); }
   }
-  async function detail(id: string) { try { setSelected(await request<Settlement & { items: SettlementItem[] }>(`${basePath}/${id}`, token)); setDetailOpen(true); } catch (error) { onError(error instanceof Error ? error.message : '结算单详情查询失败'); } }
-  async function action(id: string, actionName: 'confirm' | 'cancel') { try { await request(`${basePath}/${id}/${actionName}`, token, { method: 'POST' }); await refresh(); if (detailOpen) await detail(id); } catch (error) { onError(error instanceof Error ? error.message : '结算单操作失败'); } }
+  async function detail(id: string) { try { setSelected(await apiRequest<Settlement & { items: SettlementItem[] }>(`${basePath}/${id}`, token)); setDetailOpen(true); } catch (error) { onError(error instanceof Error ? error.message : '结算单详情查询失败'); } }
+  async function action(id: string, actionName: 'confirm' | 'cancel') { try { await apiRequest(`${basePath}/${id}/${actionName}`, token, { method: 'POST' }); await refresh(); if (detailOpen) await detail(id); } catch (error) { onError(error instanceof Error ? error.message : '结算单操作失败'); } }
 
   const entityOptions = isCustomer ? customers : suppliers;
   return <Card title={isCustomer ? '客户结算' : '一级代理结算'} extra={<Button type="primary" onClick={() => setOpen(true)}>生成结算单</Button>} loading={loading}>

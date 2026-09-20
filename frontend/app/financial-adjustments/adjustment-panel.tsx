@@ -1,19 +1,12 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { apiRequest } from '../utils/api';
 import { Button, Card, Form, Input, Modal, Select, Space, Table, Tag } from 'antd';
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
 type Account = { id: string; name: string; accountCode: string; currency: string; currentBalance: string };
 type PromotionAccount = { id: string; accountName: string; unit: string; currentBalance: string };
 type Adjustment = { id: string; adjustmentNo: string; accountType: string; type: string; amount: string; reason: string; status: string; account?: Account; promotionAccount?: PromotionAccount; createdAt: string };
-
-async function request<T>(path: string, token: string, options?: RequestInit): Promise<T> {
-  const response = await fetch(`${apiUrl}${path}`, { ...options, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options?.headers || {}) } });
-  const data = await response.json();
-  if (!response.ok) throw new Error(Array.isArray(data.message) ? data.message.join('；') : data.message || '请求失败');
-  return data;
-}
 
 const statusName: Record<string, string> = { DRAFT: '草稿', APPROVED: '已审核', REJECTED: '已拒绝', EXECUTED: '已执行' };
 const typeName: Record<string, string> = { INCOME: '收入调整', EXPENSE: '支出调整' };
@@ -27,18 +20,18 @@ export default function FinancialAdjustmentPanel({ token, accounts, promotionAcc
 
   async function refresh() {
     setLoading(true);
-    try { const result = await request<{ items: Adjustment[] }>('/financial-adjustments?page=1&pageSize=100', token); setRows(result.items); }
+    try { const result = await apiRequest<{ items: Adjustment[] }>('/financial-adjustments?page=1&pageSize=100', token); setRows(result.items); }
     catch (error) { onError(error instanceof Error ? error.message : '调整单查询失败'); }
     finally { setLoading(false); }
   }
   useEffect(() => { void refresh(); }, [token]);
   async function create(values: { accountType: string; targetId: string; type: string; amount: string; reason: string }) {
     const body = { accountType: values.accountType, type: values.type, amount: values.amount, reason: values.reason, ...(values.accountType === 'CNY' ? { accountId: values.targetId } : { promotionAccountId: values.targetId }) };
-    try { await request('/financial-adjustments', token, { method: 'POST', body: JSON.stringify(body) }); setOpen(false); form.resetFields(); await refresh(); }
+    try { await apiRequest('/financial-adjustments', token, { method: 'POST', body: JSON.stringify(body) }); setOpen(false); form.resetFields(); await refresh(); }
     catch (error) { onError(error instanceof Error ? error.message : '调整单创建失败'); }
   }
   async function action(id: string, actionName: 'approve' | 'reject' | 'execute') {
-    try { await request(`/financial-adjustments/${id}/${actionName}`, token, { method: 'POST' }); await refresh(); }
+    try { await apiRequest(`/financial-adjustments/${id}/${actionName}`, token, { method: 'POST' }); await refresh(); }
     catch (error) { onError(error instanceof Error ? error.message : '调整单操作失败'); }
   }
   const targetOptions = accountType === 'CNY' ? accounts.map((item) => ({ value: item.id, label: `${item.name}（${item.currency}）` })) : promotionAccounts.map((item) => ({ value: item.id, label: `${item.accountName}（${item.unit}）` }));

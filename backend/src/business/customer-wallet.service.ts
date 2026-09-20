@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { AccessContext, AccessScopeService } from '../common/access-scope.service';
 import { moneyToString, toMoney } from '../cashflow/utils/money.util';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateCustomerWalletDto, CustomerWalletListQueryDto, CustomerWalletTransactionQueryDto, WalletAdjustmentDirection, WalletAdjustmentDto, WalletAdvanceUpdateDto, WalletComparisonOperator, WalletCreditUpdateDto, WalletOpeningBalanceDto } from './business.dto';
+import { CreateCustomerWalletDto, CustomerWalletListQueryDto, CustomerWalletTransactionQueryDto, WalletAdjustmentDirection, WalletAdjustmentDto, WalletAdvanceUpdateDto, WalletAdvanceRepayDto, WalletAdvanceWaiveDto, WalletComparisonOperator, WalletCreditUpdateDto, WalletOpeningBalanceDto } from './business.dto';
 
 @Injectable()
 export class CustomerWalletService {
@@ -107,9 +107,36 @@ export class CustomerWalletService {
     this.assertActive(wallet.status);
     const creditLimit = dto.creditLimit === undefined ? wallet.creditLimit : this.nonNegativeMoney(dto.creditLimit, '授信额度');
     const creditUsed = dto.creditUsed === undefined ? wallet.creditUsed : this.nonNegativeMoney(dto.creditUsed, '授信已使用金额');
+    // 取消授信校验：授信额度改为0时，授信已使用必须为0
+    if (creditLimit.isZero() && !creditUsed.isZero()) {
+      throw new BadRequestException('客户仍有已使用授信未收回，不能取消授信');
+    }
+    // 授信已使用不能超过授信额度
+    if (creditUsed.gt(creditLimit)) {
+      throw new BadRequestException('授信已使用不能超过授信额度');
+    }
     const updated = await this.prisma.$transaction(async (tx) => {
       const locked = await this.lockWallet(tx, walletId, context);
       const row = await tx.customerWallet.update({ where: { id: walletId }, data: { creditLimit, creditUsed } });
+      // 生成授信变更流水（不影响余额，changeAmount为0）
+      const balanceBefore = toMoney(locked.cashBalance, '钱包当前余额');
+      const remark = `授信额度: ${moneyToString(locked.creditLimit)} → ${moneyToString(creditLimit)}, 已使用: ${moneyToString(locked.creditUsed)} → ${moneyToString(creditUsed)}${dto.remark ? `, ${dto.remark}` : ''}`;
+      await tx.customerWalletTransaction.create({
+        data: {
+          transactionNo: this.generateTransactionNo(),
+          walletId,
+          unit: locked.unit,
+          businessType: CustomerWalletTransactionType.CREDIT_UPDATE,
+          businessNo: null,
+          changeAmount: new Prisma.Decimal(0),
+          balanceBefore,
+          balanceAfter: balanceBefore,
+          operatorId: context.sub,
+          occurredAt: dto.effectiveAt ? new Date(dto.effectiveAt) : new Date(),
+          remark,
+          idempotencyKey: null,
+        },
+      });
       await this.audit(tx, context, locked.organizationId, walletId, 'CUSTOMER_WALLET_CREDIT_UPDATE', { creditLimit: moneyToString(locked.creditLimit), creditUsed: moneyToString(locked.creditUsed) }, { creditLimit: moneyToString(creditLimit), creditUsed: moneyToString(creditUsed), effectiveAt: dto.effectiveAt || new Date().toISOString(), remark: dto.remark || null });
       return row;
     });
@@ -124,7 +151,104 @@ export class CustomerWalletService {
     const updated = await this.prisma.$transaction(async (tx) => {
       const locked = await this.lockWallet(tx, walletId, context);
       const row = await tx.customerWallet.update({ where: { id: walletId }, data: { advanceOutstanding: amount } });
+      // 生成垫款变更流水（不影响余额，changeAmount为0）
+      const balanceBefore = toMoney(locked.cashBalance, '钱包当前余额');
+      const remark = `垫款未还: ${moneyToString(locked.advanceOutstanding)} → ${moneyToString(amount)}${dto.remark ? `, ${dto.remark}` : ''}`;
+      await tx.customerWalletTransaction.create({
+        data: {
+          transactionNo: this.generateTransactionNo(),
+          walletId,
+          unit: locked.unit,
+          businessType: CustomerWalletTransactionType.ADVANCE_WAIVE,
+          businessNo: null,
+          changeAmount: new Prisma.Decimal(0),
+          balanceBefore,
+          balanceAfter: balanceBefore,
+          operatorId: context.sub,
+          occurredAt: dto.effectiveAt ? new Date(dto.effectiveAt) : new Date(),
+          remark,
+          idempotencyKey: null,
+        },
+      });
       await this.audit(tx, context, locked.organizationId, walletId, 'CUSTOMER_WALLET_ADVANCE_UPDATE', { advanceOutstanding: moneyToString(locked.advanceOutstanding) }, { advanceOutstanding: moneyToString(amount), effectiveAt: dto.effectiveAt || new Date().toISOString(), remark: dto.remark || null });
+      return row;
+    });
+    return this.walletView(updated, (await this.getGroupBalances([updated.customerId])).get(updated.customerId) || new Prisma.Decimal(0));
+  }
+
+  async repayAdvance(walletId: string, dto: WalletAdvanceRepayDto, context: AccessContext) {
+    this.assertPermission(context, 'FINANCE_WALLET_ADJUST');
+    const amount = toMoney(dto.amount, '还款金额');
+    if (amount.lte(0)) throw new BadRequestException('还款金额必须大于0');
+    const wallet = await this.getWallet(walletId, context);
+    this.assertActive(wallet.status);
+    const currentAdvance = toMoney(wallet.advanceOutstanding, '当前垫款未还');
+    if (amount.gt(currentAdvance)) throw new BadRequestException(`还款金额不能超过当前垫款未还（${moneyToString(currentAdvance)}）`);
+    const currentBalance = toMoney(wallet.cashBalance, '钱包当前余额');
+    if (amount.gt(currentBalance)) throw new BadRequestException(`钱包余额不足，当前余额（${moneyToString(currentBalance)}）`);
+    const changeAmount = amount.negated();
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const locked = await this.lockWallet(tx, walletId, context);
+      const balanceBefore = toMoney(locked.cashBalance, '钱包当前余额');
+      const balanceAfter = balanceBefore.add(changeAmount).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+      const newAdvance = toMoney(locked.advanceOutstanding, '垫款未还').sub(amount).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+      const row = await tx.customerWallet.update({ where: { id: walletId }, data: { cashBalance: balanceAfter, advanceOutstanding: newAdvance } });
+      const transactionNo = this.generateTransactionNo();
+      await tx.customerWalletTransaction.create({
+        data: {
+          transactionNo,
+          walletId,
+          unit: locked.unit,
+          businessType: CustomerWalletTransactionType.ADVANCE_REPAY,
+          businessNo: dto.businessNo?.trim() || null,
+          changeAmount,
+          balanceBefore,
+          balanceAfter,
+          operatorId: context.sub,
+          occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
+          remark: dto.remark?.trim() || '客户垫款还款',
+          idempotencyKey: dto.idempotencyKey?.trim() || null,
+        },
+      });
+      await this.audit(tx, context, locked.organizationId, walletId, 'CUSTOMER_WALLET_ADVANCE_REPAY', { advanceOutstanding: moneyToString(locked.advanceOutstanding), cashBalance: moneyToString(locked.cashBalance) }, { advanceOutstanding: moneyToString(newAdvance), cashBalance: moneyToString(balanceAfter), repayAmount: moneyToString(amount), transactionNo, remark: dto.remark || null });
+      return row;
+    });
+    return this.walletView(updated, (await this.getGroupBalances([updated.customerId])).get(updated.customerId) || new Prisma.Decimal(0));
+  }
+
+  async waiveAdvance(walletId: string, dto: WalletAdvanceWaiveDto, context: AccessContext) {
+    this.assertPermission(context, 'FINANCE_WALLET_ADJUST');
+    const amount = toMoney(dto.amount, '豁免金额');
+    if (amount.lte(0)) throw new BadRequestException('豁免金额必须大于0');
+    if (!dto.reason?.trim()) throw new BadRequestException('请填写豁免原因');
+    const wallet = await this.getWallet(walletId, context);
+    this.assertActive(wallet.status);
+    const currentAdvance = toMoney(wallet.advanceOutstanding, '当前垫款未还');
+    if (amount.gt(currentAdvance)) throw new BadRequestException(`豁免金额不能超过当前垫款未还（${moneyToString(currentAdvance)}）`);
+    const updated = await this.prisma.$transaction(async (tx) => {
+      const locked = await this.lockWallet(tx, walletId, context);
+      const balanceBefore = toMoney(locked.cashBalance, '钱包当前余额');
+      const newAdvance = toMoney(locked.advanceOutstanding, '垫款未还').sub(amount).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+      const row = await tx.customerWallet.update({ where: { id: walletId }, data: { advanceOutstanding: newAdvance } });
+      const transactionNo = this.generateTransactionNo();
+      const remark = `垫款豁免: ${moneyToString(amount)}, 原因: ${dto.reason.trim()}${dto.remark ? `, ${dto.remark}` : ''}`;
+      await tx.customerWalletTransaction.create({
+        data: {
+          transactionNo,
+          walletId,
+          unit: locked.unit,
+          businessType: CustomerWalletTransactionType.ADVANCE_WAIVE,
+          businessNo: dto.businessNo?.trim() || null,
+          changeAmount: new Prisma.Decimal(0),
+          balanceBefore,
+          balanceAfter: balanceBefore,
+          operatorId: context.sub,
+          occurredAt: dto.occurredAt ? new Date(dto.occurredAt) : new Date(),
+          remark,
+          idempotencyKey: dto.idempotencyKey?.trim() || null,
+        },
+      });
+      await this.audit(tx, context, locked.organizationId, walletId, 'CUSTOMER_WALLET_ADVANCE_WAIVE', { advanceOutstanding: moneyToString(locked.advanceOutstanding) }, { advanceOutstanding: moneyToString(newAdvance), waiveAmount: moneyToString(amount), reason: dto.reason, transactionNo, remark: dto.remark || null });
       return row;
     });
     return this.walletView(updated, (await this.getGroupBalances([updated.customerId])).get(updated.customerId) || new Prisma.Decimal(0));
