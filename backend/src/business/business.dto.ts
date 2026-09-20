@@ -468,6 +468,23 @@ export class WalletAdvanceUpdateDto {
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
 }
 
+export class WalletAdvanceRepayDto {
+  @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '还款金额格式不正确' }) amount!: string;
+  @IsOptional() @IsString() @MaxLength(100) businessNo?: string;
+  @IsOptional() @IsString() @MaxLength(100) idempotencyKey?: string;
+  @IsOptional() @IsDateString({}, { message: '发生时间格式不正确' }) occurredAt?: string;
+  @IsOptional() @IsString() @MaxLength(255) remark?: string;
+}
+
+export class WalletAdvanceWaiveDto {
+  @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '豁免金额格式不正确' }) amount!: string;
+  @IsString() @MaxLength(255) reason!: string;
+  @IsOptional() @IsString() @MaxLength(100) businessNo?: string;
+  @IsOptional() @IsString() @MaxLength(100) idempotencyKey?: string;
+  @IsOptional() @IsDateString({}, { message: '发生时间格式不正确' }) occurredAt?: string;
+  @IsOptional() @IsString() @MaxLength(255) remark?: string;
+}
+
 const positiveMoney = /^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/;
 
 export class BankTransactionQueryDto {
