@@ -48,7 +48,7 @@ const sourceMap: Record<string, { label: string; color: string }> = {
 
 const dashboardTxColumns = [
   { title: '来源', dataIndex: 'source', width: 90, render: (v: string) => { const s = sourceMap[v] || { label: v, color: 'default' }; return <Tag color={s.color}>{s.label}</Tag>; } },
-  { title: '流水号', dataIndex: 'transactionNo', width: 180 },
+  { title: '账户名', dataIndex: 'sourceName', width: 180, ellipsis: true },
   { title: '业务类型', dataIndex: 'businessType', width: 110, render: (v: string) => businessTypeMap[v] || v },
   { title: '变动金额', dataIndex: 'changeAmount', width: 110, render: (value: string) => <span style={{ color: value.startsWith('-') ? '#ef4444' : '#10b981', fontWeight: 600 }}>{value.startsWith('-') ? value : `+${value}`}</span> },
   { title: '发生时间', dataIndex: 'occurredAt', width: 160, render: (value: string) => new Date(value).toLocaleString('zh-CN') },
