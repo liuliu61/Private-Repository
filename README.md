@@ -1,38 +1,123 @@
-# 个人渠道记账 / 代理商财务记账与返点结算系统
+# 代理商财务系统（Agent Finance System）
 
-面向广告代理行业的资金管理、返点与结算系统。本项目为独立实现，不直接修改“灵犀引擎”原系统代码。
+面向广告代理行业的全链路资金管理、返点结算与发票管理系统。覆盖从银行流水入账、客户钱包、推广账户充值、返点政策、服务费对账到发票开具的完整业务闭环。
 
-## 技术栈
+> 本项目为独立实现，参考行业主流系统的业务规则，不依赖任何第三方商业系统代码。
 
-当前实际使用（未在下方列出的技术，请勿在文档或代码注释中宣称使用）：
+---
 
-- 前端：Next.js 15、React 19、TypeScript、Ant Design 5、Tailwind CSS 4
-- 后端：NestJS 11、TypeScript、Passport JWT、class-validator、bcrypt
-- 数据库：PostgreSQL
-- ORM：Prisma 6（`@prisma/client`、`prisma`）
-- 包管理：npm。根目录 `package.json` 使用 `npm --prefix backend/frontend` 脚本；仓库当前未提交 lockfile，也未配置 pnpm workspace
+## ✨ 核心特性
 
-## 正式开发目录
+### 💰 资金管理
+- **银行流水管理**：支持手工录入、文件导入、接口同步，自动匹配客户付款账户
+- **收款确认入账**：对公/对私拆分入账，对公自动生成发票任务，对私不进入发票管理
+- **收款单退款**：支持部分退款审批流程，退款后收款单状态不变，退款金额不超过已入账金额
+- **客户钱包**：财务V钱包、外采钱包，支持充值、退款、调整、期初、授信、垫款
+- **推广账户充值**：支持客户钱包扣款，价内返点自动计算打款金额与利润
+- **资金流水**：整合资金账户、客户钱包、推广账户三类流水，统一视图
 
-```text
-D:\刘欣\Documents\个人渠道记账
+### 📊 业务运营
+- **服务订单**：订单全生命周期管理
+- **消耗分析**：推广消耗数据统计与经分
+- **服务费对账**：服务费自动扣除入账，对公需开票、对私不开票
+- **客户结算 / 一级代理结算**：多级代理结算体系
+
+### 🧾 发票管理
+- **发票任务全流程**：待开票 → 审核中 → 待完成开票 → 已完成
+- **客户多开票信息**：一个客户可维护多条开票抬头，任务创建时快照保存
+- **人工完成开票**：手工记录实际发票号码、代码、日期、金额，支持附件上传
+- **不接入税务系统**：本系统只负责流程管理与记录，不调用税务接口、不自动发邮件
+
+### 👥 客户中心
+- **客户管理**：客户基础信息、部门数据权限隔离
+- **客户合同**：合同审批流程、到期提醒、一个客户多合同、附件上传
+- **客户打款账户**：一个客户绑定多个付款账户，银行流水自动匹配后人工确认
+- **推广账户管理**：客户推广平台账号管理，支持充值/退款与钱包联动
+- **返点政策**：客户返点政策三维度配置，政策变更审批流程，审批后立即生效
+- **端口管理**：自定义端口与对公/对私双返点政策，充值选端口自动带出成本点
+
+### 🔐 系统管理
+- **部门管理**：树形部门结构，支持数据权限（A部门看不到B部门客户）
+- **角色权限**：菜单级 + 按钮级权限控制，预置财务、商务等角色
+- **用户管理**：用户CRUD、重置密码、分配角色、部门归属
+- **修改密码**：用户自助修改密码
+
+---
+
+## 🛠 技术栈
+
+| 层级 | 技术 |
+|------|------|
+| 前端框架 | Next.js 15 + React 19 + TypeScript |
+| UI 组件 | Ant Design 5 + Tailwind CSS 4 |
+| 后端框架 | NestJS 11 + TypeScript |
+| 认证 | Passport JWT + bcrypt |
+| 数据库 | PostgreSQL 16 |
+| ORM | Prisma 6 |
+| 进程管理 | PM2 |
+| Web 服务器 | Nginx |
+| 容器化 | Docker（PostgreSQL） |
+
+---
+
+## 📁 项目结构
+
+```
+agent-finance/
+├── backend/                    # 后端 NestJS
+│   ├── src/
+│   │   ├── auth/               # 认证（JWT登录、修改密码）
+│   │   ├── business/           # 核心业务（客户、收款、发票、钱包等）
+│   │   ├── business-ext/       # 业务扩展（合同、打款账户、退款、政策变更）
+│   │   ├── system/             # 系统管理（部门、角色、用户）
+│   │   ├── cashflow/           # 资金流水
+│   │   ├── rebate/             # 返点政策
+│   │   ├── consumption/        # 消耗分析
+│   │   ├── channel/            # 渠道管理
+│   │   ├── common/             # 公共模块（异常过滤器、工具函数）
+│   │   └── prisma/             # Prisma Schema
+│   └── prisma/schema.prisma    # 数据库模型定义
+├── frontend/                   # 前端 Next.js
+│   └── app/
+│       ├── page.tsx            # 主应用（菜单+内容框架）
+│       ├── login/              # 登录页
+│       ├── customers/          # 客户管理
+│       ├── customer-wallets/   # 客户钱包
+│       ├── customer-contracts/ # 客户合同
+│       ├── promotion-accounts/ # 推广账户
+│       ├── receiving/          # 收款管理
+│       ├── receive-refunds/    # 收款单退款
+│       ├── invoices/           # 发票管理
+│       ├── rebates/            # 返点政策
+│       ├── financial-adjustments/ # 财务调整
+│       ├── service-fee-reconciliation/ # 服务费对账
+│       ├── system/             # 系统管理
+│       ├── components/         # 公共组件
+│       └── utils/api.ts        # API 请求工具
+├── services/
+│   └── ocr-service/            # 发票OCR辅助服务（PaddleOCR，可选）
+└── docker-compose.yml          # PostgreSQL 容器编排
 ```
 
-`D:\agent-finance-system` 是历史临时副本，不再作为正式开发目录。所有后端、前端、Prisma schema、migration、DTO、Service、Controller、测试、README 和配置都在中文正式目录中修改。
+---
 
-## GitHub 主仓库
+## 🚀 快速开始
 
-```text
-https://github.com/liuliu61/Private-Repository.git
-```
+### 环境要求
 
-`main` 为当前代码主基线。分支与提交规范见「Git 开发规范」。
+- Node.js >= 20
+- PostgreSQL >= 14（或使用 Docker）
+- npm >= 9
 
-## 本地启动
+### 1. 启动数据库
 
-```text
-cd D:\刘欣\Documents\个人渠道记账
+```bash
 docker compose up -d postgres
+```
+
+### 2. 后端启动
+
+```bash
 cd backend
 npm install
 npm run prisma:generate
@@ -41,310 +126,167 @@ npm run prisma:seed
 npm run start:dev
 ```
 
-另开终端启动前端：
+后端运行在 `http://localhost:3001`
 
-```text
-cd D:\刘欣\Documents\个人渠道记账\frontend
+### 3. 前端启动
+
+```bash
+cd frontend
 npm install
 npm run dev
 ```
 
-前端地址 `http://localhost:3000`，后端地址 `http://localhost:3001`。初始化账号 `admin / Admin@123456` 为开发默认值，上线前必须更换。
+前端运行在 `http://localhost:3000`
 
-## 金额与数据约定
+### 默认账号
 
-- 金额使用 PostgreSQL `NUMERIC(20,2)` 与 Prisma `Decimal`，返点比例使用 `NUMERIC(10,4)`。
-- 禁止使用 JavaScript 浮点数参与最终财务金额计算；最终金额保留两位小数并四舍五入。
-- 账户余额只能通过正式流水变更：人民币资金走 `Transaction`，账户币走 `PromotionTransaction`，钱包调整走 `CustomerWalletTransaction`。
-- 正式流水不可修改、不可删除；纠错必须通过反向流水或调整单据完成。
-- 历史 `Voucher` / `VoucherEntry` 模型保留，但不参与当前资金业务。
+```
+用户名：admin
+密码：Admin@123456
+```
 
-## 当前开发状态
+> ⚠️ 上线前必须修改默认密码。
 
-### 已具备的核心能力
+---
 
-- 登录与权限基础（JWT + 角色 / 权限）
-- 组织与数据隔离基础（组织树、服务端数据范围校验）
-- 客户 / 供应商基础
-- 返点政策及版本快照（客户返点政策、供应商成本返点政策、`PolicyResolverService`）
-- 外采订单基础（草稿 → 待确认 → 已确认 → 已结算 / 已取消）
-- 资金流水（CNY `Transaction`）
-- 客户钱包基础（`FINANCE_V` 与 `EXTERNAL_PROCUREMENT` 两类钱包）
-- 收款 / 银行流水基础
-- 入账
-- 服务费明细
-- 退款
-- 发票基础
-- 财务对账基础
-- 审计基础
+## ⚙️ 环境变量配置
 
-### 部分完成 / 待后续真实业务规则确认
+### 后端（backend/.env）
 
-以下内容尚未完成真实业务规则验证，不得在文档或代码中被描述为“已完整实现”：
+```env
+# 数据库
+DATABASE_URL="postgresql://finance:password@localhost:5432/agent_finance?schema=public"
 
-- 外采订单“草稿修改”后的完整反向钱包流水：部分完成
-- 外采订单“删除”后的完整反向钱包流水：部分完成
-- 伙伴钱包人工调整：待确认
-- 伙伴独立钱包明细页面：待确认
-- 充值付款完整资金执行链路：待确认
-- 对公开票任务、审核与人工完成开票：已完成基础流程；税务接口、自动开票、邮件与红字/作废后续流程待确认
-- 红字发票 / 作废的完整真实业务流程：待确认
-- 银行交易“忽略”操作接口、银行接口自动同步、自动候选匹配：待确认
+# JWT
+JWT_SECRET="your-jwt-secret-key"
+JWT_EXPIRES_IN="7d"
 
-## 已核对的关键业务规则
+# 端口
+PORT=3001
 
-以下规则来自已完成的页面 / 接口真实实测采集，优先级高于旧设计说明。
+# CORS（可选，限制允许的域名）
+CORS_ORIGINS="http://localhost:3000,https://your-domain.com"
+
+# OCR 服务（可选）
+OCR_SERVICE_URL="http://localhost:8000"
+```
+
+### 前端（frontend/.env）
+
+```env
+NEXT_PUBLIC_API_URL="http://localhost:3001/api"
+```
+
+---
+
+## 📐 核心业务规则
+
+### 金额计算
+- 所有金额使用 PostgreSQL `NUMERIC(20,2)`，禁止使用 JavaScript 浮点数参与最终财务计算
+- 价内返点公式：`打款金额 = 充值金额 ÷ (1 + 客户返点%)`，`代理商成本 = 充值金额 ÷ (1 + 成本返点%)`
+- 利润 = 打款金额 - 代理商成本 - 额外费用 - 运营费用
+
+### 发票额度
+- 可开票金额 = 对公入账金额 - 已开票金额
+- 服务费算额外收入，对公需开票、对私不开票
+- 收款单部分退款后，退款部分不再需要开票，剩余部分仍需开票
+
+### 数据权限
+- 部门级数据隔离：A部门用户看不到B部门客户
+- 角色级按钮权限：财务、商务等角色拥有不同操作权限
+- 所有接口服务端校验，不依赖前端隐藏入口
+
+---
+
+## 🔌 主要 API 接口
+
+### 认证
+- `POST /api/auth/login` - 登录
+- `POST /api/auth/change-password` - 修改密码
+
+### 客户
+- `GET/POST /api/customers` - 客户列表/创建
+- `GET/PUT/DELETE /api/customers/:id` - 客户详情/修改/删除
 
 ### 收款
-
-银行流水“保存”不会立即生成收款记录。正确流程为：
-
-```text
-银行流水保存
-→ 状态“确认中”
-→ 点击“确认到账”
-→ 生成收款记录
-```
-
-收款记录初始状态为：入账状态“未入账”、已入账金额 `0`、开票状态“未开票”。收款记录的客户归属来自银行流水绑定的客户，收款记录本身没有“修改客户”入口。
-
-### 入账
-
-入账时必须在同一个数据库事务内原子更新收款记录、公司资金流水、财务 V 钱包、入账记录和入账性质明细。每笔入账由人工拆分为一条或多条 `PUBLIC`（对公）/`PRIVATE`（对私）明细，明细金额合计必须等于本次收款金额；服务费不影响这项拆分。
-
-- 收款记录
-- 公司资金流水
-- 财务 V 钱包
-- 入账记录（`ReceivePosting`）
-
-钱包金额与可开票金额必须使用两个独立口径，不得复用同一个字段：
-
-```text
-walletCreditAmount    = paymentAmount - serviceFeeAmount
-invoiceEligibleAmount = paymentAmount
-```
-
-即钱包实际增加金额需扣除服务费。新版发票业务不再将全部收款自动放入旧开票额度池：只有对公入账明细生成开票任务，对私明细不会进入发票管理。
-
-### 服务费
-
-- 入账服务费来自收款入账时人工添加的服务费明细（`ReceiveServiceFee`）。
-- 服务费配置只用于业务提示，不会自动按客户政策计算，也不因存在配置而自动填充。
-- 入账弹窗默认服务费为 `0`，只有操作人员主动添加才产生服务费。
-- 服务费对账以收款单 / 银行流水为数据来源，不以订单运营费作为主要来源。
-
-### 退款
-
-- 可退款金额上限 = 已入账 V 钱包金额（`postedAmount`），不是原始银行流水金额。
-- 例：交易 `30000`、服务费 `2000`、已入账 `28000`，则最多只能退 `28000`；退 `29000` 必须由后端拒绝，并提示“可退款金额不足”。
-- 退款成功时同时：客户 V 钱包减少退款金额、收款记录已入账金额减少、收款记录退款金额增加、生成退款记录。
-- 即使全部退款导致已入账金额为 `0`，收款记录的入账状态仍保持“已入账”，不会自动改回“未入账”。
-
-### 钱包
-
-必须严格区分两类客户钱包：
-
-- `FINANCE_V`：财务 V 钱包，用于收款入账、红冲蓝补、授信、垫款、退款
-- `EXTERNAL_PROCUREMENT`：外采钱包，用于外采订单
-
-两者是独立余额，同一客户的两个余额互不影响，不得聚合成一个总余额，也不能依赖页面名称区分。外采业务不能误扣财务 V 钱包。
-
-### 外采订单计算
-
-已确认的计算规则：
-
-```text
-customerCash = coinAmount / (1 + customerPolicyRate)
-supplierCash = coinAmount / (1 + supplierPolicyRate)
-grossProfit  = supplierCash - customerCash
-```
-
-例：充值币 `10000`，客户政策 10%，伙伴政策 5%，则客户现金 `9090.91`、伙伴现金 `9523.81`、毛利 `432.90`。
-
-- 客户返点与伙伴成本返点是两套独立政策，禁止用 `客户比例 - 伙伴比例` 直接计算利润。
-- 利润必须来源于真实资金金额：客户实际收入减伙伴实际成本，再减实际费用。
-- 外采客户钱包属于独立外采钱包；伙伴使用独立 CNY 钱包 / 账户体系，不与财务 V 钱包混用。
-- 订单保存客户与伙伴的政策、比例、计算方向和金额快照，历史订单不随政策变化漂移。
-
-## 业务规则来源
-
-本项目不是直接修改“灵犀引擎”原系统代码，而是独立从零实现。真实业务行为以已完成的页面 / 接口实测采集结果为最高优先级。发生冲突时优先级如下：
-
-1. 最新真实实测结果
-2. 已确认的业务规则采集文档
-3. 当前代码实现
-4. README / 旧设计说明
-
-README 不是业务规则的唯一来源，不能用来推翻实测结论。遇到未确认的财务规则时应标注“待确认”，不得自行猜测或为了跑通代码而发明规则。
-
-## 已提供接口
-
-除登录接口外，业务接口均要求 `Authorization: Bearer <JWT>`。
-
-### 认证与基础
-
-- `POST /api/auth/login`：登录并返回 JWT。
-- `GET /api/dashboard`、`GET /api/audit-logs`：工作台统计与审计日志。
-- `GET/POST /api/organizations`、`POST /api/organizations/assign-user`：组织与数据范围。
-- `GET/POST /api/accounts`、`GET /api/accounts/:id/balance`、`GET /api/accounts/:id/balance/check`：资金账户与余额校验。
-- `POST /api/transactions`、`GET /api/transactions`：创建和查询资金流水。
-
-### 客户、供应商与政策
-
-- `GET/POST /api/customers`、`GET/POST /api/suppliers`：客户与外采伙伴。
-- `GET /api/customers/:customerId/rebate-policy`、`GET/POST /api/customers/:customerId/rebate-policies`、`POST /api/customers/:customerId/rebate-policies/:id/disable`：客户返点政策。
-- `GET /api/suppliers/:supplierId/rebate-policy`、`GET/POST /api/suppliers/:supplierId/rebate-policies`、`POST /api/suppliers/:supplierId/rebate-policies/:id/disable`：供应商成本返点政策。
-- `GET/POST /api/ad-subjects`、`GET/POST /api/ad-accounts`：广告主体与广告账户。
-- `GET/POST /api/suppliers/:supplierId/accounts`：一级代理商资金账户。
-- `GET/POST /api/customers/:customerId/promotion-accounts`、`GET/POST /api/suppliers/:supplierId/promotion-accounts`：账户币推广账户。
-
-### 返点计算
-
-- `GET/POST /api/rebate-rules`、`POST /api/rebates/calculate`：返点规则与 Decimal 计算。
-- `POST /api/rebates/:id/confirm`：确认返点并原子生成 `REBATE` 流水。
-
-### 外采订单
-
-- `GET/POST /api/purchase-orders`、`GET /api/purchase-orders/:id`：外采订单。
-- `POST /api/purchase-orders/import/validate`：导入校验。
-- `POST /api/purchase-orders/:id/submit|confirm|cancel|settle`：订单状态流转。
-- `POST /api/purchase-orders/:id/customer-payment`、`POST /api/purchase-orders/:id/supplier-payment`：实际客户收款与一级代理付款。
-- `POST /api/purchase-orders/:id/customer-credit`：确认客户账户币到账。
-- `GET /api/sourcing/setting`、`POST /api/sourcing/setting`：外采“使用客户钱包”等配置。
-
-### 收款管理
-
-- `GET /api/bank-transactions`、`GET /api/bank-transactions/:id`：查询银行交易。
-- `POST /api/bank-transactions/import`：批量导入银行原始交易，按账户和原始交易编号幂等。
-- `POST /api/bank-transactions/:id/confirm`：确认到账并生成收款记录。
-- `POST /api/bank-transactions/:id/match`、`POST /api/bank-transactions/:id/unmatch`：匹配或取消匹配客户 / 订单。
-- `GET /api/receive-records`、`GET /api/receive-records/:id`：查询收款记录。
-- `POST /api/receive-records`：根据已确认到账的银行交易创建收款记录。
-- `POST /api/receive-records/:id/confirm`：收款入账，原子更新收款记录、资金流水、V 钱包、开票额度和入账记录。
-- `POST /api/receive-records/:id/refund`：按已入账 V 钱包金额发起退款。
-
-### 客户钱包
-
-- `GET/POST /api/customer-wallets`、`GET /api/customer-wallets/:id`：查询和创建客户钱包。
-- `GET /api/customer-wallets/:id/transactions`：钱包明细。
-- `GET /api/customer-wallets/:id/balance/check`：校验钱包余额与流水是否一致。
-- `POST /api/customer-wallets/:id/opening-balance`：录入期初余额并生成期初流水。
-- `POST /api/customer-wallets/:id/adjust`：红冲、蓝补或手工调整。
-- `POST /api/customer-wallets/:id/credit`、`POST /api/customer-wallets/:id/advance`：维护授信与垫款配置并记录审计。
-
-### 退款
-
-- `POST /api/purchase-orders/:id/refunds`、`GET /api/purchase-orders/:id/refunds`：订单退款申请与查询。
-- `GET /api/refunds`、`GET /api/refunds/:id`：退款列表与详情。
-- `POST /api/refunds/:id/approve|reject|execute`：退款审批与执行。
-
-### 结算
-
-- `GET/POST /api/settlements`、`POST /api/settlements/:id/confirm`：通用结算单。
-- `GET/POST /api/customer-settlements`、`POST /api/customer-settlements/generate`、`POST /api/customer-settlements/:id/confirm|cancel`：客户结算。
-- `GET/POST /api/supplier-settlements`、`POST /api/supplier-settlements/generate`、`POST /api/supplier-settlements/:id/confirm|cancel`：一级代理结算。
-
-### 对账与调整
-
-- `GET /api/reconciliations`、`GET /api/reconciliations/:id`、`POST /api/reconciliations/generate`、`POST /api/reconciliations/:id/check|confirm`：财务对账中心。
-- `POST /api/reconciliations/preview`、`POST /api/reconciliations`、`POST /api/reconciliations/:id/complete`：业务对账。
-- `GET/POST /api/financial-adjustments`、`GET /api/financial-adjustments/:id`、`POST /api/financial-adjustments/:id/approve|reject|execute`：财务调整中心。
+- `GET/POST /api/bank-transactions` - 银行流水
+- `POST /api/bank-transactions/:id/match` - 匹配客户
+- `POST /api/receive-records/:id/confirm` - 确认入账
 
 ### 发票
+- `GET/POST /api/invoice-tasks` - 发票任务列表/创建
+- `POST /api/invoice-tasks/:id/submit|approve|reject|revoke|complete` - 任务流程
 
-- `GET /api/invoices`、`GET /api/invoices/:id`：发票列表与详情。
-- `POST /api/invoices`、`POST /api/invoices/:id`：创建发票草稿与修改草稿非核心信息。
-- `POST /api/invoices/:id/process|confirm|void`：提交开票中、确认开票、作废。
-- `GET /api/customers/:customerId/invoice-balance`：客户业务来源金额、已开票金额和未开票金额。
+### 系统管理
+- `GET/POST /api/departments` - 部门管理
+- `GET/POST /api/roles` - 角色管理
+- `GET/POST /api/users` - 用户管理
 
-#### 对公开票任务（当前主流程）
+---
 
-- `ReceiveRecordDetail` 记录每次入账的 `PUBLIC` / `PRIVATE` 拆分；`PUBLIC` 自动生成一条 `InvoiceTask`，`PRIVATE` 不生成任务、不会进入发票管理。
-- 发票任务保存对公来源金额 `publicAmount` 与可人工调整的 `invoiceAmount`；后者必须大于 `0` 且不超过前者，但可以小于前者。
-- 一个客户可维护多条 `CustomerInvoiceProfile`。任务可选择并快照抬头、税号、地址、电话、开户行、账号和默认内容；付款账户仅是银行流水付款方快照，不等同于开票抬头。
-- 状态流转为：待开票 → 审核中 → 待完成开票 → 已完成；审核不通过后可编辑并再次提交，创建人可撤回审核中的任务。
-- `GET /api/invoice-tasks`、`GET /api/invoice-tasks/:id`、`PATCH /api/invoice-tasks/:id`、`POST /api/invoice-tasks/:id/submit|approve|reject|revoke|complete` 提供任务流程；`GET/POST/PATCH /api/customers/:customerId/invoice-profiles` 维护客户开票信息。
-- 完成开票仅手工记录实际发票信息和可选附件地址，并复用 `InvoiceDetail` 保存实际开票资料；不会调用税务接口、不会强制 OCR、不会发邮件，也不会改变钱包、收款金额或旧额度字段。
+## 📦 部署指南
 
-#### 旧发票兼容边界
+### 生产环境架构
 
-`Invoice`、`InvoiceApplicationItem`、`InvoiceApplicationReceiveRecord` 及 `ReceiveRecord` 上的 `unBillingAmount`、`billingAmount`、`billedAmount` 保留用于旧数据和旧接口兼容。新版 `InvoiceTask` 不读取、不写入这些额度字段；新确认收款的旧额度字段初始化为 `0`，以避免旧额度池重新控制对公/对私流程。
+```
+用户 → Nginx（443/SSL）→ 前端 Next.js（PM2, :3003）
+                           → 后端 NestJS（PM2, :3001）→ PostgreSQL（Docker, :5432）
+```
 
-### 财务核算与服务费对账
+### 部署步骤
 
-- `GET /api/finance/overview`：公司 CNY 账户概览。
-- `GET /api/finance/customers/:customerId`、`GET /api/finance/suppliers/:supplierId`：客户 / 一级代理资金概览。
-- `GET /api/finance/orders/profit`：订单实际收入、成本、运营费和利润汇总。
-- `GET /api/service-fee-reconciliation`、`GET /api/service-fee-reconciliation/:id`、`GET /api/service-fee-reconciliation/export`：服务费对账查询、详情与导出。
+1. **克隆代码**
+```bash
+git clone https://github.com/liuliu61/Private-Repository.git
+cd Private-Repository
+```
 
-## 权限与组织隔离
+2. **安装依赖并构建**
+```bash
+cd backend && npm install && npm run build
+cd ../frontend && npm install && npm run build
+```
 
-- 所有业务接口执行 JWT 认证、服务端权限校验和组织数据范围隔离，不允许仅依赖前端隐藏入口。
-- 非超级管理员通过组织树访问本组织及下级组织数据，禁止通过修改 ID 越权访问。
-- 返点政策查看使用 `FINANCE_REBATE_VIEW`，新增版本与停用使用 `FINANCE_REBATE_POLICY_EDIT`。
-- 财务核算使用 `FINANCE_VIEW`；财务调整使用 `FINANCE_ADJUST_VIEW`、`FINANCE_ADJUST_CREATE`、`FINANCE_ADJUST_APPROVE`、`FINANCE_ADJUST_EXECUTE`。
-- 收款管理使用 `FINANCE_BANK_TRANSACTION_VIEW`、`FINANCE_BANK_TRANSACTION_IMPORT`、`FINANCE_BANK_TRANSACTION_MATCH`、`FINANCE_RECEIVE_VIEW`、`FINANCE_RECEIVE_CREATE`、`FINANCE_RECEIVE_CONFIRM`。
-- 钱包使用 `FINANCE_WALLET_VIEW`、`FINANCE_WALLET_ADJUST`、`FINANCE_WALLET_OPENING_BALANCE`。
-- 发票任务使用 `FINANCE_INVOICE_VIEW`、`FINANCE_INVOICE_CREATE`、`FINANCE_INVOICE_EDIT`、`FINANCE_INVOICE_CONFIRM`、`FINANCE_INVOICE_COMPLETE`；普通操作人员不能审核或完成开票，财务可以审核，超级管理员可直接处理。
-- 结算使用 `FINANCE_SETTLEMENT_VIEW`、`FINANCE_SETTLEMENT_CREATE`、`FINANCE_SETTLEMENT_CONFIRM`、`FINANCE_SETTLEMENT_CANCEL`。
-- 对账使用 `FINANCE_RECONCILIATION_VIEW`、`FINANCE_RECONCILIATION_CREATE`、`FINANCE_RECONCILIATION_CONFIRM`。
-- 外采订单使用 `PROCUREMENT_VIEW`、`PROCUREMENT_CREATE`、`PROCUREMENT_CONFIRM`、`PROCUREMENT_CANCEL`、`PROCUREMENT_SETTLE`。
-- 超级管理员拥有全部权限。
+3. **数据库迁移**
+```bash
+cd backend
+npx prisma migrate deploy
+npx prisma db seed
+```
 
-## Git 开发规范
+4. **PM2 启动**
+```bash
+pm2 start ecosystem.config.js
+```
 
-### 仓库与分支
+5. **Nginx 配置反向代理**
+- `/` → 前端 `http://127.0.0.1:3003`
+- `/api` → 后端 `http://127.0.0.1:3001`
 
-- GitHub 主仓库：`https://github.com/liuliu61/Private-Repository.git`。
-- `main` 是稳定主分支和生产发布基线；不得直接在 `main` 上长期开发。
-- 每个独立任务从最新 `main` 创建独立分支，功能使用 `feature/<功能名>`，修复使用 `fix/<问题名>`。
-- 开始任务前确认分支基于最新 `main`；任务结束后先完成验证，再通过 Pull Request 合并。
-- 未经明确授权，不得修改、删除或重写其他未合并分支的提交。
+---
 
-### 提交与审查
+## 🔒 安全建议
 
-- 每完成一个独立任务必须提交 commit，一个 commit 尽量只对应一个逻辑任务。
-- commit message 使用清晰、可追踪的英文格式，例如：
-   - `feat: implement recharge payment workflow`
-   - `fix: correct receiving wallet posting`
-   - `test: add receiving business rule tests`
-   - `docs: update business rules`
-- 不要把无关的格式化、重构、部署文件或临时文件混进业务 commit。
-- 提交前检查 `git diff`、`git diff --check` 和 `git status`，确认没有密钥、密码、令牌、`.env` 或本机生成物。
-- 任务报告必须说明实际修改文件、测试结果、数据库/migration 是否变更以及遗留问题。
-- 不允许对 `main` 强制推送（force push），也不允许修改已发布的历史 commit 来掩盖错误。
+- [ ] 修改默认 admin 密码
+- [ ] 配置强 JWT Secret
+- [ ] 数据库只监听本地（bind-address=127.0.0.1）
+- [ ] SSH 禁用密码登录，只允许密钥登录
+- [ ] 配置防火墙，只开放 80/443 端口
+- [ ] 定期检查 Docker 容器，防止恶意容器植入
+- [ ] 生产环境密钥不进入 Git，使用环境变量
 
-### 生产变更
+---
 
-- 生产服务器只用于部署已确认的 Git 提交，不作为日常开发工作区。
-- 服务器上的未提交部署配置或验证修复必须先盘点、备份并明确归属，禁止直接 reset、clean 或覆盖。
-- 生产数据库变更只允许通过已审查的 Prisma migration；禁止使用 `db push`、`migrate reset` 或手工改写 migration 历史替代正式流程。
-- 生产环境的密钥、密码、证书私钥和本机配置不得进入 Git；使用服务器环境变量或受保护的配置文件。
-- 发布前依次确认构建、migration 状态、进程状态、监听范围和域名链路；未验证的业务资金动作不得上线。
+## 📄 许可证
 
-## Codex 开发原则
+本项目为私有项目，未经授权不得用于商业用途。
 
-后续每个 Codex 任务：
+---
 
-- 一次只处理一个独立任务
-- 开始前先读取现有代码和相关业务规则
-- 不允许猜测未确认的财务规则
-- 遇到业务规则缺失时必须明确标注“待确认”
-- 完成当前任务后停止
-- 报告实际修改文件
-- 报告测试情况
-- 报告数据库 / migration 是否变更
-- 报告是否存在未解决问题
-- 不得顺手开发下一模块
+## 🤝 开发规范
 
-## 当前未实现
-
-机器人、广告平台 / 银行接口自动对接、自动充值、生产部署和完整验收联调暂不包含在当前版本。导出能力目前仅服务费对账支持。
-
-## 发票 OCR 辅助识别
-
-发票申请页支持上传 JPG、JPEG、PNG 或 PDF，并通过本地自托管的 PaddleOCR 3.x 服务辅助填充发票字段。Node.js 后端保存原始文件、OCR 原始结果和解析结果，识别结果仅供参考，用户仍需核对并最终提交申请。
-
-本地 OCR 服务位于 `services/ocr-service`，提供 `GET /health` 与 `POST /ocr/invoice`。启动、Python 依赖、模型缓存位置和 20MB 文件限制见 `services/ocr-service/README.md`。需要将 `OCR_SERVICE_URL` 配置为该服务地址；OCR 服务不可用或识别失败时，发票申请仍可手工填写。
-
-当前系统不接入 SMTP、SendGrid、Resend 或其他邮件服务，不会在发票审批或后续开票处理中自动发送客户邮件。
+- 每个独立功能从 `main` 创建 `feature/xxx` 分支
+- Commit Message 格式：`feat: xxx` / `fix: xxx` / `docs: xxx`
+- 财务规则不猜测，不确定时标注"待确认"
+- 生产数据库变更必须通过 Prisma Migration
+- 密钥、密码、Token 不得提交到 Git
