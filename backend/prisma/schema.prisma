@@ -575,6 +575,9 @@ model Customer {
   @@index([status])
   @@index([agentId, status])
   serviceOrders ServiceOrder[]
+  customerUsers CustomerUser[]
+  agentBindings AgentCustomer[]
+  rechargeRequests RechargeRequest[]
   consumptionRecords ConsumptionRecord[]
   @@map("customers")
 }
@@ -842,6 +845,7 @@ model Channel {
   createdAt                DateTime @default(now()) @map("created_at")
   updatedAt                DateTime @updatedAt @map("updated_at")
   organization             Organization @relation(fields: [organizationId], references: [id])
+  rechargeRequests          RechargeRequest[]
 
   @@index([organizationId, status])
   @@map("channels")
@@ -917,6 +921,7 @@ model PromotionAccount {
   credits         PurchaseOrderCredit[]
   reconciliations Reconciliation[]
   financialAdjustments FinancialAdjustment[]
+  rechargeRequests RechargeRequest[]
 
   @@index([organizationId, status])
   @@index([ownerType, ownerId, status])
@@ -2189,4 +2194,93 @@ model Notification {
   @@index([userId, status])
   @@index([createdAt])
   @@map("notifications")
+}
+
+
+// ===================== C/B 端门户模型 =====================
+
+enum PortalUserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum RechargeRequestStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+model CustomerUser {
+  id           String                @id @default(uuid()) @db.VarChar(36)
+  customerId   String                @unique @map("customer_id") @db.VarChar(36)
+  username     String                @unique @db.VarChar(50)
+  passwordHash String                @map("password_hash") @db.VarChar(255)
+  displayName  String?               @map("display_name") @db.VarChar(100)
+  phone        String?               @db.VarChar(20)
+  status       PortalUserStatus      @default(ACTIVE)
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+  customer     Customer              @relation(fields: [customerId], references: [id])
+  rechargeRequests RechargeRequest[] @relation("RechargeRequestCustomerUser")
+
+  @@map("customer_users")
+}
+
+model AgentUser {
+  id           String                @id @default(uuid()) @db.VarChar(36)
+  username     String                @unique @db.VarChar(50)
+  passwordHash String                @map("password_hash") @db.VarChar(255)
+  displayName  String                @map("display_name") @db.VarChar(100)
+  phone        String?               @db.VarChar(20)
+  status       PortalUserStatus      @default(ACTIVE)
+  remark       String?               @db.VarChar(255)
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+  customerBindings AgentCustomer[]
+  handledRequests   RechargeRequest[] @relation("RechargeRequestAgentUser")
+
+  @@map("agent_users")
+}
+
+model AgentCustomer {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  agentUserId String   @map("agent_user_id") @db.VarChar(36)
+  customerId  String   @map("customer_id") @db.VarChar(36)
+  createdAt   DateTime @default(now()) @map("created_at")
+  agentUser   AgentUser @relation(fields: [agentUserId], references: [id])
+  customer    Customer  @relation(fields: [customerId], references: [id])
+
+  @@unique([agentUserId, customerId])
+  @@index([customerId])
+  @@map("agent_customers")
+}
+
+model RechargeRequest {
+  id                 String                @id @default(uuid()) @db.VarChar(36)
+  requestNo          String                @unique @map("request_no") @db.VarChar(50)
+  customerId         String                @map("customer_id") @db.VarChar(36)
+  customerUserId     String                @map("customer_user_id") @db.VarChar(36)
+  promotionAccountId String                @map("promotion_account_id") @db.VarChar(36)
+  amount             Decimal               @default(0) @map("amount") @db.Decimal(20, 2)
+  customerRebate     Decimal?              @map("customer_rebate") @db.Decimal(5, 2)
+  costRebate         Decimal?              @map("cost_rebate") @db.Decimal(5, 2)
+  remitAmount        Decimal?              @map("remit_amount") @db.Decimal(20, 2)
+  portId             String?               @map("port_id") @db.VarChar(36)
+  remark             String?               @db.VarChar(255)
+  status             RechargeRequestStatus @default(PENDING)
+  agentUserId        String?               @map("agent_user_id") @db.VarChar(36)
+  confirmedAt        DateTime?             @map("confirmed_at")
+  rejectReason       String?               @map("reject_reason") @db.VarChar(255)
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+  customer           Customer              @relation(fields: [customerId], references: [id])
+  customerUser       CustomerUser          @relation("RechargeRequestCustomerUser", fields: [customerUserId], references: [id])
+  promotionAccount   PromotionAccount      @relation(fields: [promotionAccountId], references: [id])
+  port               Channel?              @relation(fields: [portId], references: [id])
+  agentUser          AgentUser?            @relation("RechargeRequestAgentUser", fields: [agentUserId], references: [id])
+
+  @@index([customerId, status])
+  @@index([status, createdAt])
+  @@index([promotionAccountId])
+  @@map("recharge_requests")
 }

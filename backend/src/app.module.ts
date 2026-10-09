@@ -14,10 +14,11 @@ import { ChannelModule } from './channel/channel.module';
 import { SystemModule } from './system/system.module';
 import { BusinessExtModule } from './business-ext/business-ext.module';
 import { NotificationModule } from './notification/notification.module';
+import { PortalModule } from './portal/portal.module';
 import { AppController } from './app.controller';
 
 @Module({
-  imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, CommonModule, AuthModule, CashflowModule, RebateModule, BusinessModule, PaymentPostingModule, ServiceOrderModule, ConsumptionModule, TableConfigModule, ChannelModule, SystemModule, BusinessExtModule, NotificationModule],
+  imports: [ConfigModule.forRoot({ isGlobal: true }), PrismaModule, CommonModule, AuthModule, CashflowModule, RebateModule, BusinessModule, PaymentPostingModule, ServiceOrderModule, ConsumptionModule, TableConfigModule, ChannelModule, SystemModule, BusinessExtModule, NotificationModule, PortalModule],
   controllers: [AppController],
 })
 export class AppModule {}
