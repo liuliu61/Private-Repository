@@ -59,7 +59,7 @@ export default function RebatePolicyPanel({ token, customers: propCustomers, onE
   useEffect(() => {
     async function loadSubjects() {
       try {
-        const res = await apiRequest<{ items: AdSubject[] } | AdSubject[]>('/ad-subjects?page=1&pageSize=200', token);
+        const res = await apiRequest<{ items: AdSubject[] } | AdSubject[]>('/ad-subjects?page=1ad-subjects?page=1&pageSize=200pageSize=100', token);
         const list = Array.isArray(res) ? res : (res.items || []);
         setSubjects(list);
       } catch { setSubjects([]); }
@@ -71,7 +71,7 @@ export default function RebatePolicyPanel({ token, customers: propCustomers, onE
   useEffect(() => {
     async function loadAccounts() {
       try {
-        const res = await apiRequest<{ items: AdAccount[] } | AdAccount[]>('/ad-accounts?page=1&pageSize=200', token);
+        const res = await apiRequest<{ items: AdAccount[] } | AdAccount[]>('/ad-accounts?page=1ad-accounts?page=1&pageSize=200pageSize=100', token);
         const list = Array.isArray(res) ? res : (res.items || []);
         setAccounts(list);
       } catch { setAccounts([]); }
