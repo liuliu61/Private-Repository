@@ -30,7 +30,7 @@ export default function CustomerContractsPage() {
       const params = new URLSearchParams();
       if (filter.status) params.set('status', filter.status);
       if (filter.keyword) params.set('keyword', filter.keyword);
-      const res = await apiRequest(`customer-contracts?pageSize=100&${params}`, getToken());
+      const res = await apiRequest(`customer-contracts?page=1&pageSize=100&${params}`, getToken());
       setContracts(res.items || []);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -38,7 +38,7 @@ export default function CustomerContractsPage() {
 
   const loadCustomers = async () => {
     try {
-      const res = await apiRequest('customers?pageSize=200', getToken());
+      const res = await apiRequest('customers?page=1&pageSize=100', getToken());
       setCustomers(res.items || []);
     } catch (e) { console.error(e); }
   };

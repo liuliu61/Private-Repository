@@ -51,7 +51,7 @@ export default function SystemManagementPage() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const res = await apiRequest('users?pageSize=100', getToken());
+      const res = await apiRequest('users?page=1&pageSize=100', getToken());
       setUsers(res.items || []);
     } catch (e) { console.error(e); }
     setLoading(false);

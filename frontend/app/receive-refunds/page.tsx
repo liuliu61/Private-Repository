@@ -26,7 +26,7 @@ export default function ReceiveRefundsPage() {
   const loadRefunds = async () => {
     setLoading(true);
     try {
-      const res = await apiRequest('receive-refunds?pageSize=100', getToken());
+      const res = await apiRequest('receive-refunds?page=1&pageSize=100', getToken());
       setRefunds(res.items || []);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -34,14 +34,14 @@ export default function ReceiveRefundsPage() {
 
   const loadReceiveRecords = async () => {
     try {
-      const res = await apiRequest('receive-records?pageSize=200&status=POSTED', getToken());
+      const res = await apiRequest('receive-records?page=1&pageSize=100&status=POSTED', getToken());
       setReceiveRecords(res.items || []);
     } catch (e) { console.error(e); }
   };
 
   const loadCustomers = async () => {
     try {
-      const res = await apiRequest('customers?pageSize=200', getToken());
+      const res = await apiRequest('customers?page=1&pageSize=100', getToken());
       setCustomers(res.items || []);
     } catch (e) { console.error(e); }
   };
