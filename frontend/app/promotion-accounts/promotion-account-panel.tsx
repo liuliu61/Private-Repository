@@ -155,7 +155,7 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
     { title: '推广平台', dataIndex: 'platform', key: 'platform', width: 120, render: (v: string) => v ? <Tag color="blue">{v}</Tag> : '-' },
     { title: '平台账号ID', dataIndex: 'platformAccountId', key: 'platformAccountId', width: 140, render: (v: string) => v || '-' },
     { title: '币种/单位', dataIndex: 'unit', key: 'unit', width: 100, render: (v: string) => v === 'ACCOUNT_CREDIT' ? '账户币' : v },
-    { title: '当前余额', dataIndex: 'currentBalance', key: 'currentBalance', width: 130, render: (v: string) => <b style={{ color: '#1677ff' }}>{v}</b> },
+    { title: '累计充值金额', dataIndex: 'currentBalance', key: 'currentBalance', width: 130, render: (v: string) => <b style={{ color: '#1677ff' }}>{v}</b> },
     { title: '状态', dataIndex: 'status', key: 'status', width: 80, render: (v: string) => <Tag color={v === 'ACTIVE' ? 'green' : 'default'}>{v === 'ACTIVE' ? '正常' : '停用'}</Tag> },
     { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 170, render: (v: string) => new Date(v).toLocaleString('zh-CN') },
     {
@@ -276,7 +276,7 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
                   <Descriptions.Item label="账户分类">{currentAccount.accountCategory || '-'}</Descriptions.Item>
                   <Descriptions.Item label="端口">{currentAccount.channelName || '-'}</Descriptions.Item>
                   <Descriptions.Item label="单位">{currentAccount.unit === 'ACCOUNT_CREDIT' ? '账户币' : currentAccount.unit}</Descriptions.Item>
-                  <Descriptions.Item label="当前余额"><b style={{ color: '#1677ff', fontSize: 16 }}>{currentAccount.currentBalance}</b></Descriptions.Item>
+                  <Descriptions.Item label="累计充值金额"><b style={{ color: '#1677ff', fontSize: 16 }}>{currentAccount.currentBalance}</b></Descriptions.Item>
                   <Descriptions.Item label="状态"><Tag color={currentAccount.status === 'ACTIVE' ? 'green' : 'default'}>{currentAccount.status === 'ACTIVE' ? '正常' : '停用'}</Tag></Descriptions.Item>
                   <Descriptions.Item label="创建时间">{new Date(currentAccount.createdAt).toLocaleString('zh-CN')}</Descriptions.Item>
                 </Descriptions>
@@ -310,7 +310,7 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
                   <div style={{ fontSize: 16, fontWeight: 600, color: '#1e293b' }}>{currentAccount.accountName}</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>当前余额(账户币)</div>
+                  <div style={{ fontSize: 12, color: '#64748b', marginBottom: 4 }}>累计充值金额(账户币)</div>
                   <div style={{ fontSize: 20, fontWeight: 700, color: '#6366f1' }}>{currentAccount.currentBalance}</div>
                 </div>
               </div>
@@ -382,7 +382,7 @@ function RechargeFormContent({ form, account, token, wallets, onFinish }: { form
     <div>
       <Row gutter={16} style={{ marginBottom: 16 }}>
         <Col span={12}><Statistic title="推广账户" value={account.accountName} /></Col>
-        <Col span={12}><Statistic title="当前余额(账户币)" value={account.currentBalance} /></Col>
+        <Col span={12}><Statistic title="累计充值金额(账户币)" value={account.currentBalance} /></Col>
       </Row>
       <Form form={form} layout="vertical" onFinish={onFinish} initialValues={{ customerRebate: 10, costRebate: 10, paymentNature: 'PUBLIC' }}>
         <Row gutter={16}>

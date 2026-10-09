@@ -27,7 +27,7 @@ export class CustomerWalletService {
       await this.audit(tx, context, created.organizationId, created.id, 'CUSTOMER_WALLET_CREATE', null, { walletName: created.walletName, unit: created.unit });
       return created;
     });
-    return this.walletView(wallet, customer);
+    return this.walletView(wallet, new Prisma.Decimal(0), customer);
   }
 
   async list(query: CustomerWalletListQueryDto, context: AccessContext) {
@@ -46,7 +46,8 @@ export class CustomerWalletService {
       include: { customer: { select: { id: true, name: true, customerCode: true, agentId: true } } },
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],
     });
-    const views = rows.map((row) => this.walletView(row, row.customer));
+    const groupBalances = await this.getGroupBalances(rows.map((row) => row.customerId));
+    const views = rows.map((row) => this.walletView(row, groupBalances.get(row.customerId) || new Prisma.Decimal(0), row.customer));
     const filtered = views.filter((row) => this.matchesComparison(new Prisma.Decimal(row.totalBalance), query.totalBalanceOperator, query.totalBalance) && this.matchesComparison(new Prisma.Decimal(row.advanceOutstanding), query.advanceOperator, query.advanceOutstanding) && this.matchesComparison(new Prisma.Decimal(row.creditLimit), query.creditLimitOperator, query.creditLimit));
     const start = (query.page - 1) * query.pageSize;
     return { items: filtered.slice(start, start + query.pageSize), total: filtered.length, page: query.page, pageSize: query.pageSize };
@@ -55,7 +56,8 @@ export class CustomerWalletService {
   async getById(id: string, context: AccessContext) {
     this.assertPermission(context, 'FINANCE_WALLET_VIEW');
     const wallet = await this.getWallet(id, context);
-    return this.walletView(wallet, wallet.customer);
+    const groupBalance = (await this.getGroupBalances([wallet.customerId])).get(wallet.customerId) || new Prisma.Decimal(0);
+    return this.walletView(wallet, groupBalance, wallet.customer);
   }
 
   async listTransactions(walletId: string, query: CustomerWalletTransactionQueryDto, context: AccessContext) {
@@ -138,7 +140,7 @@ export class CustomerWalletService {
       await this.audit(tx, context, locked.organizationId, walletId, 'CUSTOMER_WALLET_CREDIT_UPDATE', { creditLimit: moneyToString(locked.creditLimit), creditUsed: moneyToString(locked.creditUsed) }, { creditLimit: moneyToString(creditLimit), creditUsed: moneyToString(creditUsed), effectiveAt: dto.effectiveAt || new Date().toISOString(), remark: dto.remark || null });
       return row;
     });
-    return this.walletView(updated);
+    return this.walletView(updated, (await this.getGroupBalances([updated.customerId])).get(updated.customerId) || new Prisma.Decimal(0));
   }
 
   async updateAdvance(walletId: string, dto: WalletAdvanceUpdateDto, context: AccessContext) {
@@ -171,7 +173,7 @@ export class CustomerWalletService {
       await this.audit(tx, context, locked.organizationId, walletId, 'CUSTOMER_WALLET_ADVANCE_UPDATE', { advanceOutstanding: moneyToString(locked.advanceOutstanding) }, { advanceOutstanding: moneyToString(amount), effectiveAt: dto.effectiveAt || new Date().toISOString(), remark: dto.remark || null });
       return row;
     });
-    return this.walletView(updated);
+    return this.walletView(updated, (await this.getGroupBalances([updated.customerId])).get(updated.customerId) || new Prisma.Decimal(0));
   }
 
   async repayAdvance(walletId: string, dto: WalletAdvanceRepayDto, context: AccessContext) {
@@ -211,7 +213,7 @@ export class CustomerWalletService {
       await this.audit(tx, context, locked.organizationId, walletId, 'CUSTOMER_WALLET_ADVANCE_REPAY', { advanceOutstanding: moneyToString(locked.advanceOutstanding), cashBalance: moneyToString(locked.cashBalance) }, { advanceOutstanding: moneyToString(newAdvance), cashBalance: moneyToString(balanceAfter), repayAmount: moneyToString(amount), transactionNo, remark: dto.remark || null });
       return row;
     });
-    return this.walletView(updated);
+    return this.walletView(updated, (await this.getGroupBalances([updated.customerId])).get(updated.customerId) || new Prisma.Decimal(0));
   }
 
   async waiveAdvance(walletId: string, dto: WalletAdvanceWaiveDto, context: AccessContext) {
@@ -249,7 +251,7 @@ export class CustomerWalletService {
       await this.audit(tx, context, locked.organizationId, walletId, 'CUSTOMER_WALLET_ADVANCE_WAIVE', { advanceOutstanding: moneyToString(locked.advanceOutstanding) }, { advanceOutstanding: moneyToString(newAdvance), waiveAmount: moneyToString(amount), reason: dto.reason, transactionNo, remark: dto.remark || null });
       return row;
     });
-    return this.walletView(updated);
+    return this.walletView(updated, (await this.getGroupBalances([updated.customerId])).get(updated.customerId) || new Prisma.Decimal(0));
   }
 
   async checkBalance(walletId: string, context: AccessContext) {
@@ -360,7 +362,7 @@ export class CustomerWalletService {
       const transaction = await tx.customerWalletTransaction.create({ data: { transactionNo, walletId, unit: wallet.unit, businessType, businessNo: dto.businessNo?.trim() || null, changeAmount: changeAmount.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP), balanceBefore, balanceAfter, operatorId: context.sub, occurredAt, remark: dto.remark?.trim() || null, idempotencyKey: dto.idempotencyKey?.trim() || null } });
       const updated = await tx.customerWallet.update({ where: { id: walletId }, data: { cashBalance: balanceAfter } });
       await this.audit(tx, context, wallet.organizationId, walletId, action, { cashBalance: moneyToString(balanceBefore) }, { cashBalance: moneyToString(balanceAfter), transactionNo, changeAmount: moneyToString(changeAmount), businessType });
-      return { idempotent: false, transaction: this.transactionView(transaction), wallet: this.walletView(updated) };
+      return { idempotent: false, transaction: this.transactionView(transaction), wallet: this.walletView(updated, wallet.groupBalance) };
     });
   }
 
@@ -379,9 +381,18 @@ export class CustomerWalletService {
     return wallet;
   }
 
+  private async getGroupBalances(customerIds: string[]) {
+    if (!customerIds.length) return new Map<string, Prisma.Decimal>();
+    const rows = await this.prisma.promotionAccount.groupBy({
+      by: ['customerId'],
+      where: { customerId: { in: customerIds }, ownerType: PromotionAccountOwnerType.CUSTOMER, unit: PromotionAccountUnit.ACCOUNT_CREDIT },
+      _sum: { currentBalance: true },
+    });
+    return new Map(rows.map((row) => [row.customerId, row._sum.currentBalance ?? new Prisma.Decimal(0)]));
+  }
 
-  private walletView(row: any, customer?: any) {
-    const currentGroup = toMoney(row.creditUsed, '授信已使用').add(toMoney(row.advanceOutstanding, '垫款未还')).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+  private walletView(row: any, groupBalance: Prisma.Decimal, customer?: any) {
+    const currentGroup = groupBalance;
     const cashBalance = toMoney(row.cashBalance, '钱包现金余额');
     const totalBalance = cashBalance.add(currentGroup).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
     const creditAvailable = toMoney(row.creditLimit, '授信额度').sub(toMoney(row.creditUsed, '授信已使用金额')).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
