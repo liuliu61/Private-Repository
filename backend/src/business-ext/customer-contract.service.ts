@@ -2,12 +2,40 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateCustomerContractDto, UpdateCustomerContractDto, ApproveContractDto } from './customer-contract.dto';
 import { generateBusinessNo } from '../common/utils/business-no';
+import * as fs from 'fs';
+import * as path from 'path';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class CustomerContractService {
   constructor(private prisma: PrismaService) {}
 
+  /**
+   * 自动更新合同到期状态
+   * - ACTIVE 且 30 天内到期 → EXPIRING
+   * - ACTIVE/EXPIRING 且已过期 → EXPIRED
+   */
+  private async updateExpiryStatuses() {
+    const now = new Date();
+    const thirtyDaysLater = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+    // ACTIVE → EXPIRING（30天内到期）
+    await this.prisma.customerContract.updateMany({
+      where: { status: 'ACTIVE', expiryDate: { lte: thirtyDaysLater, gte: now } },
+      data: { status: 'EXPIRING' },
+    });
+
+    // ACTIVE/EXPIRING → EXPIRED（已过到期日）
+    await this.prisma.customerContract.updateMany({
+      where: { status: { in: ['ACTIVE', 'EXPIRING'] }, expiryDate: { lt: now } },
+      data: { status: 'EXPIRED' },
+    });
+  }
+
   async findAll(page = 1, pageSize = 20, customerId?: string, status?: string, keyword?: string) {
+    // 查询前自动更新到期状态
+    await this.updateExpiryStatuses();
+
     const where: any = {};
     if (customerId) where.customerId = customerId;
     if (status) where.status = status;
@@ -29,11 +57,14 @@ export class CustomerContractService {
   }
 
   async findExpiring(days = 30) {
+    // 先更新状态
+    await this.updateExpiryStatuses();
+
     const now = new Date();
     const expiryDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
     return this.prisma.customerContract.findMany({
       where: {
-        status: 'ACTIVE',
+        status: { in: ['ACTIVE', 'EXPIRING'] },
         expiryDate: { lte: expiryDate, gte: now },
       },
       include: { customer: { select: { id: true, name: true } } },
@@ -123,6 +154,72 @@ export class CustomerContractService {
       where: { id },
       data: { status: 'TERMINATED', remark: reason },
     });
+  }
+
+  /**
+   * 上传合同附件
+   * 文件保存到 uploads/contracts/{yyyy}/{mm}/{uuid}_{filename}
+   */
+  async uploadAttachment(contractId: string, file: any, userId: string) {
+    const contract = await this.prisma.customerContract.findUnique({ where: { id: contractId } });
+    if (!contract) throw new NotFoundException('合同不存在');
+    if (!file || !file.buffer) throw new BadRequestException('未接收到文件');
+
+    const now = new Date();
+    const yyyy = now.getFullYear().toString();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+
+    // 创建目录
+    const uploadDir = path.join(process.cwd(), 'uploads', 'contracts', yyyy, mm);
+    fs.mkdirSync(uploadDir, { recursive: true });
+
+    // 生成文件名：uuid + 原始扩展名
+    const ext = path.extname(file.originalname);
+    const storedName = `${randomUUID()}${ext}`;
+    const filePath = path.join(uploadDir, storedName);
+
+    // 写入文件
+    fs.writeFileSync(filePath, file.buffer);
+
+    // 相对 URL
+    const fileUrl = `/uploads/contracts/${yyyy}/${mm}/${storedName}`;
+
+    const attachment = await this.prisma.customerContractAttachment.create({
+      data: {
+        contractId,
+        fileName: file.originalname,
+        fileUrl,
+        fileSize: file.size,
+        fileType: file.mimetype,
+        uploadedBy: userId,
+      },
+    });
+
+    return attachment;
+  }
+
+  /**
+   * 删除合同附件
+   */
+  async deleteAttachment(contractId: string, attachmentId: string) {
+    const attachment = await this.prisma.customerContractAttachment.findUnique({
+      where: { id: attachmentId },
+    });
+    if (!attachment) throw new NotFoundException('附件不存在');
+    if (attachment.contractId !== contractId) throw new BadRequestException('附件不属于该合同');
+
+    // 删除磁盘文件（最佳努力，失败不阻塞DB删除）
+    try {
+      const filePath = path.join(process.cwd(), attachment.fileUrl.replace(/^\//, ''));
+      if (fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (e) {
+      console.warn('删除附件磁盘文件失败:', e);
+    }
+
+    await this.prisma.customerContractAttachment.delete({ where: { id: attachmentId } });
+    return { success: true };
   }
 
   async remove(id: string) {

@@ -1,4 +1,5 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { CustomerContractService } from './customer-contract.service';
 import { CreateCustomerContractDto, UpdateCustomerContractDto, ApproveContractDto } from './customer-contract.dto';
 
@@ -61,6 +62,21 @@ export class CustomerContractController {
   @Post(':id/terminate')
   terminate(@Param('id') id: string, @Body() body: { reason: string }) {
     return this.contractService.terminate(id, body.reason);
+  }
+
+  @Post(':id/attachments/upload')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } }))
+  uploadAttachment(
+    @Param('id') id: string,
+    @UploadedFile() file: any,
+    @Req() req: any,
+  ) {
+    return this.contractService.uploadAttachment(id, file, req.user?.userId || req.user?.id);
+  }
+
+  @Delete(':id/attachments/:attachmentId')
+  deleteAttachment(@Param('id') id: string, @Param('attachmentId') attachmentId: string) {
+    return this.contractService.deleteAttachment(id, attachmentId);
   }
 
   @Delete(':id')
