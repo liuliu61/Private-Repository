@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { apiRequest } from '../utils/api';
+import { apiRequest, getToken } from '../utils/api';
 
 const statusMap: any = {
   PENDING_APPROVAL: { label: '待审批', color: 'orange' },
@@ -26,7 +26,7 @@ export default function ReceiveRefundsPage() {
   const loadRefunds = async () => {
     setLoading(true);
     try {
-      const res = await apiRequest('/api/receive-refunds?pageSize=100');
+      const res = await apiRequest('receive-refunds?pageSize=100', getToken());
       setRefunds(res.items || []);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -34,21 +34,21 @@ export default function ReceiveRefundsPage() {
 
   const loadReceiveRecords = async () => {
     try {
-      const res = await apiRequest('/api/receive-records?pageSize=200&status=POSTED');
+      const res = await apiRequest('receive-records?pageSize=200&status=POSTED', getToken());
       setReceiveRecords(res.items || []);
     } catch (e) { console.error(e); }
   };
 
   const loadCustomers = async () => {
     try {
-      const res = await apiRequest('/api/customers?pageSize=200');
+      const res = await apiRequest('customers?pageSize=200', getToken());
       setCustomers(res.items || []);
     } catch (e) { console.error(e); }
   };
 
   const createRefund = async (data: any) => {
     try {
-      await apiRequest('/api/receive-refunds', { method: 'POST', body: JSON.stringify(data) });
+      await apiRequest('receive-refunds', getToken(), { method: 'POST', body: JSON.stringify(data) });
       setShowModal(false);
       loadRefunds();
     } catch (e: any) { alert(e.message || '创建失败'); }
@@ -57,7 +57,7 @@ export default function ReceiveRefundsPage() {
   const approve = async (id: string) => {
     if (!confirm('确定审批通过？')) return;
     try {
-      await apiRequest(`/api/receive-refunds/${id}/approve`, { method: 'POST', body: JSON.stringify({}) });
+      await apiRequest(`receive-refunds/${id}/approve`, getToken(), { method: 'POST', body: JSON.stringify({}) });
       loadRefunds();
     } catch (e: any) { alert(e.message || '操作失败'); }
   };
@@ -66,7 +66,7 @@ export default function ReceiveRefundsPage() {
     const reason = prompt('请输入驳回原因');
     if (!reason) return;
     try {
-      await apiRequest(`/api/receive-refunds/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
+      await apiRequest(`receive-refunds/${id}/reject`, getToken(), { method: 'POST', body: JSON.stringify({ reason }) });
       loadRefunds();
     } catch (e: any) { alert(e.message || '操作失败'); }
   };
@@ -74,7 +74,7 @@ export default function ReceiveRefundsPage() {
   const execute = async (id: string) => {
     if (!confirm('确定执行退款？将扣减客户钱包余额。')) return;
     try {
-      await apiRequest(`/api/receive-refunds/${id}/execute`, { method: 'POST' });
+      await apiRequest(`receive-refunds/${id}/execute`, getToken(), { method: 'POST' });
       loadRefunds();
     } catch (e: any) { alert(e.message || '执行失败'); }
   };
@@ -82,7 +82,7 @@ export default function ReceiveRefundsPage() {
   const remove = async (id: string) => {
     if (!confirm('确定删除该退款申请？')) return;
     try {
-      await apiRequest(`/api/receive-refunds/${id}`, { method: 'DELETE' });
+      await apiRequest(`receive-refunds/${id}`, getToken(), { method: 'DELETE' });
       loadRefunds();
     } catch (e: any) { alert(e.message || '删除失败'); }
   };

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { apiRequest } from '../utils/api';
+import { apiRequest, getToken } from '../utils/api';
 
 export default function SystemManagementPage() {
   const [activeTab, setActiveTab] = useState('departments');
@@ -33,7 +33,7 @@ export default function SystemManagementPage() {
   const loadDepartments = async () => {
     setLoading(true);
     try {
-      const res = await apiRequest('/api/departments?tree=true');
+      const res = await apiRequest('departments?tree=true', getToken());
       setDepartments(res || []);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -42,7 +42,7 @@ export default function SystemManagementPage() {
   const loadRoles = async () => {
     setLoading(true);
     try {
-      const res = await apiRequest('/api/roles');
+      const res = await apiRequest('roles', getToken());
       setRoles(res.items || []);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -51,7 +51,7 @@ export default function SystemManagementPage() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const res = await apiRequest('/api/users?pageSize=100');
+      const res = await apiRequest('users?pageSize=100', getToken());
       setUsers(res.items || []);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -59,7 +59,7 @@ export default function SystemManagementPage() {
 
   const loadPermissions = async () => {
     try {
-      const res = await apiRequest('/api/roles/permissions');
+      const res = await apiRequest('roles/permissions', getToken());
       setPermissions(res || {});
     } catch (e) { console.error(e); }
   };
@@ -67,9 +67,9 @@ export default function SystemManagementPage() {
   const saveDepartment = async (data: any) => {
     try {
       if (editingDept) {
-        await apiRequest(`/api/departments/${editingDept.id}`, { method: 'PUT', body: JSON.stringify(data) });
+        await apiRequest(`departments/${editingDept.id}`, getToken(), { method: 'PUT', body: JSON.stringify(data) });
       } else {
-        await apiRequest('/api/departments', { method: 'POST', body: JSON.stringify(data) });
+        await apiRequest('departments', getToken(), { method: 'POST', body: JSON.stringify(data) });
       }
       setShowDeptModal(false);
       loadDepartments();
@@ -79,9 +79,9 @@ export default function SystemManagementPage() {
   const saveRole = async (data: any) => {
     try {
       if (editingRole) {
-        await apiRequest(`/api/roles/${editingRole.id}`, { method: 'PUT', body: JSON.stringify(data) });
+        await apiRequest(`roles/${editingRole.id}`, getToken(), { method: 'PUT', body: JSON.stringify(data) });
       } else {
-        await apiRequest('/api/roles', { method: 'POST', body: JSON.stringify(data) });
+        await apiRequest('roles', getToken(), { method: 'POST', body: JSON.stringify(data) });
       }
       setShowRoleModal(false);
       loadRoles();
@@ -91,9 +91,9 @@ export default function SystemManagementPage() {
   const saveUser = async (data: any) => {
     try {
       if (editingUser) {
-        await apiRequest(`/api/users/${editingUser.id}`, { method: 'PUT', body: JSON.stringify(data) });
+        await apiRequest(`users/${editingUser.id}`, getToken(), { method: 'PUT', body: JSON.stringify(data) });
       } else {
-        await apiRequest('/api/users', { method: 'POST', body: JSON.stringify(data) });
+        await apiRequest('users', getToken(), { method: 'POST', body: JSON.stringify(data) });
       }
       setShowUserModal(false);
       loadUsers();
@@ -103,7 +103,7 @@ export default function SystemManagementPage() {
   const deleteDepartment = async (id: string) => {
     if (!confirm('确定删除该部门？')) return;
     try {
-      await apiRequest(`/api/departments/${id}`, { method: 'DELETE' });
+      await apiRequest(`departments/${id}`, getToken(), { method: 'DELETE' });
       loadDepartments();
     } catch (e: any) { alert(e.message || '删除失败'); }
   };
@@ -111,7 +111,7 @@ export default function SystemManagementPage() {
   const deleteRole = async (id: string) => {
     if (!confirm('确定删除该角色？')) return;
     try {
-      await apiRequest(`/api/roles/${id}`, { method: 'DELETE' });
+      await apiRequest(`roles/${id}`, getToken(), { method: 'DELETE' });
       loadRoles();
     } catch (e: any) { alert(e.message || '删除失败'); }
   };
@@ -119,7 +119,7 @@ export default function SystemManagementPage() {
   const deleteUser = async (id: string) => {
     if (!confirm('确定删除该用户？')) return;
     try {
-      await apiRequest(`/api/users/${id}`, { method: 'DELETE' });
+      await apiRequest(`users/${id}`, getToken(), { method: 'DELETE' });
       loadUsers();
     } catch (e: any) { alert(e.message || '删除失败'); }
   };
@@ -127,7 +127,7 @@ export default function SystemManagementPage() {
   const openPermModal = async (role: any) => {
     setEditingRole(role);
     await loadPermissions();
-    const roleDetail = await apiRequest(`/api/roles/${role.id}`);
+    const roleDetail = await apiRequest(`roles/${role.id}`, getToken());
     const perms = roleDetail?.permissions?.map((p: any) => p.permissionId) || [];
     setSelectedRolePerms(perms);
     setShowPermModal(true);
@@ -135,7 +135,7 @@ export default function SystemManagementPage() {
 
   const savePermissions = async () => {
     try {
-      await apiRequest(`/api/roles/${editingRole.id}/permissions`, {
+      await apiRequest(`roles/${editingRole.id}/permissions`, getToken(), {
         method: 'PUT',
         body: JSON.stringify({ permissionIds: selectedRolePerms }),
       });
@@ -202,7 +202,7 @@ export default function SystemManagementPage() {
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">角色列表</h2>
             <div className="flex gap-2">
-              <button className="bg-gray-500 text-white px-4 py-2 rounded-lg" onClick={() => apiRequest('/api/roles/permissions/init', { method: 'POST' }).then(() => alert('权限初始化完成'))}>
+              <button className="bg-gray-500 text-white px-4 py-2 rounded-lg" onClick={() => apiRequest('roles/permissions/init', getToken(), { method: 'POST' }).then(() => alert('权限初始化完成'))}>
                 初始化权限
               </button>
               <button className="bg-blue-500 text-white px-4 py-2 rounded-lg" onClick={() => { setEditingRole(null); setShowRoleModal(true); }}>

@@ -1,6 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
-import { apiRequest } from '../utils/api';
+import { apiRequest, getToken } from '../utils/api';
 
 const statusMap: any = {
   DRAFT: { label: '草稿', color: 'gray' },
@@ -30,7 +30,7 @@ export default function CustomerContractsPage() {
       const params = new URLSearchParams();
       if (filter.status) params.set('status', filter.status);
       if (filter.keyword) params.set('keyword', filter.keyword);
-      const res = await apiRequest(`/api/customer-contracts?pageSize=100&${params}`);
+      const res = await apiRequest(`customer-contracts?pageSize=100&${params}`, getToken());
       setContracts(res.items || []);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -38,7 +38,7 @@ export default function CustomerContractsPage() {
 
   const loadCustomers = async () => {
     try {
-      const res = await apiRequest('/api/customers?pageSize=200');
+      const res = await apiRequest('customers?pageSize=200', getToken());
       setCustomers(res.items || []);
     } catch (e) { console.error(e); }
   };
@@ -46,9 +46,9 @@ export default function CustomerContractsPage() {
   const save = async (data: any) => {
     try {
       if (editing) {
-        await apiRequest(`/api/customer-contracts/${editing.id}`, { method: 'PUT', body: JSON.stringify(data) });
+        await apiRequest(`customer-contracts/${editing.id}`, getToken(), { method: 'PUT', body: JSON.stringify(data) });
       } else {
-        await apiRequest('/api/customer-contracts', { method: 'POST', body: JSON.stringify(data) });
+        await apiRequest('customer-contracts', getToken(), { method: 'POST', body: JSON.stringify(data) });
       }
       setShowModal(false);
       loadContracts();
@@ -58,7 +58,7 @@ export default function CustomerContractsPage() {
   const submitApproval = async (id: string) => {
     if (!confirm('确定提交审批？')) return;
     try {
-      await apiRequest(`/api/customer-contracts/${id}/submit`, { method: 'POST' });
+      await apiRequest(`customer-contracts/${id}/submit`, getToken(), { method: 'POST' });
       loadContracts();
     } catch (e: any) { alert(e.message || '操作失败'); }
   };
@@ -66,7 +66,7 @@ export default function CustomerContractsPage() {
   const approve = async (id: string) => {
     if (!confirm('确定审批通过？')) return;
     try {
-      await apiRequest(`/api/customer-contracts/${id}/approve`, { method: 'POST', body: JSON.stringify({}) });
+      await apiRequest(`customer-contracts/${id}/approve`, getToken(), { method: 'POST', body: JSON.stringify({}) });
       loadContracts();
     } catch (e: any) { alert(e.message || '操作失败'); }
   };
@@ -75,7 +75,7 @@ export default function CustomerContractsPage() {
     const reason = prompt('请输入驳回原因');
     if (!reason) return;
     try {
-      await apiRequest(`/api/customer-contracts/${id}/reject`, { method: 'POST', body: JSON.stringify({ reason }) });
+      await apiRequest(`customer-contracts/${id}/reject`, getToken(), { method: 'POST', body: JSON.stringify({ reason }) });
       loadContracts();
     } catch (e: any) { alert(e.message || '操作失败'); }
   };
@@ -84,7 +84,7 @@ export default function CustomerContractsPage() {
     const reason = prompt('请输入终止原因');
     if (!reason) return;
     try {
-      await apiRequest(`/api/customer-contracts/${id}/terminate`, { method: 'POST', body: JSON.stringify({ reason }) });
+      await apiRequest(`customer-contracts/${id}/terminate`, getToken(), { method: 'POST', body: JSON.stringify({ reason }) });
       loadContracts();
     } catch (e: any) { alert(e.message || '操作失败'); }
   };
@@ -92,7 +92,7 @@ export default function CustomerContractsPage() {
   const remove = async (id: string) => {
     if (!confirm('确定删除该合同？')) return;
     try {
-      await apiRequest(`/api/customer-contracts/${id}`, { method: 'DELETE' });
+      await apiRequest(`customer-contracts/${id}`, getToken(), { method: 'DELETE' });
       loadContracts();
     } catch (e: any) { alert(e.message || '删除失败'); }
   };
