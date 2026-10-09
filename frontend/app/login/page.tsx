@@ -4,7 +4,7 @@ import { LockOutlined, UserOutlined } from '@ant-design/icons';
 import { Button, Card, Form, Input, message } from 'antd';
 import { useState } from 'react';
 
-const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api';
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false);
