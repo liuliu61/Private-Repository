@@ -6,7 +6,7 @@ export interface AccessContext { sub: string; username: string; roles: string[];
 @Injectable()
 export class AccessScopeService {
   constructor(private readonly prisma: PrismaService) {}
-  isSuperAdmin(context: AccessContext): boolean { return context.roles.includes('SUPER_ADMIN'); }
+  isSuperAdmin(context: AccessContext): boolean { return context.roles.includes('SUPER_ADMIN') || context.roles.includes('ADMIN'); }
   canViewCustomerRebatePolicy(context: AccessContext): boolean { return this.isSuperAdmin(context) || context.roles.includes('FINANCE') || context.permissions.includes('FINANCE_REBATE_VIEW'); }
   canEditCustomerRebatePolicy(context: AccessContext): boolean { return this.isSuperAdmin(context) || context.roles.includes('FINANCE') || context.permissions.includes('FINANCE_REBATE_POLICY_EDIT'); }
   canFinance(context: AccessContext): boolean { return this.isSuperAdmin(context) || context.roles.includes('FINANCE') || context.permissions.includes('FINANCE_REBATE_CONFIRM'); }
