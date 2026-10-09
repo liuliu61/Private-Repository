@@ -168,7 +168,19 @@ export class ReceivingService {
         const receivable = order.customerReceivable ?? order.customerCashAmount;
         if (!receivable || order.customerPaidAmount.add(row.amount).gt(receivable)) throw new ConflictException('本次确认收款超过订单客户应收余额');
       }
-      const serviceFeeAmount = toMoney(dto.serviceFeeAmount || '0.00', '服务费金额');
+      // 自动按客户服务费配置比例计算（如未手动指定）
+      let serviceFeeAmount: Prisma.Decimal;
+      const manualFee = dto.serviceFeeAmount ? toMoney(dto.serviceFeeAmount, '服务费金额') : null;
+      if (manualFee && manualFee.gt(0)) {
+        serviceFeeAmount = manualFee;
+      } else {
+        const feeConfig = await tx.serviceFeeConfig.findUnique({ where: { customerId: row.customerId! } });
+        if (feeConfig && feeConfig.status === 'ACTIVE' && feeConfig.rate.gt(0)) {
+          serviceFeeAmount = row.amount.mul(feeConfig.rate).div(100).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+        } else {
+          serviceFeeAmount = new Prisma.Decimal(0);
+        }
+      }
       if (serviceFeeAmount.lt(0) || serviceFeeAmount.gt(row.amount)) throw new BadRequestException('服务费金额不能超过付款金额');
       if (!dto.details?.length) throw new BadRequestException('至少需要填写一条入账明细');
       const details = dto.details.map((detail) => ({ type: detail.type, amount: toMoney(detail.amount, '入账明细金额') }));

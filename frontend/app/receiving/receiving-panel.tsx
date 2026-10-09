@@ -9,7 +9,7 @@ import dayjs from 'dayjs';
 type Customer = { id: string; name: string; customerCode: string };
 type BankTransaction = { id: string; transactionNo: string; account?: { name: string; accountCode: string }; occurredAt: string; direction: string; amount: string; counterpartyName?: string; status: string; matchedCustomer?: { name: string }; receiveRecord?: { id: string; receiveNo: string; status: string }; details?: ReceiveDetail[] };
 type ReceiveDetail = { id: string; type: 'PUBLIC' | 'PRIVATE'; amount: string };
-type ReceiveRecord = { id: string; receiveNo: string; amount: string; invoiceEligibleAmount?: string; receivedAt: string; status: string; customer?: { name: string; customerCode: string }; bankTransaction?: { transactionNo: string }; purchaseOrder?: { orderNo: string }; transaction?: { transactionNo: string }; details?: ReceiveDetail[] };
+type ReceiveRecord = { id: string; receiveNo: string; amount: string; customerId?: string; invoiceEligibleAmount?: string; receivedAt: string; status: string; customer?: { id?: string; name: string; customerCode: string }; bankTransaction?: { transactionNo: string }; purchaseOrder?: { orderNo: string }; transaction?: { transactionNo: string }; details?: ReceiveDetail[] };
 
 const bankStatus: Record<string, string> = { UNPROCESSED: '未处理', MATCHED: '已匹配', RECEIPT_CREATED: '已生成收款', RECEIPT_CONFIRMED: '已确认收款', IGNORED: '已忽略' };
 const receiveStatus: Record<string, string> = { PENDING_MATCH: '待匹配', PENDING_CONFIRMATION: '待确认', CONFIRMED: '已确认', CANCELLED: '已取消' };
@@ -34,13 +34,19 @@ export default function ReceivingPanel({ token, customers, onError }: { token: s
   const [detail, setDetail] = useState<ReceiveRecord | null>(null);
   const [selectedBank, setSelectedBank] = useState<BankTransaction | null>(null);
   const [selectedReceive, setSelectedReceive] = useState<ReceiveRecord | null>(null);
+  const [feeConfig, setFeeConfig] = useState<any>(null);
+  const [feeEditOpen, setFeeEditOpen] = useState(false);
+  const [feeEditValue, setFeeEditValue] = useState("0.00");
   const [form] = Form.useForm();
   const [bankFilterForm] = Form.useForm();
   const [receiveFilterForm] = Form.useForm();
   const [postingForm] = Form.useForm();
   const postingDetails = Form.useWatch('details', postingForm) as { type?: 'PUBLIC' | 'PRIVATE'; amount?: string }[] | undefined;
+  const currentServiceFee = Form.useWatch("serviceFeeAmount", postingForm) as string | undefined;
   const allocatedCents = (postingDetails || []).reduce((total, item) => total + (amountToCents(item.amount) || 0), 0);
   const receiveCents = amountToCents(selectedReceive?.amount) || 0;
+  const feeCents = amountToCents(currentServiceFee) || 0;
+  const walletCreditCents = receiveCents - feeCents;
   const remainingCents = receiveCents - allocatedCents;
 
   async function refresh(bankQuery = '', receiveQuery = '') {
@@ -91,10 +97,28 @@ export default function ReceivingPanel({ token, customers, onError }: { token: s
     } catch (error) { onError(error instanceof Error ? error.message : '确认收款失败'); }
   }
 
-  function openPosting(row: ReceiveRecord) {
+  async function openPosting(row: ReceiveRecord) {
     setSelectedReceive(row);
-    postingForm.setFieldsValue({ serviceFeeAmount: '0.00', details: [{ type: 'PUBLIC', amount: row.amount }] });
+    setFeeConfig(null);
+    let feeAmount = '0.00';
+    const cid = row.customerId || (row.customer && row.customer.id);
+    if (cid) {
+      try {
+        const config = await apiRequest(`/service-fee-configs/customer/${cid}`, token);
+        if (config && parseFloat(config.rate) > 0) {
+          feeAmount = (parseFloat(row.amount) * parseFloat(config.rate) / 100).toFixed(2);
+        }
+        if (config) setFeeConfig(config);
+      } catch (e) {}
+    }
+    postingForm.setFieldsValue({ serviceFeeAmount: feeAmount, details: [{ type: 'PUBLIC', amount: row.amount }] });
+    setFeeEditValue(feeAmount);
     setPostingOpen(true);
+  }
+
+  function confirmFeeEdit() {
+    postingForm.setFieldsValue({ serviceFeeAmount: feeEditValue });
+    setFeeEditOpen(false);
   }
 
   async function showReceiveDetail(id: string) {
@@ -141,13 +165,14 @@ export default function ReceivingPanel({ token, customers, onError }: { token: s
         { title: '银行交易', render: (_: unknown, row: ReceiveRecord) => row.bankTransaction?.transactionNo || '-' },
         { title: '关联订单', render: (_: unknown, row: ReceiveRecord) => row.purchaseOrder?.orderNo || '-' },
         { title: '状态', dataIndex: 'status', render: (value: string) => <Tag>{receiveStatus[value] || value}</Tag> },
-        { title: '操作', render: (_: unknown, row: ReceiveRecord) => <Space><Button type="link" onClick={() => void showReceiveDetail(row.id)}>详情</Button>{row.status === 'PENDING_CONFIRMATION' && <Button type="link" onClick={() => openPosting(row)}>确认入账</Button>}{row.transaction ? <span>{row.transaction.transactionNo}</span> : null}</Space> },
+        { title: '操作', render: (_: unknown, row: ReceiveRecord) => <Space><Button type="link" onClick={() => void showReceiveDetail(row.id)}>详情</Button>{row.status === 'PENDING_CONFIRMATION' && <Button type="link" onClick={() => void openPosting(row)}>确认入账</Button>}{row.transaction ? <span>{row.transaction.transactionNo}</span> : null}</Space> },
       ]} />
     </>}
     <Modal title="导入银行交易" open={importOpen} onCancel={() => setImportOpen(false)} onOk={() => form.submit()} okText="导入" cancelText="取消"><Form form={form} layout="vertical" onFinish={importBank}><Form.Item name="accountId" label="银行账户ID" rules={[{ required: true, message: '请输入银行账户ID' }]}><Input placeholder="请输入账户ID" /></Form.Item><Form.Item name="occurredAt" label="交易时间" rules={[{ required: true, message: '请选择交易时间' }]}><DatePicker showTime style={{ width: '100%' }} format="YYYY-MM-DD HH:mm:ss" placeholder="请选择交易时间" /></Form.Item><Form.Item name="direction" label="交易方向" initialValue="INCOME"><Select options={[{ value: 'INCOME', label: '收入' }, { value: 'EXPENSE', label: '支出' }]} /></Form.Item><Form.Item name="amount" label="金额" rules={[{ required: true, message: '请输入金额' }]}><Input /></Form.Item><Form.Item name="source" label="来源" initialValue="MANUAL" rules={[{ required: true, message: '请选择来源' }]}><Select options={[{ value: 'MANUAL', label: '手工录入' }, { value: 'IMPORT', label: '文件导入' }, { value: 'API', label: '接口同步' }, { value: 'BANK_API', label: '银行直连' }]} /></Form.Item><Form.Item name="externalTransactionId" label="原始交易编号" rules={[{ required: true, message: '请输入原始交易编号' }]}><Input /></Form.Item><Form.Item name="counterpartyName" label="对方名称"><Input /></Form.Item><Form.Item name="summary" label="摘要"><Input /></Form.Item></Form></Modal>
     <Modal title="匹配银行交易" open={matchOpen} onCancel={() => setMatchOpen(false)} onOk={() => form.submit()} okText="保存匹配" cancelText="取消"><Form form={form} layout="vertical" onFinish={matchBank}><Form.Item name="customerId" label="客户" rules={[{ required: true, message: '请选择客户' }]}><Select showSearch optionFilterProp="label" options={customers.map((item) => ({ value: item.id, label: `${item.name}（${item.customerCode}）` }))} /></Form.Item><Form.Item name="purchaseOrderId" label="订单ID（可选）"><Input placeholder="可选，输入订单ID" /></Form.Item><Form.Item name="remark" label="备注"><Input /></Form.Item></Form></Modal>
     <Modal title="创建收款记录" open={receiveOpen} onCancel={() => setReceiveOpen(false)} onOk={() => form.submit()} okText="保存" cancelText="取消"><Form form={form} layout="vertical" onFinish={createReceive}><Form.Item name="bankTransactionId" label="银行交易ID" rules={[{ required: true, message: '请输入银行交易ID' }]}><Input placeholder="请输入银行交易ID" /></Form.Item><Form.Item name="customerId" label="客户（可选）"><Select allowClear showSearch optionFilterProp="label" options={customers.map((item) => ({ value: item.id, label: `${item.name}（${item.customerCode}）` }))} /></Form.Item><Form.Item name="purchaseOrderId" label="订单ID（可选）"><Input placeholder="可选，输入订单ID" /></Form.Item><Form.Item name="remark" label="备注"><Input /></Form.Item></Form></Modal>
-    <Modal title={selectedReceive ? `确认入账：${selectedReceive.receiveNo}` : '确认入账'} open={postingOpen} onCancel={() => setPostingOpen(false)} onOk={() => postingForm.submit()} okText="确认入账" cancelText="取消"><Form form={postingForm} layout="vertical" onFinish={confirmReceive}><Descriptions size="small" bordered column={1}><Descriptions.Item label="本次流水金额">{selectedReceive?.amount}</Descriptions.Item><Descriptions.Item label="已分配金额">{centsToAmount(allocatedCents)}</Descriptions.Item><Descriptions.Item label="剩余未分配金额"><Typography.Text type={remainingCents === 0 ? 'success' : 'danger'}>{centsToAmount(remainingCents)}</Typography.Text></Descriptions.Item></Descriptions><Form.Item name="serviceFeeAmount" label="服务费"><Input /></Form.Item><Form.List name="details" rules={[{ validator: async (_, value) => { if (!value?.length) return Promise.reject(new Error('至少需要一条入账明细')); return Promise.resolve(); } }]}>{(fields, { add, remove }) => <><div style={{ marginBottom: 8 }}>入账明细（对公款自动生成发票任务；对私款不生成）</div>{fields.map(({ key, name, ...restField }) => <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}><Form.Item {...restField} name={[name, 'type']} rules={[{ required: true, message: '请选择入账类型' }]}><Select style={{ width: 130 }} options={[{ value: 'PUBLIC', label: 'PUBLIC（对公）' }, { value: 'PRIVATE', label: 'PRIVATE（对私）' }]} /></Form.Item><Form.Item {...restField} name={[name, 'amount']} rules={[{ required: true, message: '请输入金额' }]}><Input placeholder="金额" /></Form.Item>{fields.length > 1 && <MinusCircleOutlined onClick={() => remove(name)} />}</Space>)}<Button type="dashed" onClick={() => add({ type: 'PRIVATE', amount: centsToAmount(remainingCents > 0 ? remainingCents : 0) })} icon={<PlusOutlined />}>添加明细</Button></>}</Form.List><Form.Item name="remark" label="备注"><Input /></Form.Item></Form></Modal>
+    <Modal title={selectedReceive ? `确认入账：${selectedReceive.receiveNo}` : '确认入账'} open={postingOpen} onCancel={() => setPostingOpen(false)} onOk={() => postingForm.submit()} okText="确认入账" cancelText="取消"><Form form={postingForm} layout="vertical" onFinish={confirmReceive}><Descriptions size="small" bordered column={1}><Descriptions.Item label="本次流水金额">{selectedReceive?.amount}</Descriptions.Item><Descriptions.Item label="已分配金额">{centsToAmount(allocatedCents)}</Descriptions.Item><Descriptions.Item label="剩余未分配金额"><Typography.Text type={remainingCents === 0 ? 'success' : 'danger'}>{centsToAmount(remainingCents)}</Typography.Text></Descriptions.Item></Descriptions><Typography.Paragraph style={{marginBottom:8}}>服务费：¥{centsToAmount(feeCents)} <Button type="link" size="small" onClick={() => { setFeeEditValue(centsToAmount(feeCents)); setFeeEditOpen(true); }}>修改</Button> 实际入账：¥{centsToAmount(walletCreditCents)}</Typography.Paragraph><Form.Item name="serviceFeeAmount" hidden><Input /></Form.Item><Form.List name="details" rules={[{ validator: async (_, value) => { if (!value?.length) return Promise.reject(new Error('至少需要一条入账明细')); return Promise.resolve(); } }]}>{(fields, { add, remove }) => <><div style={{ marginBottom: 8 }}>入账明细（对公款自动生成发票任务；对私款不生成）</div>{fields.map(({ key, name, ...restField }) => <Space key={key} align="baseline" style={{ display: 'flex', marginBottom: 8 }}><Form.Item {...restField} name={[name, 'type']} rules={[{ required: true, message: '请选择入账类型' }]}><Select style={{ width: 130 }} options={[{ value: 'PUBLIC', label: 'PUBLIC（对公）' }, { value: 'PRIVATE', label: 'PRIVATE（对私）' }]} /></Form.Item><Form.Item {...restField} name={[name, 'amount']} rules={[{ required: true, message: '请输入金额' }]}><Input placeholder="金额" /></Form.Item>{fields.length > 1 && <MinusCircleOutlined onClick={() => remove(name)} />}</Space>)}<Button type="dashed" onClick={() => add({ type: 'PRIVATE', amount: centsToAmount(remainingCents > 0 ? remainingCents : 0) })} icon={<PlusOutlined />}>添加明细</Button></>}</Form.List><Form.Item name="remark" label="备注"><Input /></Form.Item></Form></Modal>
     <Modal title="收款详情" open={detailOpen} onCancel={() => setDetailOpen(false)} footer={null}>{detail && <Descriptions bordered column={1}><Descriptions.Item label="收款编号">{detail.receiveNo}</Descriptions.Item><Descriptions.Item label="客户">{detail.customer?.name || '待匹配'}</Descriptions.Item><Descriptions.Item label="金额">{detail.amount}</Descriptions.Item><Descriptions.Item label="入账性质">{detail.details?.map((item) => `${item.type === 'PUBLIC' ? '对公' : '对私'} ${item.amount}`).join(' / ') || '-'}</Descriptions.Item><Descriptions.Item label="收款时间">{new Date(detail.receivedAt).toLocaleString('zh-CN')}</Descriptions.Item><Descriptions.Item label="银行交易">{detail.bankTransaction?.transactionNo || '-'}</Descriptions.Item><Descriptions.Item label="关联订单">{detail.purchaseOrder?.orderNo || '-'}</Descriptions.Item><Descriptions.Item label="状态">{receiveStatus[detail.status] || detail.status}</Descriptions.Item><Descriptions.Item label="资金流水">{detail.transaction?.transactionNo || '尚未入账'}</Descriptions.Item></Descriptions>}</Modal>
+    <Modal title="修改服务费" open={feeEditOpen} onCancel={() => setFeeEditOpen(false)} onOk={confirmFeeEdit} okText="确认" cancelText="取消" width={400}><div style={{marginBottom:8}}>流水金额：{selectedReceive?.amount}</div><Input value={feeEditValue} onChange={(e) => setFeeEditValue(e.target.value)} placeholder="服务费金额" style={{marginBottom:8}} /><Typography.Text type="secondary">实际入账：{centsToAmount(receiveCents - (amountToCents(feeEditValue) || 0))}</Typography.Text></Modal>
   </Card>;
 }
