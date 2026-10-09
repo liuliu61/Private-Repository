@@ -134,7 +134,7 @@ h1 { margin: 0; text-align: center; font-size: 26px; font-weight: 700; backgroun
 }
 
 .system-brand {
-  height: 78px;
+  height: 68px;
   display: flex;
   align-items: center;
   gap: 11px;
@@ -189,7 +189,7 @@ h1 { margin: 0; text-align: center; font-size: 26px; font-weight: 700; backgroun
 .admin-shell .ant-menu-item,
 .admin-shell .ant-menu-submenu-title {
   border-radius: 12px !important;
-  margin: 6px 2px !important;
+  margin: 2px 2px !important;
   height: 46px !important;
   line-height: 46px !important;
   font-size: 14px;
@@ -231,9 +231,9 @@ h1 { margin: 0; text-align: center; font-size: 26px; font-weight: 700; backgroun
 
 /* 二级菜单项 */
 .admin-shell .ant-menu-sub .ant-menu-item {
-  height: 40px !important;
-  line-height: 40px !important;
-  margin: 3px 4px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+  margin: 0 4px !important;
   padding-left: 52px !important;
   font-size: 13.5px;
   color: #475569;
@@ -285,6 +285,11 @@ h1 { margin: 0; text-align: center; font-size: 26px; font-weight: 700; backgroun
 }
 .admin-shell .ant-menu-sub .ant-menu-item-selected .anticon {
   color: #fff !important;
+}
+
+.admin-shell .ant-menu-inline .ant-menu-sub {
+  padding-top: 0;
+  padding-bottom: 0;
 }
 
 /* 展开箭头 */
