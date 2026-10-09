@@ -149,7 +149,7 @@ export class ReconciliationCenterService {
   }
 
   private async lock(tx: Prisma.TransactionClient, id: string, context: AccessContext) {
-    await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "reconciliations" WHERE "id" = ${id}::uuid FOR UPDATE`);
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM reconciliations WHERE id = ${id} FOR UPDATE`);
     const row = await tx.reconciliation.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('对账记录不存在');
     await this.assertOrganization(row.organizationId, context);

@@ -272,7 +272,7 @@ export class CustomerWalletService {
     if (!wallet || wallet.organizationId !== input.organizationId) throw new BadRequestException('客户未配置当前组织的外采钱包');
     if (wallet.status !== AccountStatus.ACTIVE) throw new BadRequestException('客户钱包已停用，不能执行外采钱包联动');
     if (wallet.unit !== AccountUnit.CNY) throw new BadRequestException('外采钱包必须使用CNY单位');
-    await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "customer_wallets" WHERE "id" = ${wallet.id}::uuid FOR UPDATE`);
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM customer_wallets WHERE id = ${wallet.id} FOR UPDATE`);
     const idempotencyKey = `PURCHASE_ORDER:${input.orderNo}:CUSTOMER_WALLET`;
     const existing = await tx.customerWalletTransaction.findUnique({ where: { idempotencyKey } });
     if (existing) return { idempotent: true, transaction: this.transactionView(existing) };
@@ -307,7 +307,7 @@ export class CustomerWalletService {
     if (!wallet || wallet.organizationId !== input.organizationId) throw new BadRequestException('客户未配置财务V钱包');
     if (wallet.status !== AccountStatus.ACTIVE) throw new BadRequestException('客户财务V钱包已停用，不能入账');
     if (wallet.unit !== AccountUnit.CNY) throw new BadRequestException('财务V钱包必须使用CNY单位');
-    await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "customer_wallets" WHERE "id" = ${wallet.id}::uuid FOR UPDATE`);
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM customer_wallets WHERE id = ${wallet.id} FOR UPDATE`);
     const idempotencyKey = `RECEIVE_POSTING:${input.receiveRecordId}`;
     const existing = await tx.customerWalletTransaction.findUnique({ where: { idempotencyKey } });
     if (existing) return { idempotent: true, transaction: this.transactionView(existing) };
@@ -327,7 +327,7 @@ export class CustomerWalletService {
     const wallet = await tx.customerWallet.findUnique({ where: { customerId_walletType: { customerId: input.customerId, walletType: CustomerWalletType.FINANCE_V } } });
     if (!wallet || wallet.organizationId !== input.organizationId) throw new BadRequestException('客户未配置财务V钱包');
     if (wallet.status !== AccountStatus.ACTIVE || wallet.unit !== AccountUnit.CNY) throw new BadRequestException('客户财务V钱包不可退款');
-    await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "customer_wallets" WHERE "id" = ${wallet.id}::uuid FOR UPDATE`);
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM customer_wallets WHERE id = ${wallet.id} FOR UPDATE`);
     const idempotencyKey = `RECEIVE_REFUND:${input.receiveRecordId}:${input.idempotencyKey}`;
     const existing = await tx.customerWalletTransaction.findUnique({ where: { idempotencyKey } });
     if (existing) return { idempotent: true, transaction: this.transactionView(existing) };
@@ -374,7 +374,7 @@ export class CustomerWalletService {
   }
 
   private async lockWallet(tx: Prisma.TransactionClient, id: string, context: AccessContext) {
-    await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "customer_wallets" WHERE "id" = ${id}::uuid FOR UPDATE`);
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM customer_wallets WHERE id = ${id} FOR UPDATE`);
     const wallet = await tx.customerWallet.findUnique({ where: { id }, include: { customer: { select: { id: true, name: true, customerCode: true, agentId: true } } } });
     if (!wallet) throw new NotFoundException('客户钱包不存在');
     await this.scope.assertOrganizationAccess(wallet.organizationId, context);

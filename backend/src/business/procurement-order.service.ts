@@ -292,7 +292,7 @@ export class ProcurementOrderService {
     idempotentStatus?: PurchaseOrderStatus,
   ) {
     return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "purchase_orders" WHERE "id" = ${id}::uuid FOR UPDATE`);
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM purchase_orders WHERE id = ${id} FOR UPDATE`);
       const order = await tx.purchaseOrder.findUnique({ where: { id } });
       if (!order) throw new NotFoundException('外采订单不存在');
       await this.assertOrderAccess(order.organizationId, context);
@@ -306,7 +306,7 @@ export class ProcurementOrderService {
   }
 
   private async lockOrder(tx: Prisma.TransactionClient, id: string, context: AccessContext) {
-    await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "purchase_orders" WHERE "id" = ${id}::uuid FOR UPDATE`);
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM purchase_orders WHERE id = ${id} FOR UPDATE`);
     const order = await tx.purchaseOrder.findUnique({ where: { id } });
     if (!order) throw new NotFoundException('外采订单不存在');
     await this.assertOrderAccess(order.organizationId, context);

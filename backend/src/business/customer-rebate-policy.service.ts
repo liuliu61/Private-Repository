@@ -168,7 +168,7 @@ export class CustomerRebatePolicyService {
     const dimensionName = dto.accountId ? '账户' : dto.subjectId ? '主体' : '客户';
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "customers" WHERE "id" = ${customerId}::uuid FOR UPDATE`);
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM customers WHERE id = ${customerId} FOR UPDATE`);
       const policies = await tx.customerRebatePolicy.findMany({
         where: { customerId, adSubjectId: dto.subjectId ?? null, adAccountId: dto.accountId ?? null, status: RebateRuleStatus.ACTIVE },
         include: { versions: { where: { status: RebateRuleStatus.ACTIVE } } },

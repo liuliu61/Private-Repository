@@ -90,7 +90,7 @@ export class PromotionAccountService {
     }
 
     const result = await this.prisma.$transaction(async (tx) => {
-      const locked = await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "promotion_accounts" WHERE "id" = ${id}::uuid FOR UPDATE`);
+      const locked = await tx.$queryRaw(Prisma.sql`SELECT id FROM promotion_accounts WHERE id = ${id} FOR UPDATE`);
       if (!locked || (locked as any[]).length === 0) throw new NotFoundException('推广账户不存在');
       const current = await tx.promotionAccount.findUnique({ where: { id } });
       const balanceBefore = current!.currentBalance;
@@ -100,7 +100,7 @@ export class PromotionAccountService {
       // 如果指定了客户钱包，从客户钱包扣款
       let walletBalanceAfter: any = null;
       if (dto.customerWalletId && wallet) {
-        const walletLocked = await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "customer_wallets" WHERE "id" = ${dto.customerWalletId}::uuid FOR UPDATE`);
+        const walletLocked = await tx.$queryRaw(Prisma.sql`SELECT id FROM customer_wallets WHERE id = ${dto.customerWalletId} FOR UPDATE`);
         if (!walletLocked || (walletLocked as any[]).length === 0) throw new NotFoundException('客户钱包不存在');
         const walletCurrent = await tx.customerWallet.findUnique({ where: { id: dto.customerWalletId } });
         if (walletCurrent!.cashBalance.lt(amount)) throw new BadRequestException(`客户钱包余额不足，当前余额：${moneyToString(walletCurrent!.cashBalance)}`);
@@ -155,7 +155,7 @@ export class PromotionAccountService {
 
     const result = await this.prisma.$transaction(async (tx) => {
       // 锁定推广账户
-      const locked = await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "promotion_accounts" WHERE "id" = ${id}::uuid FOR UPDATE`);
+      const locked = await tx.$queryRaw(Prisma.sql`SELECT id FROM promotion_accounts WHERE id = ${id} FOR UPDATE`);
       if (!locked || (locked as any[]).length === 0) throw new NotFoundException('推广账户不存在');
       const current = await tx.promotionAccount.findUnique({ where: { id } });
       if (current!.currentBalance.lt(amount)) throw new BadRequestException(`推广账户余额不足，当前余额：${moneyToString(current!.currentBalance)}`);
@@ -164,7 +164,7 @@ export class PromotionAccountService {
       const transactionNo = this.generateTransactionNo();
 
       // 锁定客户钱包并加款
-      const walletLocked = await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "customer_wallets" WHERE "id" = ${dto.customerWalletId}::uuid FOR UPDATE`);
+      const walletLocked = await tx.$queryRaw(Prisma.sql`SELECT id FROM customer_wallets WHERE id = ${dto.customerWalletId} FOR UPDATE`);
       if (!walletLocked || (walletLocked as any[]).length === 0) throw new NotFoundException('客户钱包不存在');
       const walletCurrent = await tx.customerWallet.findUnique({ where: { id: dto.customerWalletId } });
       const walletBalanceBefore = walletCurrent!.cashBalance;
@@ -211,7 +211,7 @@ export class PromotionAccountService {
       const customer = await tx.customer.findUnique({ where: { id: order.customerId }, select: { agentId: true } });
       if (!customer || customer.agentId !== order.organizationId) throw new ForbiddenException('客户不属于订单组织');
       const accountRows = await tx.$queryRaw<Array<{ id: string; customer_id: string | null; organization_id: string; unit: PromotionAccountUnit; status: AccountStatus; current_balance: Prisma.Decimal }>>(
-        Prisma.sql`SELECT "id", "customer_id", "organization_id", "unit", "status", "current_balance" FROM "promotion_accounts" WHERE "id" = ${dto.promotionAccountId}::uuid FOR UPDATE`,
+        Prisma.sql`SELECT id, customer_id, organization_id, unit, status, current_balance FROM promotion_accounts WHERE id = ${dto.promotionAccountId} FOR UPDATE`,
       );
       const account = accountRows[0];
       if (!account) throw new NotFoundException('推广账户不存在');
@@ -236,7 +236,7 @@ export class PromotionAccountService {
   }
 
   private async lockOrder(tx: Prisma.TransactionClient, id: string, context: AccessContext) {
-    await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "purchase_orders" WHERE "id" = ${id}::uuid FOR UPDATE`);
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM purchase_orders WHERE id = ${id} FOR UPDATE`);
     const order = await tx.purchaseOrder.findUnique({ where: { id } });
     if (!order) throw new NotFoundException('外采订单不存在');
     await this.scope.assertOrganizationAccess(order.organizationId, context);

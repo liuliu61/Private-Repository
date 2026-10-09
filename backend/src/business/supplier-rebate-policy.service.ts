@@ -101,7 +101,7 @@ export class SupplierRebatePolicyService {
     const contextData = await this.normalizeCreateContext(dto, supplierId, context);
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "suppliers" WHERE "id" = ${supplierId}::uuid FOR UPDATE`);
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM suppliers WHERE id = ${supplierId} FOR UPDATE`);
       const policies = await tx.supplierRebatePolicy.findMany({ where: { supplierId, platform: contextData.platform, adSubjectId: contextData.subjectId, adAccountId: contextData.accountId, status: RebateRuleStatus.ACTIVE }, include: { versions: { where: { status: RebateRuleStatus.ACTIVE } } }, orderBy: { createdAt: 'asc' } });
       for (const policy of policies) for (const version of policy.versions) if (version.effectiveFrom < (effectiveTo ?? new Date('9999-12-31T23:59:59.999Z')) && (version.effectiveTo === null || version.effectiveTo > effectiveFrom)) this.throwConflict();
       const policy = policies[0] ?? await tx.supplierRebatePolicy.create({ data: { name: `${supplier.name}成本返点政策`, supplierId, platform: contextData.platform, adSubjectId: contextData.subjectId, adAccountId: contextData.accountId, createdBy: context.sub, updatedBy: context.sub, remark: dto.remark } });

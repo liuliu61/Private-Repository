@@ -125,7 +125,7 @@ export class SettlementCenterService {
   }
 
   private async lockSettlement(tx: Prisma.TransactionClient, type: SettlementType, id: string, context: AccessContext) {
-    await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "settlements" WHERE "id" = ${id}::uuid FOR UPDATE`);
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM settlements WHERE id = ${id} FOR UPDATE`);
     const settlement = await tx.settlement.findUnique({ where: { id } });
     if (!settlement || settlement.settlementType !== type) throw new NotFoundException('结算单不存在');
     await this.assertOrganization(settlement.organizationId, context);

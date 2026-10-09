@@ -14,7 +14,7 @@ export class AccessScopeService {
     if (this.isSuperAdmin(context)) return undefined;
     const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`
       WITH RECURSIVE visible AS (
-        SELECT organization_id AS id FROM user_organizations WHERE user_id = ${context.sub}::uuid
+        SELECT organization_id AS id FROM user_organizations WHERE user_id = ${context.sub}
         UNION SELECT o.id FROM organizations o JOIN visible v ON o.parent_id = v.id
       ) SELECT id FROM visible
     `;

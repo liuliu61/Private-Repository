@@ -19,7 +19,7 @@ export class RebateConfirmationService {
         account_id: string | null;
         rebate_amount: Prisma.Decimal;
         status: RebateRecordStatus;
-      }>>(Prisma.sql`SELECT "id", "account_id", "rebate_amount", "status" FROM "rebate_records" WHERE "id" = ${rebateId}::uuid FOR UPDATE`);
+      }>>(Prisma.sql`SELECT id, account_id, rebate_amount, status FROM rebate_records WHERE id = ${rebateId} FOR UPDATE`);
       const record = records[0];
       if (!record) throw new NotFoundException('返点记录不存在。');
       if (record.status === RebateRecordStatus.CONFIRMED) throw new BadRequestException('该返点记录已确认，不能重复操作。');

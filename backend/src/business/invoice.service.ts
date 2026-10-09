@@ -372,8 +372,8 @@ export class InvoiceService {
 
   private async resolveSource(tx: Prisma.TransactionClient, dto: CreateInvoiceDto, context: AccessContext) {
     if (!dto.purchaseOrderId && !dto.receiveRecordId) throw new ConflictException('发票必须关联一个订单或一笔收款记录');
-    if (dto.purchaseOrderId) await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "purchase_orders" WHERE "id" = ${dto.purchaseOrderId}::uuid FOR UPDATE`);
-    if (dto.receiveRecordId) await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "receive_records" WHERE "id" = ${dto.receiveRecordId}::uuid FOR UPDATE`);
+    if (dto.purchaseOrderId) await tx.$queryRaw(Prisma.sql`SELECT id FROM purchase_orders WHERE id = ${dto.purchaseOrderId} FOR UPDATE`);
+    if (dto.receiveRecordId) await tx.$queryRaw(Prisma.sql`SELECT id FROM receive_records WHERE id = ${dto.receiveRecordId} FOR UPDATE`);
     const order = dto.purchaseOrderId ? await tx.purchaseOrder.findUnique({ where: { id: dto.purchaseOrderId } }) : null;
     const receive = dto.receiveRecordId ? await tx.receiveRecord.findUnique({ where: { id: dto.receiveRecordId } }) : null;
     if (dto.purchaseOrderId && !order) throw new NotFoundException('外采订单不存在');
@@ -432,7 +432,7 @@ export class InvoiceService {
     if (!sourceIds.length) throw new ConflictException('发票申请必须关联收款记录');
     const receives: any[] = [];
     for (const id of [...sourceIds].sort()) {
-      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "receive_records" WHERE "id" = ${id}::uuid FOR UPDATE`);
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM receive_records WHERE id = ${id} FOR UPDATE`);
       const receive = await tx.receiveRecord.findUnique({ where: { id }, include: { customer: true, bankTransaction: true } });
       if (!receive) throw new NotFoundException('收款记录不存在');
       await this.scope.assertOrganizationAccess(receive.organizationId, context);
@@ -481,12 +481,12 @@ export class InvoiceService {
     if (!total.eq(amount)) throw new ConflictException('发票明细合计必须等于申请开票金额');
   }
 
-  private async lockInvoice(tx: Prisma.TransactionClient, id: string, context: AccessContext) { await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "invoices" WHERE "id" = ${id}::uuid FOR UPDATE`); const row = await tx.invoice.findUnique({ where: { id } }); if (!row) throw new NotFoundException('发票记录不存在'); await this.scope.assertOrganizationAccess(row.organizationId, context); return row; }
+  private async lockInvoice(tx: Prisma.TransactionClient, id: string, context: AccessContext) { await tx.$queryRaw(Prisma.sql`SELECT id FROM invoices WHERE id = ${id} FOR UPDATE`); const row = await tx.invoice.findUnique({ where: { id } }); if (!row) throw new NotFoundException('发票记录不存在'); await this.scope.assertOrganizationAccess(row.organizationId, context); return row; }
   private async lockApplicationSources(tx: Prisma.TransactionClient, invoiceId: string, context: AccessContext) {
     const links = await tx.invoiceApplicationReceiveRecord.findMany({ where: { invoiceId }, orderBy: { receiveRecordId: 'asc' } });
     const result: any[] = [];
     for (const link of links) {
-      await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "receive_records" WHERE "id" = ${link.receiveRecordId}::uuid FOR UPDATE`);
+      await tx.$queryRaw(Prisma.sql`SELECT id FROM receive_records WHERE id = ${link.receiveRecordId} FOR UPDATE`);
       const receive = await tx.receiveRecord.findUnique({ where: { id: link.receiveRecordId }, include: { customer: true, bankTransaction: true } });
       if (!receive) throw new NotFoundException('收款记录不存在');
       await this.scope.assertOrganizationAccess(receive.organizationId, context);

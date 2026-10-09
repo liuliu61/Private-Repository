@@ -33,7 +33,7 @@ export class CashflowService {
     if (changeAmount.isZero()) throw new BadRequestException('变动金额不能为 0');
 
     const accountRows = await tx.$queryRaw<Array<{ id: string; name: string; status: string; current_balance: Prisma.Decimal }>>(
-      Prisma.sql`SELECT "id", "name", "status", "current_balance" FROM "accounts" WHERE "id" = ${input.accountId}::uuid FOR UPDATE`,
+      Prisma.sql`SELECT id, name, status, current_balance FROM accounts WHERE id = ${input.accountId} FOR UPDATE`,
     );
     const account = accountRows[0];
     if (!account) throw new NotFoundException('资金账户不存在');
@@ -74,7 +74,7 @@ export class CashflowService {
     const changeAmount = toMoney(input.changeAmount, '推广账户变动金额');
     if (changeAmount.isZero()) throw new BadRequestException('推广账户变动金额不能为 0');
     const rows = await tx.$queryRaw<Array<{ id: string; unit: PromotionAccountUnit; status: AccountStatus; current_balance: Prisma.Decimal }>>(
-      Prisma.sql`SELECT "id", "unit", "status", "current_balance" FROM "promotion_accounts" WHERE "id" = ${input.promotionAccountId}::uuid FOR UPDATE`,
+      Prisma.sql`SELECT id, unit, status, current_balance FROM promotion_accounts WHERE id = ${input.promotionAccountId} FOR UPDATE`,
     );
     const account = rows[0];
     if (!account) throw new NotFoundException('推广账户不存在');
@@ -92,7 +92,7 @@ export class CashflowService {
     if (changeAmount.isZero()) throw new BadRequestException('供应商账户变动金额不能为 0');
 
     const accountRows = await tx.$queryRaw<Array<{ id: string; status: string; currency: AccountUnit; current_balance: Prisma.Decimal }>>(
-      Prisma.sql`SELECT "id", "status", "currency", "current_balance" FROM "supplier_accounts" WHERE "id" = ${input.supplierAccountId}::uuid FOR UPDATE`,
+      Prisma.sql`SELECT id, status, currency, current_balance FROM supplier_accounts WHERE id = ${input.supplierAccountId} FOR UPDATE`,
     );
     const account = accountRows[0];
     if (!account) throw new NotFoundException('一级代理商资金账户不存在');

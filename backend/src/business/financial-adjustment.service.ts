@@ -107,7 +107,7 @@ export class FinancialAdjustmentService {
   }
 
   private async lock(tx: Prisma.TransactionClient, id: string, context: AccessContext) {
-    await tx.$queryRaw(Prisma.sql`SELECT "id" FROM "financial_adjustments" WHERE "id" = ${id}::uuid FOR UPDATE`);
+    await tx.$queryRaw(Prisma.sql`SELECT id FROM financial_adjustments WHERE id = ${id} FOR UPDATE`);
     const row = await tx.financialAdjustment.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('财务调整单不存在');
     await this.assertOrganization(row.organizationId, context);
