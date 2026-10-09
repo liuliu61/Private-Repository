@@ -158,7 +158,7 @@ export class CashflowService {
   }
 
   private async assertAccountReadable(accessContext: AccountAccessContext, accountId?: string): Promise<void> {
-    const isSuperAdmin = accessContext.roles.includes('SUPER_ADMIN');
+    const isSuperAdmin = (accessContext.roles.includes('SUPER_ADMIN') || accessContext.roles.includes('ADMIN'));
     const hasSystemAccess = accessContext.permissions.includes('SYSTEM_ACCESS');
     if (!isSuperAdmin && !hasSystemAccess) throw new ForbiddenException('当前用户没有查看资金账户的权限');
     if (accountId && this.accessScope) await this.accessScope.assertAccountAccess(accountId, accessContext);

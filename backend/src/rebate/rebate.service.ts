@@ -81,11 +81,11 @@ export class RebateService {
   }
 
   private assertReadable(accessContext: RebateAccessContext): void {
-    if (!accessContext.roles.includes('SUPER_ADMIN') && !accessContext.permissions.includes('SYSTEM_ACCESS')) throw new ForbiddenException('当前用户没有查看返点的权限');
+    if (!(accessContext.roles.includes('SUPER_ADMIN') || accessContext.roles.includes('ADMIN')) && !accessContext.permissions.includes('SYSTEM_ACCESS')) throw new ForbiddenException('当前用户没有查看返点的权限');
   }
 
   private assertWritable(accessContext: RebateAccessContext): void {
-    if (!accessContext.roles.includes('SUPER_ADMIN') && !accessContext.permissions.includes('SYSTEM_ACCESS')) throw new ForbiddenException('当前用户没有操作返点的权限');
+    if (!(accessContext.roles.includes('SUPER_ADMIN') || accessContext.roles.includes('ADMIN')) && !accessContext.permissions.includes('SYSTEM_ACCESS')) throw new ForbiddenException('当前用户没有操作返点的权限');
   }
 
   private validateRate(rate: Prisma.Decimal): void {

@@ -56,7 +56,7 @@ export class RebateConfirmationService {
   }
 
   private assertConfirmPermission(accessContext: RebateAccessContext): void {
-    const allowed = accessContext.roles.includes('SUPER_ADMIN') || accessContext.permissions.includes('FINANCE_REBATE_CONFIRM');
+    const allowed = (accessContext.roles.includes('SUPER_ADMIN') || accessContext.roles.includes('ADMIN')) || accessContext.permissions.includes('FINANCE_REBATE_CONFIRM');
     if (!allowed) throw new ForbiddenException('当前用户没有返点确认入账权限。');
   }
 }
