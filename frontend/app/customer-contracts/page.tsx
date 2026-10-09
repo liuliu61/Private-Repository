@@ -1,6 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { apiRequest, getToken } from '../utils/api';
+import { downloadExcel } from '../utils/export';
 import { Upload, Button, message } from 'antd';
 import { UploadOutlined, DeleteOutlined, DownloadOutlined } from '@ant-design/icons';
 import { getUserInfo, getPermissionActions } from '../utils/permissions';
@@ -138,6 +139,9 @@ export default function CustomerContractsPage() {
         <h1 className="text-2xl font-bold">客户合同管理</h1>
         <button className="bg-blue-500 text-white px-4 py-2 rounded-lg" onClick={() => { setEditing(null); setShowModal(true); }}>
           + 新增合同
+        </button>
+        <button className="bg-green-500 text-white px-4 py-2 rounded-lg" onClick={async () => { try { await downloadExcel('/customer-contracts/export', getToken(), '客户合同.xlsx'); } catch (e: any) { message.error(e.message); } }}>
+          导出Excel
         </button>
       </div>
 

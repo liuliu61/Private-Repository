@@ -5,10 +5,12 @@ import { generateBusinessNo } from '../common/utils/business-no';
 import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
+import { NotificationService } from '../notification/notification.service';
+import { NotificationType, NotificationStatus } from '@prisma/client';
 
 @Injectable()
 export class CustomerContractService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private notificationService: NotificationService) {}
 
   /**
    * 自动更新合同到期状态
@@ -32,9 +34,77 @@ export class CustomerContractService {
     });
   }
 
+  /**
+   * 合同到期提醒：给财务/管理员角色用户发送到期通知
+   * 去重：同一天、同一用户、同一合同只通知一次
+   */
+  private async notifyExpiringContracts() {
+    try {
+      const now = new Date();
+      const thirtyDaysLater = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const contracts = await this.prisma.customerContract.findMany({
+        where: {
+          status: { in: ['ACTIVE', 'EXPIRING'] },
+          expiryDate: { lte: thirtyDaysLater, gte: now },
+        },
+        include: { customer: { select: { id: true, name: true } } },
+        orderBy: { expiryDate: 'asc' },
+      });
+      if (contracts.length === 0) return;
+
+      // 查询目标用户（财务/管理员）
+      const users = await this.prisma.user.findMany({
+        where: {
+          status: 'ACTIVE',
+          userRoles: { some: { role: { code: { in: ['FINANCE', 'ADMIN', 'SUPER_ADMIN'] } } } },
+        },
+        select: { id: true },
+      });
+      if (users.length === 0) return;
+
+      // 今日已发送的合同到期通知，用于去重
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const existing = await this.prisma.notification.findMany({
+        where: { type: NotificationType.CONTRACT_EXPIRY, createdAt: { gte: todayStart } },
+        select: { userId: true, content: true },
+      });
+      const sentSet = new Set<string>();
+      for (const ex of existing) {
+        // content 中包含 contractNo，用 userId|contractNo 标识
+        const m = ex.content?.match(/合同编号：([A-Z0-9]+)/);
+        if (m) sentSet.add(`${ex.userId}|${m[1]}`);
+      }
+
+      const toCreate: Array<{ userId: string; type: NotificationType; title: string; content: string; link: string }> = [];
+      for (const c of contracts) {
+        const days = Math.ceil((new Date(c.expiryDate!).getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+        const content = `合同：${c.name}（编号：${c.contractNo}），客户：${c.customer?.name || '—'}，到期日：${new Date(c.expiryDate!).toISOString().slice(0, 10)}，剩余 ${days} 天。`;
+        for (const u of users) {
+          const key = `${u.id}|${c.contractNo}`;
+          if (sentSet.has(key)) continue;
+          toCreate.push({
+            userId: u.id,
+            type: NotificationType.CONTRACT_EXPIRY,
+            title: '合同即将到期',
+            content,
+            link: 'customer-contracts',
+          });
+          sentSet.add(key);
+        }
+      }
+      if (toCreate.length > 0) {
+        await this.prisma.notification.createMany({ data: toCreate });
+      }
+    } catch (e) {
+      console.warn('发送合同到期通知失败:', e);
+    }
+  }
+
   async findAll(page = 1, pageSize = 20, customerId?: string, status?: string, keyword?: string, departmentId?: string) {
     // 查询前自动更新到期状态
     await this.updateExpiryStatuses();
+    // 异步触发到期通知（不阻塞查询响应）
+    void this.notifyExpiringContracts();
 
     const where: any = {};
     if (customerId) where.customerId = customerId;

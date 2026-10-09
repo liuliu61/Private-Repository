@@ -2163,3 +2163,30 @@ model ReceiveRefund {
   @@index([applicantId])
   @@map("receive_refunds")
 }
+
+enum NotificationType {
+  APPROVAL_TODO
+  CONTRACT_EXPIRY
+  SYSTEM
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+}
+
+model Notification {
+  id        String            @id @default(uuid()) @db.VarChar(36)
+  userId    String            @map("user_id") @db.VarChar(36)
+  type      NotificationType
+  title     String            @db.VarChar(200)
+  content   String?           @db.Text
+  status    NotificationStatus @default(UNREAD)
+  link      String?           @db.VarChar(200)
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+
+  @@index([userId, status])
+  @@index([createdAt])
+  @@map("notifications")
+}

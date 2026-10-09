@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { NotificationModule } from '../notification/notification.module';
+import { CommonModule } from '../common/common.module';
 import { CustomerContractService } from './customer-contract.service';
 import { CustomerContractController } from './customer-contract.controller';
 import { PaymentAccountService } from './payment-account.service';
@@ -11,6 +13,7 @@ import { ReceiveRefundService } from './receive-refund.service';
 import { ReceiveRefundController } from './business-ext.controller';
 
 @Module({
+  imports: [NotificationModule, CommonModule],
   controllers: [
     CustomerContractController,
     PaymentAccountController,

@@ -1,11 +1,14 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, Res, UseGuards, UseInterceptors, UploadedFile } from '@nestjs/common';
+import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CustomerContractService } from './customer-contract.service';
 import { CreateCustomerContractDto, UpdateCustomerContractDto, ApproveContractDto } from './customer-contract.dto';
+import { ExportService } from '../common/export.service';
 
 @Controller('customer-contracts')
 export class CustomerContractController {
-  constructor(private readonly contractService: CustomerContractService) {}
+  constructor(private readonly contractService: CustomerContractService, private readonly exportService: ExportService) {}
 
   @Get()
   findAll(
@@ -27,6 +30,15 @@ export class CustomerContractController {
   @Get('expiring')
   findExpiring(@Query('days') days?: string) {
     return this.contractService.findExpiring(parseInt(days || '30'));
+  }
+
+  @Get('export')
+  @UseGuards(JwtAuthGuard)
+  async export(@Req() req: any, @Res() res: Response) {
+    const buffer = await this.exportService.exportCustomerContracts(req.user);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=customer-contracts.xlsx');
+    res.send(buffer);
   }
 
   @Get(':id')

@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { Request } from 'express';
+import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { ExportService } from '../common/export.service';
 import { BusinessService } from './business.service';
 import { CustomerRebatePolicyService } from './customer-rebate-policy.service';
 import { SupplierRebatePolicyService } from './supplier-rebate-policy.service';
@@ -19,13 +20,20 @@ interface AuthenticatedRequest extends Request { user: { sub: string; username: 
 @Controller()
 @UseGuards(JwtAuthGuard)
 export class BusinessController {
-  constructor(private readonly service: BusinessService, private readonly customerPolicyService: CustomerRebatePolicyService, private readonly supplierPolicyService: SupplierRebatePolicyService, private readonly procurementOrderService: ProcurementOrderService, private readonly promotionAccountService: PromotionAccountService, private readonly refundService: RefundService, private readonly settlementCenterService: SettlementCenterService, private readonly reconciliationCenterService: ReconciliationCenterService, private readonly financialAdjustmentService: FinancialAdjustmentService, private readonly sourcingSettingService: SourcingSettingService) {}
+  constructor(private readonly service: BusinessService, private readonly customerPolicyService: CustomerRebatePolicyService, private readonly supplierPolicyService: SupplierRebatePolicyService, private readonly procurementOrderService: ProcurementOrderService, private readonly promotionAccountService: PromotionAccountService, private readonly refundService: RefundService, private readonly settlementCenterService: SettlementCenterService, private readonly reconciliationCenterService: ReconciliationCenterService, private readonly financialAdjustmentService: FinancialAdjustmentService, private readonly sourcingSettingService: SourcingSettingService, private readonly exportService: ExportService) {}
   @Get('organizations') organizations(@Query() q: ListQueryDto, @Req() r: AuthenticatedRequest) { return this.service.listOrganizations(q, r.user); }
   @Post('organizations') createOrganization(@Body() dto: CreateOrganizationDto, @Req() r: AuthenticatedRequest) { return this.service.createOrganization(dto, r.user); }
   @Post('organizations/assign-user') assignOrganization(@Body() dto: AssignOrganizationDto, @Req() r: AuthenticatedRequest) { return this.service.assignOrganization(dto, r.user); }
   @Get('accounts') accounts(@Query() q: ListQueryDto, @Req() r: AuthenticatedRequest) { return this.service.listAccounts(q, r.user); }
   @Post('accounts') createAccount(@Body() dto: CreateAccountDto, @Req() r: AuthenticatedRequest) { return this.service.createAccount(dto, r.user); }
   @Get('customers') customers(@Query() q: ListQueryDto, @Req() r: AuthenticatedRequest) { return this.service.listCustomers(q, r.user); }
+  @Get('customers/export')
+  async exportCustomers(@Req() r: AuthenticatedRequest, @Res() res: Response) {
+    const buffer = await this.exportService.exportCustomers(r.user);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=customers.xlsx');
+    res.send(buffer);
+  }
   @Post('customers') createCustomer(@Body() dto: CreateCustomerDto, @Req() r: AuthenticatedRequest) { return this.service.createCustomer(dto, r.user); }
   @Get('customers/:customerId/rebate-policy') customerRebatePolicy(@Param() params: CustomerIdParamDto, @Query() query: CustomerPolicyAtQueryDto, @Req() r: AuthenticatedRequest) { return this.customerPolicyService.getCurrent(params.customerId, query, r.user); }
   @Get('customers/:customerId/rebate-policies') customerRebatePolicies(@Param() params: CustomerIdParamDto, @Query() query: CustomerPolicyListQueryDto, @Req() r: AuthenticatedRequest) { return this.customerPolicyService.list(params.customerId, query, r.user); }

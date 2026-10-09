@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../utils/api';
-import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
+import { MinusCircleOutlined, PlusOutlined, DownloadOutlined } from '@ant-design/icons';
+import { downloadExcel } from '../utils/export';
 import { Button, Card, DatePicker, Descriptions, Form, Input, Modal, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
 import type { PermissionActions } from '../utils/permissions';
@@ -144,7 +145,7 @@ export default function ReceivingPanel({ token, customers, perm, onError }: { to
     <Tabs activeKey={tab} onChange={setTab} items={[{ key: 'bank', label: '银行交易' }, { key: 'receive', label: '收款记录' }]} />
     {tab === 'bank' && <>
       <Form form={bankFilterForm} layout="inline" onFinish={filterBank} style={{ marginBottom: 16 }}><Form.Item name="accountId"><Input placeholder="银行账户ID" /></Form.Item><Form.Item name="direction"><Select allowClear placeholder="交易方向" style={{ width: 120 }} options={[{ value: 'INCOME', label: '收入' }, { value: 'EXPENSE', label: '支出' }]} /></Form.Item><Form.Item name="status"><Select allowClear placeholder="交易状态" style={{ width: 150 }} options={Object.entries(bankStatus).map(([value, label]) => ({ value, label }))} /></Form.Item><Form.Item name="counterpartyName"><Input placeholder="对方名称" /></Form.Item><Form.Item name="keyword"><Input placeholder="交易编号/摘要" /></Form.Item><Form.Item name="startDate"><Input placeholder="开始时间ISO" /></Form.Item><Form.Item name="endDate"><Input placeholder="结束时间ISO" /></Form.Item><Form.Item name="minAmount"><Input placeholder="最小金额" /></Form.Item><Form.Item name="maxAmount"><Input placeholder="最大金额" /></Form.Item><Button htmlType="submit" type="primary">查询</Button><Button onClick={() => { bankFilterForm.resetFields(); void refresh('', ''); }}>重置</Button></Form>
-      <Space style={{ marginBottom: 16 }}><Button type="primary" onClick={() => setImportOpen(true)}>导入银行交易</Button><Button onClick={() => setReceiveOpen(true)}>创建收款记录</Button></Space>
+      <Space style={{ marginBottom: 16 }}><Button type="primary" onClick={() => setImportOpen(true)}>导入银行交易</Button><Button onClick={() => setReceiveOpen(true)}>创建收款记录</Button><Button icon={<DownloadOutlined />} onClick={async () => { try { await downloadExcel('/receive-records/export', token, '收款记录.xlsx'); } catch (e: any) { onError(e.message); } }}>导出收款记录</Button></Space>
       <Table rowKey="id" dataSource={banks} pagination={{ pageSize: 20, showSizeChanger: true, pageSizeOptions: [10, 20, 50, 100] }} columns={[
         { title: '交易编号', dataIndex: 'transactionNo' },
         { title: '交易时间', dataIndex: 'occurredAt', render: (value: string) => new Date(value).toLocaleString('zh-CN') },

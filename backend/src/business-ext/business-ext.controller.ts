@@ -1,8 +1,11 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Response } from 'express';
+import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PaymentAccountService } from './payment-account.service';
 import { ServiceFeeConfigService } from './service-fee-config.service';
 import { PolicyChangeRequestService } from './policy-change.service';
 import { ReceiveRefundService } from './receive-refund.service';
+import { ExportService } from '../common/export.service';
 import {
   CreatePaymentAccountDto,
   UpdatePaymentAccountDto,
@@ -16,7 +19,7 @@ import {
 // 打款账户
 @Controller('customer-payment-accounts')
 export class PaymentAccountController {
-  constructor(private readonly service: PaymentAccountService) {}
+  constructor(private readonly service: PaymentAccountService, private readonly exportService: ExportService) {}
 
   @Get()
   findAll(@Query('customerId') customerId?: string) {
@@ -26,6 +29,15 @@ export class PaymentAccountController {
   @Get('match')
   matchByAccountNumber(@Query('accountNumber') accountNumber: string) {
     return this.service.findByAccountNumber(accountNumber);
+  }
+
+  @Get('export')
+  @UseGuards(JwtAuthGuard)
+  async export(@Req() req: any, @Res() res: Response) {
+    const buffer = await this.exportService.exportPaymentAccounts(req.user);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename=customer-payment-accounts.xlsx');
+    res.send(buffer);
   }
 
   @Get(':id')

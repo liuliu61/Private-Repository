@@ -6,7 +6,8 @@ import {
   Card, Table, Button, Tag, Space, Modal, Form, Input,
   message, Descriptions, Row, Col
 } from 'antd';
-import { PlusOutlined, ReloadOutlined, EyeOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, EyeOutlined, DownloadOutlined } from '@ant-design/icons';
+import { downloadExcel } from '../utils/export';
 import type { PermissionActions } from '../utils/permissions';
 
 interface CustomerPanelProps {
@@ -82,6 +83,7 @@ export default function CustomerPanel({ token, perm, onError }: CustomerPanelPro
         extra={
           <Space>
             <Button icon={<ReloadOutlined />} onClick={fetchData}>刷新</Button>
+            <Button icon={<DownloadOutlined />} onClick={async () => { try { await downloadExcel('/customers/export', token, '客户列表.xlsx'); } catch (e: any) { onError(e.message); } }}>导出Excel</Button>
             {canCreate && <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setCreateModalOpen(true); }}>新建客户</Button>}
           </Space>
         }

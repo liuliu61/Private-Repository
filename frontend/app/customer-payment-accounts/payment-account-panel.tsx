@@ -6,7 +6,8 @@ import {
   Card, Table, Button, Tag, Space, Modal, Form, Input, Select,
   Switch, message, Popconfirm,
 } from 'antd';
-import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, DownloadOutlined } from '@ant-design/icons';
+import { downloadExcel } from '../utils/export';
 import type { PermissionActions } from '../utils/permissions';
 
 interface Customer { id: string; name: string; customerCode: string; }
@@ -184,6 +185,9 @@ export default function PaymentAccountPanel({ token, customers, perm, onError }:
           </Select>
           <Button icon={<ReloadOutlined />} onClick={fetchData}>
             刷新
+          </Button>
+          <Button icon={<DownloadOutlined />} onClick={async () => { try { await downloadExcel('/customer-payment-accounts/export', token, '打款账户.xlsx'); } catch (e: any) { onError(e.message); } }}>
+            导出Excel
           </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>
             新增打款账户
