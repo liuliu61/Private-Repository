@@ -48,9 +48,9 @@ export class ServiceFeeReconciliationService {
         status: ReceiveRecordStatus.CONFIRMED,
         receivedAt: start || end ? { gte: start, lt: end } : undefined,
         bankTransaction: {
-          transactionNo: query.transactionNo ? { contains: query.transactionNo.trim(), mode: 'insensitive' } : undefined,
+          transactionNo: query.transactionNo ? { contains: query.transactionNo.trim() } : undefined,
           accountId: query.paymentAccountId,
-          account: query.paymentAccountKeyword ? { OR: [{ name: { contains: query.paymentAccountKeyword.trim(), mode: 'insensitive' } }, { accountCode: { contains: query.paymentAccountKeyword.trim(), mode: 'insensitive' } }] } : undefined,
+          account: query.paymentAccountKeyword ? { OR: [{ name: { contains: query.paymentAccountKeyword.trim() } }, { accountCode: { contains: query.paymentAccountKeyword.trim() } }] } : undefined,
         },
         serviceFeeDetails: query.tab === 'NON_ZERO' ? { some: { amount: { not: new Prisma.Decimal(0) } } } : undefined,
       },

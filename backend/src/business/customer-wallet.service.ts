@@ -41,7 +41,7 @@ export class CustomerWalletService {
         unit: query.unit,
         walletType: query.walletType,
         status: query.status,
-        customer: query.keyword ? { OR: [{ name: { contains: query.keyword, mode: 'insensitive' } }, { customerCode: { contains: query.keyword, mode: 'insensitive' } }] } : undefined,
+        customer: query.keyword ? { OR: [{ name: { contains: query.keyword } }, { customerCode: { contains: query.keyword } }] } : undefined,
       },
       include: { customer: { select: { id: true, name: true, customerCode: true, agentId: true } } },
       orderBy: [{ updatedAt: 'desc' }, { id: 'desc' }],

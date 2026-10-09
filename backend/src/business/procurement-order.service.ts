@@ -146,10 +146,10 @@ export class ProcurementOrderService {
       customerRebateType: query.customerPolicyType,
       supplierRebateType: query.supplierPolicyType,
       inboundAccountId: query.inboundAccountId,
-      inboundAccountName: query.inboundAccountName ? { contains: query.inboundAccountName, mode: 'insensitive' } : undefined,
+      inboundAccountName: query.inboundAccountName ? { contains: query.inboundAccountName } : undefined,
       outboundAccountId: query.outboundAccountId,
-      outboundAccountName: query.outboundAccountName ? { contains: query.outboundAccountName, mode: 'insensitive' } : undefined,
-      remark: query.remark ? { contains: query.remark, mode: 'insensitive' } : undefined,
+      outboundAccountName: query.outboundAccountName ? { contains: query.outboundAccountName } : undefined,
+      remark: query.remark ? { contains: query.remark } : undefined,
       businessTime: startDate || endDate ? { gte: startDate, lte: endDate } : undefined,
     };
     const [items, total] = await this.prisma.$transaction([

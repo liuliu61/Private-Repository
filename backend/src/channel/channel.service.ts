@@ -27,8 +27,8 @@ export class ChannelService {
     if (query.platform) where.platform = query.platform;
     if (query.status) where.status = query.status;
     if (query.keyword) where.OR = [
-      { name: { contains: query.keyword, mode: 'insensitive' } },
-      { code: { contains: query.keyword, mode: 'insensitive' } },
+      { name: { contains: query.keyword } },
+      { code: { contains: query.keyword } },
     ];
     const [items, total] = await Promise.all([
       this.prisma.channel.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),

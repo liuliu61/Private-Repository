@@ -18,7 +18,7 @@ export class PublicInvoiceTaskService {
       createdBy: this.canProcessAllTasks(context) ? undefined : context.sub,
       customerId: query.customerId,
       status: query.status,
-      OR: query.keyword ? [{ taskNo: { contains: query.keyword, mode: 'insensitive' } }, { payerName: { contains: query.keyword, mode: 'insensitive' } }, { payerAccount: { contains: query.keyword, mode: 'insensitive' } }] : undefined,
+      OR: query.keyword ? [{ taskNo: { contains: query.keyword } }, { payerName: { contains: query.keyword } }, { payerAccount: { contains: query.keyword } }] : undefined,
     };
     const [items, total] = await this.prisma.$transaction([
       this.prisma.invoiceTask.findMany({ where, include: this.include(), orderBy: [{ createdAt: 'desc' }, { taskNo: 'desc' }], skip: (query.page - 1) * query.pageSize, take: query.pageSize }),

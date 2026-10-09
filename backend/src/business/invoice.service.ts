@@ -367,7 +367,7 @@ export class InvoiceService {
   }
 
   private invoiceWhere(query: InvoiceQueryDto, organizationIds?: string[]): Prisma.InvoiceWhereInput {
-    return { organizationId: organizationIds ? { in: organizationIds } : undefined, customerId: query.customerId, accountId: query.accountId, status: query.status, invoiceNo: query.invoiceNo, invoiceNumber: query.invoiceNumber, businessNo: query.businessNo, OR: query.keyword ? [{ invoiceNo: { contains: query.keyword, mode: 'insensitive' } }, { invoiceNumber: { contains: query.keyword, mode: 'insensitive' } }, { businessNo: { contains: query.keyword, mode: 'insensitive' } }, { invoiceTitle: { contains: query.keyword, mode: 'insensitive' } }] : undefined, createdAt: { gte: query.startDate ? new Date(query.startDate) : undefined, lt: query.endDate ? new Date(query.endDate) : undefined } };
+    return { organizationId: organizationIds ? { in: organizationIds } : undefined, customerId: query.customerId, accountId: query.accountId, status: query.status, invoiceNo: query.invoiceNo, invoiceNumber: query.invoiceNumber, businessNo: query.businessNo, OR: query.keyword ? [{ invoiceNo: { contains: query.keyword } }, { invoiceNumber: { contains: query.keyword } }, { businessNo: { contains: query.keyword } }, { invoiceTitle: { contains: query.keyword } }] : undefined, createdAt: { gte: query.startDate ? new Date(query.startDate) : undefined, lt: query.endDate ? new Date(query.endDate) : undefined } };
   }
 
   private async resolveSource(tx: Prisma.TransactionClient, dto: CreateInvoiceDto, context: AccessContext) {

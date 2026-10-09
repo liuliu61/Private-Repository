@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -314,13 +314,13 @@ enum InvoiceTaskStatus {
 }
 
 model User {
-  id           String       @id @default(uuid()) @db.Uuid
+  id           String       @id @default(uuid()) @db.VarChar(36)
   username     String       @unique @db.VarChar(50)
   passwordHash String       @map("password_hash") @db.VarChar(255)
   displayName  String       @map("display_name") @db.VarChar(100)
   phone        String?      @db.VarChar(20)
   email        String?      @db.VarChar(100)
-  departmentId String?      @map("department_id") @db.Uuid
+  departmentId String?      @map("department_id") @db.VarChar(36)
   status       UserStatus   @default(ACTIVE)
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
@@ -381,7 +381,7 @@ model User {
 }
 
 model Role {
-  id          String           @id @default(uuid()) @db.Uuid
+  id          String           @id @default(uuid()) @db.VarChar(36)
   code        String           @unique @db.VarChar(50)
   name        String           @db.VarChar(100)
   description String?          @db.VarChar(255)
@@ -394,12 +394,12 @@ model Role {
 }
 
 model Permission {
-  id          String           @id @default(uuid()) @db.Uuid
+  id          String           @id @default(uuid()) @db.VarChar(36)
   code        String           @unique @db.VarChar(100)
   name        String           @db.VarChar(100)
   menuCode    String?          @map("menu_code") @db.VarChar(50)
   actionType  String           @default("VIEW") @map("action_type") @db.VarChar(20)
-  parentId    String?          @map("parent_id") @db.Uuid
+  parentId    String?          @map("parent_id") @db.VarChar(36)
   sort        Int              @default(0)
   description String?          @db.VarChar(255)
   createdAt   DateTime         @default(now()) @map("created_at")
@@ -411,8 +411,8 @@ model Permission {
 }
 
 model UserRole {
-  userId String @map("user_id") @db.Uuid
-  roleId String @map("role_id") @db.Uuid
+  userId String @map("user_id") @db.VarChar(36)
+  roleId String @map("role_id") @db.VarChar(36)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   role   Role   @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
@@ -421,8 +421,8 @@ model UserRole {
 }
 
 model RolePermission {
-  roleId       String     @map("role_id") @db.Uuid
-  permissionId String     @map("permission_id") @db.Uuid
+  roleId       String     @map("role_id") @db.VarChar(36)
+  permissionId String     @map("permission_id") @db.VarChar(36)
   role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
   permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
@@ -431,7 +431,7 @@ model RolePermission {
 }
 
 model Account {
-  id              String               @id @default(uuid()) @db.Uuid
+  id              String               @id @default(uuid()) @db.VarChar(36)
   name            String               @db.VarChar(100)
   accountCode     String               @unique @map("account_code") @db.VarChar(50)
   accountType     AccountType          @map("account_type")
@@ -448,7 +448,7 @@ model Account {
   rebateRecords   RebateRecord[]
   reconciliations Reconciliation[]
   invoices        Invoice[]
-  organizationId  String?              @map("organization_id") @db.Uuid
+  organizationId  String?              @map("organization_id") @db.VarChar(36)
   organization    Organization?        @relation(fields: [organizationId], references: [id])
   purchaseOrders  PurchaseOrder[]      @relation("PurchaseOrderCashAccount")
   financialAdjustments FinancialAdjustment[]
@@ -465,12 +465,12 @@ model Account {
 
 model Voucher {
   // 历史兼容模型，当前阶段不参与资金流水业务。
-  id          String        @id @default(uuid()) @db.Uuid
+  id          String        @id @default(uuid()) @db.VarChar(36)
   voucherNo   String        @unique @map("voucher_no") @db.VarChar(50)
   voucherDate DateTime      @map("voucher_date") @db.Date
   summary     String        @db.VarChar(255)
   status      VoucherStatus @default(DRAFT)
-  createdBy   String        @map("created_by") @db.Uuid
+  createdBy   String        @map("created_by") @db.VarChar(36)
   createdAt   DateTime      @default(now()) @map("created_at")
   updatedAt   DateTime      @updatedAt @map("updated_at")
   creator     User          @relation("VoucherCreator", fields: [createdBy], references: [id])
@@ -484,9 +484,9 @@ model Voucher {
 
 model VoucherEntry {
   // 历史兼容模型，当前阶段不参与资金流水业务。
-  id           String   @id @default(uuid()) @db.Uuid
-  voucherId    String   @map("voucher_id") @db.Uuid
-  accountId    String   @map("account_id") @db.Uuid
+  id           String   @id @default(uuid()) @db.VarChar(36)
+  voucherId    String   @map("voucher_id") @db.VarChar(36)
+  accountId    String   @map("account_id") @db.VarChar(36)
   debitAmount  Decimal  @default(0) @map("debit_amount") @db.Decimal(20, 2)
   creditAmount Decimal  @default(0) @map("credit_amount") @db.Decimal(20, 2)
   summary      String?  @db.VarChar(255)
@@ -500,28 +500,28 @@ model VoucherEntry {
 }
 
 model Transaction {
-  id              String                @id @default(uuid()) @db.Uuid
+  id              String                @id @default(uuid()) @db.VarChar(36)
   transactionNo   String                @unique @map("transaction_no") @db.VarChar(50)
-  accountId       String?               @map("account_id") @db.Uuid
-  supplierAccountId String?             @map("supplier_account_id") @db.Uuid
+  accountId       String?               @map("account_id") @db.VarChar(36)
+  supplierAccountId String?             @map("supplier_account_id") @db.VarChar(36)
   businessType    TransactionBusinessType @map("business_type")
   businessNo      String                @map("business_no") @db.VarChar(100)
   changeAmount    Decimal               @map("change_amount") @db.Decimal(20, 2)
   balanceBefore   Decimal               @map("balance_before") @db.Decimal(20, 2)
   balanceAfter    Decimal               @map("balance_after") @db.Decimal(20, 2)
   occurredAt      DateTime              @default(now()) @map("occurred_at")
-  operatorId      String                @map("operator_id") @db.Uuid
+  operatorId      String                @map("operator_id") @db.VarChar(36)
   remark          String?               @db.VarChar(255)
   account         Account?              @relation(fields: [accountId], references: [id])
   supplierAccount SupplierAccount?      @relation(fields: [supplierAccountId], references: [id])
   operator        User                  @relation("TransactionOperator", fields: [operatorId], references: [id])
   // 历史兼容字段，新的资金流水不关联凭证。
-  voucherId       String?               @map("voucher_id") @db.Uuid
+  voucherId       String?               @map("voucher_id") @db.VarChar(36)
   voucher         Voucher?              @relation(fields: [voucherId], references: [id])
   // 历史兼容字段，新的资金流水使用 changeAmount。
   legacyAmount    Decimal?              @map("amount") @db.Decimal(20, 2)
   legacyType      TransactionType?      @map("transaction_type")
-  adjustmentId String? @unique @map("adjustment_id") @db.Uuid
+  adjustmentId String? @unique @map("adjustment_id") @db.VarChar(36)
   financialAdjustment FinancialAdjustment? @relation("FinancialAdjustmentTransaction", fields: [adjustmentId], references: [id])
   receiveRecord ReceiveRecord? @relation("ReceiveRecordTransaction")
   paymentApply PaymentPostingApply? @relation("PaymentApplyTransaction")
@@ -536,14 +536,14 @@ model Transaction {
 }
 
 model Customer {
-  id           String         @id @default(uuid()) @db.Uuid
+  id           String         @id @default(uuid()) @db.VarChar(36)
   customerCode String         @unique @map("customer_code") @db.VarChar(50)
   name         String         @db.VarChar(100)
   fullName     String?        @map("full_name") @db.VarChar(100)
   contact      String?        @db.VarChar(100)
   phone        String?        @db.VarChar(50)
-  departmentId String?        @map("department_id") @db.Uuid
-  agentId      String?        @map("agent_id") @db.Uuid
+  departmentId String?        @map("department_id") @db.VarChar(36)
+  agentId      String?        @map("agent_id") @db.VarChar(36)
   status       CustomerStatus @default(ACTIVE)
   remark       String?        @db.VarChar(255)
   createdAt    DateTime       @default(now()) @map("created_at")
@@ -580,7 +580,7 @@ model Customer {
 }
 
 model RebateRule {
-  id            String          @id @default(uuid()) @db.Uuid
+  id            String          @id @default(uuid()) @db.VarChar(36)
   name          String          @db.VarChar(100)
   version       Int             @default(1)
   ruleType      RebateRuleType  @map("rule_type")
@@ -601,13 +601,13 @@ model RebateRule {
 }
 
 model CustomerRebatePolicy {
-  id String @id @default(uuid()) @db.Uuid
+  id String @id @default(uuid()) @db.VarChar(36)
   name String @db.VarChar(100)
-  customerId String? @map("customer_id") @db.Uuid
-  adSubjectId String? @map("ad_subject_id") @db.Uuid
-  adAccountId String? @map("ad_account_id") @db.Uuid
+  customerId String? @map("customer_id") @db.VarChar(36)
+  adSubjectId String? @map("ad_subject_id") @db.VarChar(36)
+  adAccountId String? @map("ad_account_id") @db.VarChar(36)
   status RebateRuleStatus @default(ACTIVE)
-  createdBy String? @map("created_by") @db.Uuid
+  createdBy String? @map("created_by") @db.VarChar(36)
   remark String? @db.VarChar(255)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -625,8 +625,8 @@ model CustomerRebatePolicy {
 }
 
 model CustomerRebatePolicyVersion {
-  id String @id @default(uuid()) @db.Uuid
-  policyId String @map("policy_id") @db.Uuid
+  id String @id @default(uuid()) @db.VarChar(36)
+  policyId String @map("policy_id") @db.VarChar(36)
   version Int
   rebateType RebateRuleType @map("rebate_type")
   rate Decimal @db.Decimal(10, 4)
@@ -634,7 +634,7 @@ model CustomerRebatePolicyVersion {
   effectiveFrom DateTime @map("effective_from")
   effectiveTo DateTime? @map("effective_to")
   status RebateRuleStatus @default(ACTIVE)
-  createdBy String? @map("created_by") @db.Uuid
+  createdBy String? @map("created_by") @db.VarChar(36)
   remark String? @db.VarChar(255)
   createdAt DateTime @default(now()) @map("created_at")
   policy CustomerRebatePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
@@ -646,15 +646,15 @@ model CustomerRebatePolicyVersion {
 }
 
 model SupplierRebatePolicy {
-  id String @id @default(uuid()) @db.Uuid
+  id String @id @default(uuid()) @db.VarChar(36)
   name String @db.VarChar(100)
-  supplierId String? @map("supplier_id") @db.Uuid
+  supplierId String? @map("supplier_id") @db.VarChar(36)
   platform SupplierPlatform?
-  adSubjectId String? @map("ad_subject_id") @db.Uuid
-  adAccountId String? @map("ad_account_id") @db.Uuid
+  adSubjectId String? @map("ad_subject_id") @db.VarChar(36)
+  adAccountId String? @map("ad_account_id") @db.VarChar(36)
   status RebateRuleStatus @default(ACTIVE)
-  createdBy String? @map("created_by") @db.Uuid
-  updatedBy String? @map("updated_by") @db.Uuid
+  createdBy String? @map("created_by") @db.VarChar(36)
+  updatedBy String? @map("updated_by") @db.VarChar(36)
   remark String? @db.VarChar(255)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -672,8 +672,8 @@ model SupplierRebatePolicy {
 }
 
 model SupplierRebatePolicyVersion {
-  id String @id @default(uuid()) @db.Uuid
-  policyId String @map("policy_id") @db.Uuid
+  id String @id @default(uuid()) @db.VarChar(36)
+  policyId String @map("policy_id") @db.VarChar(36)
   version Int
   rebateType RebateRuleType @map("rebate_type")
   rate Decimal @db.Decimal(10, 4)
@@ -682,7 +682,7 @@ model SupplierRebatePolicyVersion {
   effectiveFrom DateTime @map("effective_from")
   effectiveTo DateTime? @map("effective_to")
   status RebateRuleStatus @default(ACTIVE)
-  createdBy String? @map("created_by") @db.Uuid
+  createdBy String? @map("created_by") @db.VarChar(36)
   remark String? @db.VarChar(255)
   createdAt DateTime @default(now()) @map("created_at")
   policy SupplierRebatePolicy @relation(fields: [policyId], references: [id], onDelete: Cascade)
@@ -694,10 +694,10 @@ model SupplierRebatePolicyVersion {
 }
 
 model RebateRecord {
-  id              String                @id @default(uuid()) @db.Uuid
-  customerId      String                @map("customer_id") @db.Uuid
-  rebateRuleId    String                @map("rebate_rule_id") @db.Uuid
-  accountId       String?               @map("account_id") @db.Uuid
+  id              String                @id @default(uuid()) @db.VarChar(36)
+  customerId      String                @map("customer_id") @db.VarChar(36)
+  rebateRuleId    String                @map("rebate_rule_id") @db.VarChar(36)
+  accountId       String?               @map("account_id") @db.VarChar(36)
   sourceAmount    Decimal               @map("source_amount") @db.Decimal(20, 2)
   rebateRate      Decimal               @map("rebate_rate") @db.Decimal(10, 4)
   paymentAmount   Decimal               @map("payment_amount") @db.Decimal(20, 2)
@@ -707,9 +707,9 @@ model RebateRecord {
   status          RebateRecordStatus    @default(CALCULATING)
   sourceDocumentNo String?              @map("source_document_no") @db.VarChar(100)
   createdAt       DateTime              @default(now()) @map("created_at")
-  createdBy       String                @map("created_by") @db.Uuid
+  createdBy       String                @map("created_by") @db.VarChar(36)
   confirmedAt     DateTime?             @map("confirmed_at")
-  confirmedBy     String?               @map("confirmed_by") @db.Uuid
+  confirmedBy     String?               @map("confirmed_by") @db.VarChar(36)
   customer        Customer              @relation(fields: [customerId], references: [id])
   rebateRule      RebateRule            @relation(fields: [rebateRuleId], references: [id])
   account         Account?              @relation(fields: [accountId], references: [id])
@@ -724,11 +724,11 @@ model RebateRecord {
 }
 
 model Organization {
-  id String @id @default(uuid()) @db.Uuid
+  id String @id @default(uuid()) @db.VarChar(36)
   code String @unique @db.VarChar(50)
   name String @db.VarChar(100)
   type OrganizationType
-  parentId String? @map("parent_id") @db.Uuid
+  parentId String? @map("parent_id") @db.VarChar(36)
   status OrganizationStatus @default(ACTIVE)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -764,10 +764,10 @@ model Organization {
 }
 
 model SourcingSetting {
-  id                String       @id @default(uuid()) @db.Uuid
-  organizationId    String       @unique @map("organization_id") @db.Uuid
+  id                String       @id @default(uuid()) @db.VarChar(36)
+  organizationId    String       @unique @map("organization_id") @db.VarChar(36)
   useCustomerWallet Boolean      @default(false) @map("use_customer_wallet")
-  updatedBy         String?      @map("updated_by") @db.Uuid
+  updatedBy         String?      @map("updated_by") @db.VarChar(36)
   createdAt         DateTime     @default(now()) @map("created_at")
   updatedAt         DateTime     @updatedAt @map("updated_at")
   organization      Organization @relation(fields: [organizationId], references: [id])
@@ -776,8 +776,8 @@ model SourcingSetting {
 }
 
 model UserOrganization {
-  userId String @map("user_id") @db.Uuid
-  organizationId String @map("organization_id") @db.Uuid
+  userId String @map("user_id") @db.VarChar(36)
+  organizationId String @map("organization_id") @db.VarChar(36)
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   @@id([userId, organizationId])
@@ -785,10 +785,10 @@ model UserOrganization {
 }
 
 model Reconciliation {
-  id String @id @default(uuid()) @db.Uuid
-  organizationId String? @map("organization_id") @db.Uuid
-  accountId String? @map("account_id") @db.Uuid
-  promotionAccountId String? @map("promotion_account_id") @db.Uuid
+  id String @id @default(uuid()) @db.VarChar(36)
+  organizationId String? @map("organization_id") @db.VarChar(36)
+  accountId String? @map("account_id") @db.VarChar(36)
+  promotionAccountId String? @map("promotion_account_id") @db.VarChar(36)
   periodStart DateTime @map("period_start")
   periodEnd DateTime @map("period_end")
   openingBalance Decimal @map("opening_balance") @db.Decimal(20, 2)
@@ -809,10 +809,10 @@ model Reconciliation {
   profitAnomalyCount Int @default(0) @map("profit_anomaly_count")
   profitAnomalies Json? @map("profit_anomalies")
   status ReconciliationStatus @default(DRAFT)
-  createdBy String @map("created_by") @db.Uuid
-  confirmedBy String? @map("confirmed_by") @db.Uuid
+  createdBy String @map("created_by") @db.VarChar(36)
+  confirmedBy String? @map("confirmed_by") @db.VarChar(36)
   confirmedAt DateTime? @map("confirmed_at")
-  completedBy String? @map("completed_by") @db.Uuid
+  completedBy String? @map("completed_by") @db.VarChar(36)
   completedAt DateTime? @map("completed_at")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -830,8 +830,8 @@ model Reconciliation {
 }
 
 model Channel {
-  id                       String   @id @default(uuid()) @db.Uuid
-  organizationId           String   @map("organization_id") @db.Uuid
+  id                       String   @id @default(uuid()) @db.VarChar(36)
+  organizationId           String   @map("organization_id") @db.VarChar(36)
   name                     String   @db.VarChar(100)
   code                     String?  @db.VarChar(50)
   platform                 String?  @db.VarChar(50)
@@ -853,12 +853,12 @@ enum ChannelStatus {
 }
 
 model Supplier {
-  id String @id @default(uuid()) @db.Uuid
+  id String @id @default(uuid()) @db.VarChar(36)
   name String @db.VarChar(100)
   platform SupplierPlatform
   contactName String? @map("contact_name") @db.VarChar(100)
   contactPhone String? @map("contact_phone") @db.VarChar(50)
-  organizationId String? @map("organization_id") @db.Uuid
+  organizationId String? @map("organization_id") @db.VarChar(36)
   status AdAssetStatus @default(ACTIVE)
   remark String? @db.VarChar(255)
   createdAt DateTime @default(now()) @map("created_at")
@@ -874,8 +874,8 @@ model Supplier {
 }
 
 model SupplierAccount {
-  id              String             @id @default(uuid()) @db.Uuid
-  supplierId      String             @map("supplier_id") @db.Uuid
+  id              String             @id @default(uuid()) @db.VarChar(36)
+  supplierId      String             @map("supplier_id") @db.VarChar(36)
   accountName     String             @map("account_name") @db.VarChar(100)
   accountType     SupplierAccountType @map("account_type")
   currency        AccountUnit       @default(CNY)
@@ -893,12 +893,12 @@ model SupplierAccount {
 }
 
 model PromotionAccount {
-  id              String                    @id @default(uuid()) @db.Uuid
-  organizationId  String                    @map("organization_id") @db.Uuid
+  id              String                    @id @default(uuid()) @db.VarChar(36)
+  organizationId  String                    @map("organization_id") @db.VarChar(36)
   ownerType       PromotionAccountOwnerType @map("owner_type")
-  ownerId         String                    @map("owner_id") @db.Uuid
-  customerId      String?                   @map("customer_id") @db.Uuid
-  supplierId      String?                   @map("supplier_id") @db.Uuid
+  ownerId         String                    @map("owner_id") @db.VarChar(36)
+  customerId      String?                   @map("customer_id") @db.VarChar(36)
+  supplierId      String?                   @map("supplier_id") @db.VarChar(36)
   accountName     String                    @map("account_name") @db.VarChar(100)
   platform        String?                   @map("platform") @db.VarChar(50)
   platformAccountId String?                 @map("platform_account_id") @db.VarChar(100)
@@ -926,9 +926,9 @@ model PromotionAccount {
 }
 
 model PromotionTransaction {
-  id                 String                            @id @default(uuid()) @db.Uuid
+  id                 String                            @id @default(uuid()) @db.VarChar(36)
   transactionNo      String                            @unique @map("transaction_no") @db.VarChar(50)
-  promotionAccountId String                            @map("promotion_account_id") @db.Uuid
+  promotionAccountId String                            @map("promotion_account_id") @db.VarChar(36)
   unit               PromotionAccountUnit              @default(ACCOUNT_CREDIT)
   businessType       PromotionTransactionBusinessType  @map("business_type")
   businessNo         String                            @map("business_no") @db.VarChar(100)
@@ -936,8 +936,8 @@ model PromotionTransaction {
   balanceBefore      Decimal                           @map("balance_before") @db.Decimal(20, 2)
   balanceAfter       Decimal                           @map("balance_after") @db.Decimal(20, 2)
   occurredAt         DateTime                          @default(now()) @map("occurred_at")
-  operatorId         String                            @map("operator_id") @db.Uuid
-  adjustmentId       String?                           @unique @map("adjustment_id") @db.Uuid
+  operatorId         String                            @map("operator_id") @db.VarChar(36)
+  adjustmentId       String?                           @unique @map("adjustment_id") @db.VarChar(36)
   remark             String?                           @db.VarChar(255)
   customerRebate     Decimal?                          @map("customer_rebate") @db.Decimal(5, 2)
   costRebate         Decimal?                          @map("cost_rebate") @db.Decimal(5, 2)
@@ -959,19 +959,19 @@ model PromotionTransaction {
 }
 
 model FinancialAdjustment {
-  id String @id @default(uuid()) @db.Uuid
+  id String @id @default(uuid()) @db.VarChar(36)
   adjustmentNo String @unique @map("adjustment_no") @db.VarChar(50)
-  organizationId String @map("organization_id") @db.Uuid
-  accountId String? @map("account_id") @db.Uuid
-  promotionAccountId String? @map("promotion_account_id") @db.Uuid
+  organizationId String @map("organization_id") @db.VarChar(36)
+  accountId String? @map("account_id") @db.VarChar(36)
+  promotionAccountId String? @map("promotion_account_id") @db.VarChar(36)
   accountType AccountUnit @map("account_type")
   type FinancialAdjustmentType
   amount Decimal @db.Decimal(20, 2)
   reason String @db.VarChar(255)
   status FinancialAdjustmentStatus @default(DRAFT)
-  createdBy String @map("created_by") @db.Uuid
-  approvedBy String? @map("approved_by") @db.Uuid
-  executedBy String? @map("executed_by") @db.Uuid
+  createdBy String @map("created_by") @db.VarChar(36)
+  approvedBy String? @map("approved_by") @db.VarChar(36)
+  executedBy String? @map("executed_by") @db.VarChar(36)
   approvedAt DateTime? @map("approved_at")
   executedAt DateTime? @map("executed_at")
   createdAt DateTime @default(now()) @map("created_at")
@@ -991,9 +991,9 @@ model FinancialAdjustment {
 }
 
 model CustomerWallet {
-  id                 String        @id @default(uuid()) @db.Uuid
-  customerId         String        @map("customer_id") @db.Uuid
-  organizationId     String        @map("organization_id") @db.Uuid
+  id                 String        @id @default(uuid()) @db.VarChar(36)
+  customerId         String        @map("customer_id") @db.VarChar(36)
+  organizationId     String        @map("organization_id") @db.VarChar(36)
   walletName         String        @map("wallet_name") @db.VarChar(100)
   walletType         CustomerWalletType @default(FINANCE_V) @map("wallet_type")
   unit               AccountUnit   @default(ACCOUNT_CREDIT)
@@ -1018,16 +1018,16 @@ model CustomerWallet {
 }
 
 model CustomerWalletTransaction {
-  id             String                        @id @default(uuid()) @db.Uuid
+  id             String                        @id @default(uuid()) @db.VarChar(36)
   transactionNo  String                        @unique @map("transaction_no") @db.VarChar(60)
-  walletId       String                        @map("wallet_id") @db.Uuid
+  walletId       String                        @map("wallet_id") @db.VarChar(36)
   unit           AccountUnit                   @default(ACCOUNT_CREDIT)
   businessType   CustomerWalletTransactionType @map("business_type")
   businessNo     String?                       @map("business_no") @db.VarChar(100)
   changeAmount   Decimal                       @map("change_amount") @db.Decimal(20, 2)
   balanceBefore  Decimal                       @map("balance_before") @db.Decimal(20, 2)
   balanceAfter   Decimal                       @map("balance_after") @db.Decimal(20, 2)
-  operatorId     String                        @map("operator_id") @db.Uuid
+  operatorId     String                        @map("operator_id") @db.VarChar(36)
   occurredAt     DateTime                      @default(now()) @map("occurred_at")
   remark         String?                       @db.VarChar(255)
   idempotencyKey String?                       @unique @map("idempotency_key") @db.VarChar(100)
@@ -1042,10 +1042,10 @@ model CustomerWalletTransaction {
 }
 
 model BankTransaction {
-  id                    String                   @id @default(uuid()) @db.Uuid
+  id                    String                   @id @default(uuid()) @db.VarChar(36)
   transactionNo         String                   @unique @map("transaction_no") @db.VarChar(60)
-  organizationId        String                   @map("organization_id") @db.Uuid
-  accountId             String                   @map("account_id") @db.Uuid
+  organizationId        String                   @map("organization_id") @db.VarChar(36)
+  accountId             String                   @map("account_id") @db.VarChar(36)
   occurredAt            DateTime                 @map("occurred_at")
   bookedAt              DateTime?                @map("booked_at")
   direction             BankTransactionDirection
@@ -1058,9 +1058,9 @@ model BankTransaction {
   source                String                   @db.VarChar(50)
   externalTransactionId String?                  @map("external_transaction_id") @db.VarChar(150)
   status                BankTransactionStatus    @default(UNPROCESSED)
-  matchedCustomerId     String?                  @map("matched_customer_id") @db.Uuid
-  matchedPurchaseOrderId String?                 @map("matched_purchase_order_id") @db.Uuid
-  createdBy             String                   @map("created_by") @db.Uuid
+  matchedCustomerId     String?                  @map("matched_customer_id") @db.VarChar(36)
+  matchedPurchaseOrderId String?                 @map("matched_purchase_order_id") @db.VarChar(36)
+  createdBy             String                   @map("created_by") @db.VarChar(36)
   createdAt             DateTime                 @default(now()) @map("created_at")
   updatedAt             DateTime                 @updatedAt @map("updated_at")
   organization          Organization             @relation(fields: [organizationId], references: [id])
@@ -1079,13 +1079,13 @@ model BankTransaction {
 }
 
 model ReceiveRecord {
-  id                String             @id @default(uuid()) @db.Uuid
+  id                String             @id @default(uuid()) @db.VarChar(36)
   receiveNo         String             @unique @map("receive_no") @db.VarChar(60)
-  organizationId    String             @map("organization_id") @db.Uuid
-  customerId        String?            @map("customer_id") @db.Uuid
-  purchaseOrderId   String?            @map("purchase_order_id") @db.Uuid
-  accountId         String             @map("account_id") @db.Uuid
-  bankTransactionId String             @unique @map("bank_transaction_id") @db.Uuid
+  organizationId    String             @map("organization_id") @db.VarChar(36)
+  customerId        String?            @map("customer_id") @db.VarChar(36)
+  purchaseOrderId   String?            @map("purchase_order_id") @db.VarChar(36)
+  accountId         String             @map("account_id") @db.VarChar(36)
+  bankTransactionId String             @unique @map("bank_transaction_id") @db.VarChar(36)
   amount            Decimal            @db.Decimal(20, 2)
   postedAmount      Decimal            @default(0) @map("posted_amount") @db.Decimal(20, 2)
   refundedAmount    Decimal            @default(0) @map("refunded_amount") @db.Decimal(20, 2)
@@ -1099,9 +1099,9 @@ model ReceiveRecord {
   currency          String             @default("CNY") @db.Char(3)
   receivedAt        DateTime           @map("received_at")
   status            ReceiveRecordStatus @default(PENDING_MATCH)
-  transactionId     String?            @unique @map("transaction_id") @db.Uuid
-  createdBy         String             @map("created_by") @db.Uuid
-  confirmedBy       String?            @map("confirmed_by") @db.Uuid
+  transactionId     String?            @unique @map("transaction_id") @db.VarChar(36)
+  createdBy         String             @map("created_by") @db.VarChar(36)
+  confirmedBy       String?            @map("confirmed_by") @db.VarChar(36)
   confirmedAt       DateTime?          @map("confirmed_at")
   remark            String?            @db.VarChar(255)
   createdAt         DateTime            @default(now()) @map("created_at")
@@ -1132,18 +1132,18 @@ model ReceiveRecord {
 }
 
 model ReceivePosting {
-  id                 String              @id @default(uuid()) @db.Uuid
+  id                 String              @id @default(uuid()) @db.VarChar(36)
   postingNo          String              @unique @map("posting_no") @db.VarChar(60)
-  organizationId     String              @map("organization_id") @db.Uuid
-  receiveRecordId    String              @map("receive_record_id") @db.Uuid
-  customerId         String              @db.Uuid
+  organizationId     String              @map("organization_id") @db.VarChar(36)
+  receiveRecordId    String              @map("receive_record_id") @db.VarChar(36)
+  customerId         String              @db.VarChar(36)
   paymentAmount      Decimal             @map("payment_amount") @db.Decimal(20, 2)
   refundAmount       Decimal             @default(0) @map("refund_amount") @db.Decimal(20, 2)
   serviceFeeAmount   Decimal             @default(0) @map("service_fee_amount") @db.Decimal(20, 2)
   walletCreditAmount Decimal             @map("wallet_credit_amount") @db.Decimal(20, 2)
   invoiceEligibleAmount Decimal          @map("invoice_eligible_amount") @db.Decimal(20, 2)
   status             ReceivePostingStatus @default(POSTED)
-  createdBy          String              @map("created_by") @db.Uuid
+  createdBy          String              @map("created_by") @db.VarChar(36)
   createdAt          DateTime            @default(now()) @map("created_at")
   remark             String?             @db.VarChar(255)
   organization       Organization        @relation(fields: [organizationId], references: [id])
@@ -1157,9 +1157,9 @@ model ReceivePosting {
 }
 
 model ReceiveRecordDetail {
-  id              String               @id @default(uuid()) @db.Uuid
-  receiveRecordId String               @map("receive_record_id") @db.Uuid
-  customerId      String               @map("customer_id") @db.Uuid
+  id              String               @id @default(uuid()) @db.VarChar(36)
+  receiveRecordId String               @map("receive_record_id") @db.VarChar(36)
+  customerId      String               @map("customer_id") @db.VarChar(36)
   type            ReceivePaymentNature
   amount          Decimal              @db.Decimal(20, 2)
   createdAt       DateTime             @default(now()) @map("created_at")
@@ -1174,8 +1174,8 @@ model ReceiveRecordDetail {
 }
 
 model CustomerInvoiceProfile {
-  id                    String        @id @default(uuid()) @db.Uuid
-  customerId            String        @map("customer_id") @db.Uuid
+  id                    String        @id @default(uuid()) @db.VarChar(36)
+  customerId            String        @map("customer_id") @db.VarChar(36)
   titleName             String        @map("title_name") @db.VarChar(150)
   taxpayerCode          String?       @map("taxpayer_code") @db.VarChar(100)
   address               String?       @db.VarChar(255)
@@ -1196,12 +1196,12 @@ model CustomerInvoiceProfile {
 }
 
 model InvoiceTask {
-  id                    String              @id @default(uuid()) @db.Uuid
+  id                    String              @id @default(uuid()) @db.VarChar(36)
   taskNo                String              @unique @map("task_no") @db.VarChar(60)
-  organizationId        String              @map("organization_id") @db.Uuid
-  customerId            String              @map("customer_id") @db.Uuid
-  receiveRecordDetailId String              @unique @map("receive_record_detail_id") @db.Uuid
-  invoiceProfileId      String?             @map("invoice_profile_id") @db.Uuid
+  organizationId        String              @map("organization_id") @db.VarChar(36)
+  customerId            String              @map("customer_id") @db.VarChar(36)
+  receiveRecordDetailId String              @unique @map("receive_record_detail_id") @db.VarChar(36)
+  invoiceProfileId      String?             @map("invoice_profile_id") @db.VarChar(36)
   publicAmount          Decimal             @map("public_amount") @db.Decimal(20, 2)
   invoiceAmount         Decimal             @map("invoice_amount") @db.Decimal(20, 2)
   payerName             String?             @map("payer_name") @db.VarChar(120)
@@ -1215,13 +1215,13 @@ model InvoiceTask {
   invoiceContent        String?             @map("invoice_content") @db.VarChar(255)
   remark                String?             @db.VarChar(255)
   status                InvoiceTaskStatus   @default(PENDING)
-  createdBy             String              @map("created_by") @db.Uuid
+  createdBy             String              @map("created_by") @db.VarChar(36)
   submittedAt           DateTime?           @map("submitted_at")
-  reviewedBy            String?             @map("reviewed_by") @db.Uuid
+  reviewedBy            String?             @map("reviewed_by") @db.VarChar(36)
   reviewedAt            DateTime?           @map("reviewed_at")
   approvalRemark        String?             @map("approval_remark") @db.VarChar(255)
   rejectReason          String?             @map("reject_reason") @db.VarChar(255)
-  completedBy           String?             @map("completed_by") @db.Uuid
+  completedBy           String?             @map("completed_by") @db.VarChar(36)
   completedAt           DateTime?           @map("completed_at")
   createdAt             DateTime            @default(now()) @map("created_at")
   updatedAt             DateTime            @updatedAt @map("updated_at")
@@ -1240,12 +1240,12 @@ model InvoiceTask {
 }
 
 model ReceiveServiceFee {
-  id             String        @id @default(uuid()) @db.Uuid
-  receiveRecordId String       @map("receive_record_id") @db.Uuid
+  id             String        @id @default(uuid()) @db.VarChar(36)
+  receiveRecordId String       @map("receive_record_id") @db.VarChar(36)
   businessType   String        @map("business_type") @db.VarChar(50)
   amount         Decimal       @db.Decimal(20, 2)
   remark         String?       @db.VarChar(255)
-  operatorId     String        @map("operator_id") @db.Uuid
+  operatorId     String        @map("operator_id") @db.VarChar(36)
   createdAt      DateTime      @default(now()) @map("created_at")
   receiveRecord  ReceiveRecord @relation(fields: [receiveRecordId], references: [id])
   operator       User          @relation("ReceiveServiceFeeOperator", fields: [operatorId], references: [id])
@@ -1255,14 +1255,14 @@ model ReceiveServiceFee {
 }
 
 model Invoice {
-  id               String         @id @default(uuid()) @db.Uuid
+  id               String         @id @default(uuid()) @db.VarChar(36)
   invoiceNo        String         @unique @map("invoice_no") @db.VarChar(60)
   invoiceNumber    String?        @unique @map("invoice_number") @db.VarChar(100)
-  organizationId   String         @map("organization_id") @db.Uuid
-  customerId       String         @map("customer_id") @db.Uuid
-  purchaseOrderId  String?        @map("purchase_order_id") @db.Uuid
-  receiveRecordId  String?        @map("receive_record_id") @db.Uuid
-  accountId        String?        @map("account_id") @db.Uuid
+  organizationId   String         @map("organization_id") @db.VarChar(36)
+  customerId       String         @map("customer_id") @db.VarChar(36)
+  purchaseOrderId  String?        @map("purchase_order_id") @db.VarChar(36)
+  receiveRecordId  String?        @map("receive_record_id") @db.VarChar(36)
+  accountId        String?        @map("account_id") @db.VarChar(36)
   businessNo       String?        @map("business_no") @db.VarChar(100)
   amount           Decimal        @db.Decimal(20, 2)
   currency         String         @default("CNY") @db.Char(3)
@@ -1278,16 +1278,16 @@ model Invoice {
   recipientEmail   String?        @map("recipient_email") @db.VarChar(150)
   status           InvoiceStatus  @default(DRAFT)
   clientRequestId  String?        @unique @map("client_request_id") @db.VarChar(100)
-  createdBy        String         @map("created_by") @db.Uuid
+  createdBy        String         @map("created_by") @db.VarChar(36)
   submittedAt      DateTime?      @map("submitted_at")
-  reviewedBy       String?        @map("reviewed_by") @db.Uuid
+  reviewedBy       String?        @map("reviewed_by") @db.VarChar(36)
   reviewedAt       DateTime?      @map("reviewed_at")
   approvalRemark   String?        @map("approval_remark") @db.VarChar(255)
   rejectReason     String?        @map("reject_reason") @db.VarChar(255)
   approvedAmount   Decimal?       @map("approved_amount") @db.Decimal(20, 2)
-  confirmedBy      String?        @map("confirmed_by") @db.Uuid
+  confirmedBy      String?        @map("confirmed_by") @db.VarChar(36)
   confirmedAt      DateTime?      @map("confirmed_at")
-  voidedBy         String?        @map("voided_by") @db.Uuid
+  voidedBy         String?        @map("voided_by") @db.VarChar(36)
   voidedAt         DateTime?      @map("voided_at")
   voidReason       String?        @map("void_reason") @db.VarChar(255)
   remark           String?        @db.VarChar(255)
@@ -1316,8 +1316,8 @@ model Invoice {
 }
 
 model InvoiceApplicationItem {
-  id        String   @id @default(uuid()) @db.Uuid
-  invoiceId String   @map("invoice_id") @db.Uuid
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  invoiceId String   @map("invoice_id") @db.VarChar(36)
   amount    Decimal  @db.Decimal(20, 2)
   itemType  String?  @map("item_type") @db.VarChar(50)
   content   String?  @db.VarChar(255)
@@ -1331,10 +1331,10 @@ model InvoiceApplicationItem {
 }
 
 model InvoiceDetail {
-  id                     String                @id @default(uuid()) @db.Uuid
-  invoiceId              String?               @map("invoice_apply_id") @db.Uuid
-  invoiceTaskId          String?               @map("invoice_task_id") @db.Uuid
-  invoiceApplicationItemId String?             @map("invoice_apply_invoice_id") @db.Uuid
+  id                     String                @id @default(uuid()) @db.VarChar(36)
+  invoiceId              String?               @map("invoice_apply_id") @db.VarChar(36)
+  invoiceTaskId          String?               @map("invoice_task_id") @db.VarChar(36)
+  invoiceApplicationItemId String?             @map("invoice_apply_invoice_id") @db.VarChar(36)
   amount                 Decimal               @default(0) @db.Decimal(20, 2)
   invoiceType            String                @map("invoice_type") @db.VarChar(50)
   invoiceContent         String?               @map("invoice_content") @db.VarChar(255)
@@ -1346,7 +1346,7 @@ model InvoiceDetail {
   mimeType               String?              @map("mime_type") @db.VarChar(100)
   invoiceDate            DateTime?            @map("invoice_date")
   remark                 String?              @db.VarChar(255)
-  createdBy              String                @map("created_by") @db.Uuid
+  createdBy              String                @map("created_by") @db.VarChar(36)
   createdAt              DateTime              @default(now()) @map("create_time")
   updatedAt              DateTime              @updatedAt @map("update_time")
   invoice                Invoice?              @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
@@ -1361,8 +1361,8 @@ model InvoiceDetail {
 }
 
 model InvoiceApplicationReceiveRecord {
-  invoiceId       String        @map("invoice_id") @db.Uuid
-  receiveRecordId String        @map("receive_record_id") @db.Uuid
+  invoiceId       String        @map("invoice_id") @db.VarChar(36)
+  receiveRecordId String        @map("receive_record_id") @db.VarChar(36)
   amount          Decimal       @db.Decimal(20, 2)
   invoice         Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   receiveRecord   ReceiveRecord @relation(fields: [receiveRecordId], references: [id], onDelete: Restrict)
@@ -1373,10 +1373,10 @@ model InvoiceApplicationReceiveRecord {
 }
 
 model InvoiceOcrRecord {
-  id               String          @id @default(uuid()) @db.Uuid
-  invoiceId        String?         @map("invoice_id") @db.Uuid
-  organizationId   String          @map("organization_id") @db.Uuid
-  fileId           String          @map("file_id") @db.Uuid
+  id               String          @id @default(uuid()) @db.VarChar(36)
+  invoiceId        String?         @map("invoice_id") @db.VarChar(36)
+  organizationId   String          @map("organization_id") @db.VarChar(36)
+  fileId           String          @map("file_id") @db.VarChar(36)
   originalFileName String          @map("original_file_name") @db.VarChar(255)
   filePath         String          @map("file_path") @db.VarChar(500)
   mimeType         String          @map("mime_type") @db.VarChar(100)
@@ -1388,7 +1388,7 @@ model InvoiceOcrRecord {
   parsedResult     Json?           @map("parsed_result")
   fieldConfidence  Json?           @map("field_confidence")
   errorMessage     String?         @map("error_message") @db.VarChar(500)
-  createdBy        String          @map("created_by") @db.Uuid
+  createdBy        String          @map("created_by") @db.VarChar(36)
   createdAt        DateTime        @default(now()) @map("created_at")
   updatedAt        DateTime        @updatedAt @map("updated_at")
   invoice          Invoice?        @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
@@ -1401,11 +1401,11 @@ model InvoiceOcrRecord {
 }
 
 model AdSubject {
-  id String @id @default(uuid()) @db.Uuid
+  id String @id @default(uuid()) @db.VarChar(36)
   subjectCode String @map("subject_code") @db.VarChar(100)
   name String @db.VarChar(100)
   platform SupplierPlatform
-  organizationId String? @map("organization_id") @db.Uuid
+  organizationId String? @map("organization_id") @db.VarChar(36)
   status AdAssetStatus @default(ACTIVE)
   remark String? @db.VarChar(255)
   createdAt DateTime @default(now()) @map("created_at")
@@ -1420,12 +1420,12 @@ model AdSubject {
 }
 
 model AdAccount {
-  id String @id @default(uuid()) @db.Uuid
+  id String @id @default(uuid()) @db.VarChar(36)
   externalId String @map("external_id") @db.VarChar(100)
   name String @db.VarChar(100)
   platform SupplierPlatform
-  subjectId String @map("subject_id") @db.Uuid
-  customerId String? @map("customer_id") @db.Uuid
+  subjectId String @map("subject_id") @db.VarChar(36)
+  customerId String? @map("customer_id") @db.VarChar(36)
   status AdAssetStatus @default(ACTIVE)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1440,17 +1440,17 @@ model AdAccount {
 }
 
 model PurchaseOrder {
-  id String @id @default(uuid()) @db.Uuid
+  id String @id @default(uuid()) @db.VarChar(36)
   orderNo String @unique @map("order_no") @db.VarChar(50)
   clientRequestId String? @unique @map("client_request_id") @db.VarChar(100)
-  organizationId String @map("organization_id") @db.Uuid
-  customerId String? @map("customer_id") @db.Uuid
-  supplierId String? @map("supplier_id") @db.Uuid
-  supplierAccountId String? @map("supplier_account_id") @db.Uuid
+  organizationId String @map("organization_id") @db.VarChar(36)
+  customerId String? @map("customer_id") @db.VarChar(36)
+  supplierId String? @map("supplier_id") @db.VarChar(36)
+  supplierAccountId String? @map("supplier_account_id") @db.VarChar(36)
   amount Decimal @db.Decimal(20, 2)
   baseAmount Decimal @map("base_amount") @db.Decimal(20, 2)
-  customerPolicyId String? @map("customer_policy_id") @db.Uuid
-  customerPolicyVersionId String? @map("customer_policy_version_id") @db.Uuid
+  customerPolicyId String? @map("customer_policy_id") @db.VarChar(36)
+  customerPolicyVersionId String? @map("customer_policy_version_id") @db.VarChar(36)
   customerRebateType RebateRuleType? @map("customer_rebate_type")
   customerRebateRate Decimal? @map("customer_rebate_rate") @db.Decimal(10, 4)
   customerCalculationMode RebateCalculationMode? @map("customer_calculation_mode")
@@ -1467,10 +1467,10 @@ model PurchaseOrder {
   inboundAccountName String? @map("inbound_account_name") @db.VarChar(120)
   outboundAccountId String? @map("outbound_account_id") @db.VarChar(100)
   outboundAccountName String? @map("outbound_account_name") @db.VarChar(120)
-  adSubjectId String? @map("ad_subject_id") @db.Uuid
-  adAccountId String? @map("ad_account_id") @db.Uuid
-  supplierPolicyId String? @map("supplier_policy_id") @db.Uuid
-  supplierPolicyVersionId String? @map("supplier_policy_version_id") @db.Uuid
+  adSubjectId String? @map("ad_subject_id") @db.VarChar(36)
+  adAccountId String? @map("ad_account_id") @db.VarChar(36)
+  supplierPolicyId String? @map("supplier_policy_id") @db.VarChar(36)
+  supplierPolicyVersionId String? @map("supplier_policy_version_id") @db.VarChar(36)
   supplierRebateType RebateRuleType? @map("supplier_rebate_type")
   supplierRebateRate Decimal? @map("supplier_rebate_rate") @db.Decimal(10, 4)
   supplierCostRate Decimal? @map("supplier_cost_rate") @db.Decimal(10, 4)
@@ -1492,24 +1492,24 @@ model PurchaseOrder {
   supplierPayable Decimal? @map("supplier_payable") @db.Decimal(20, 2)
   supplierPaidAmount Decimal @default(0) @map("supplier_paid_amount") @db.Decimal(20, 2)
   supplierPaymentStatus PaymentStatus @default(PENDING) @map("supplier_payment_status")
-  customerPromotionAccountId String? @map("customer_promotion_account_id") @db.Uuid
+  customerPromotionAccountId String? @map("customer_promotion_account_id") @db.VarChar(36)
   customerCreditedAmount Decimal @default(0) @map("customer_credited_amount") @db.Decimal(20, 2)
   customerCreditStatus PaymentStatus @default(PENDING) @map("customer_credit_status")
-  cashAccountId String? @map("cash_account_id") @db.Uuid
+  cashAccountId String? @map("cash_account_id") @db.VarChar(36)
   paymentAmount Decimal @default(0) @map("payment_amount") @db.Decimal(20, 2)
   rebateAmount Decimal @default(0) @map("rebate_amount") @db.Decimal(20, 2)
   creditAmount Decimal @default(0) @map("credit_amount") @db.Decimal(20, 2)
-  ruleId String? @map("rule_id") @db.Uuid
+  ruleId String? @map("rule_id") @db.VarChar(36)
   ruleVersion String? @map("rule_version") @db.VarChar(50)
   ruleType RebateRuleType? @map("rule_type")
   rebateRate Decimal? @map("rebate_rate") @db.Decimal(10, 4)
   status PurchaseOrderStatus @default(DRAFT)
   remark String? @db.VarChar(255)
-  createdBy String @map("created_by") @db.Uuid
+  createdBy String @map("created_by") @db.VarChar(36)
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   confirmedAt DateTime? @map("confirmed_at")
-  confirmedBy String? @map("confirmed_by") @db.Uuid
+  confirmedBy String? @map("confirmed_by") @db.VarChar(36)
   organization Organization @relation(fields: [organizationId], references: [id])
   customer Customer? @relation(fields: [customerId], references: [id])
   supplier Supplier? @relation(fields: [supplierId], references: [id])
@@ -1551,15 +1551,15 @@ model PurchaseOrder {
 }
 
 model PurchaseOrderCredit {
-  id                    String            @id @default(uuid()) @db.Uuid
-  orderId               String            @map("order_id") @db.Uuid
-  promotionAccountId    String            @map("promotion_account_id") @db.Uuid
+  id                    String            @id @default(uuid()) @db.VarChar(36)
+  orderId               String            @map("order_id") @db.VarChar(36)
+  promotionAccountId    String            @map("promotion_account_id") @db.VarChar(36)
   idempotencyKey        String            @map("idempotency_key") @db.VarChar(100)
   businessNo            String            @map("business_no") @db.VarChar(100)
   amount                Decimal           @db.Decimal(20, 2)
   occurredAt            DateTime          @map("occurred_at")
   promotionTransactionNo String           @map("promotion_transaction_no") @db.VarChar(50)
-  operatorId            String            @map("operator_id") @db.Uuid
+  operatorId            String            @map("operator_id") @db.VarChar(36)
   remark                String?           @db.VarChar(255)
   createdAt             DateTime          @default(now()) @map("created_at")
   order                 PurchaseOrder     @relation(fields: [orderId], references: [id])
@@ -1573,8 +1573,8 @@ model PurchaseOrderCredit {
 }
 
 model PurchaseOrderPayment {
-  id                    String             @id @default(uuid()) @db.Uuid
-  orderId               String             @map("order_id") @db.Uuid
+  id                    String             @id @default(uuid()) @db.VarChar(36)
+  orderId               String             @map("order_id") @db.VarChar(36)
   paymentType           PurchasePaymentType @map("payment_type")
   idempotencyKey        String             @map("idempotency_key") @db.VarChar(100)
   businessNo            String             @map("business_no") @db.VarChar(100)
@@ -1582,7 +1582,7 @@ model PurchaseOrderPayment {
   occurredAt            DateTime           @map("occurred_at")
   companyTransactionNo  String?            @map("company_transaction_no") @db.VarChar(50)
   supplierTransactionNo String?            @map("supplier_transaction_no") @db.VarChar(50)
-  operatorId            String             @map("operator_id") @db.Uuid
+  operatorId            String             @map("operator_id") @db.VarChar(36)
   remark                String?            @db.VarChar(255)
   createdAt             DateTime           @default(now()) @map("created_at")
   order                 PurchaseOrder     @relation(fields: [orderId], references: [id])
@@ -1596,21 +1596,21 @@ model PurchaseOrderPayment {
 }
 
 model Refund {
-  id                String        @id @default(uuid()) @db.Uuid
+  id                String        @id @default(uuid()) @db.VarChar(36)
   refundNo          String        @unique @map("refund_no") @db.VarChar(50)
-  organizationId    String        @map("organization_id") @db.Uuid
-  purchaseOrderId   String?       @map("purchase_order_id") @db.Uuid
-  receiveRecordId   String?       @map("receive_record_id") @db.Uuid
-  customerId        String        @map("customer_id") @db.Uuid
-  originalPaymentId String?       @map("original_payment_id") @db.Uuid
+  organizationId    String        @map("organization_id") @db.VarChar(36)
+  purchaseOrderId   String?       @map("purchase_order_id") @db.VarChar(36)
+  receiveRecordId   String?       @map("receive_record_id") @db.VarChar(36)
+  customerId        String        @map("customer_id") @db.VarChar(36)
+  originalPaymentId String?       @map("original_payment_id") @db.VarChar(36)
   refundAmount      Decimal       @map("refund_amount") @db.Decimal(20, 2)
   refundReason      String        @map("refund_reason") @db.VarChar(255)
   status            RefundStatus  @default(PENDING)
   idempotencyKey    String        @map("idempotency_key") @db.VarChar(100)
-  applicantId       String        @map("applicant_id") @db.Uuid
-  approvedBy        String?       @map("approved_by") @db.Uuid
+  applicantId       String        @map("applicant_id") @db.VarChar(36)
+  approvedBy        String?       @map("approved_by") @db.VarChar(36)
   approvedAt        DateTime?     @map("approved_at")
-  executedBy        String?       @map("executed_by") @db.Uuid
+  executedBy        String?       @map("executed_by") @db.VarChar(36)
   executedAt        DateTime?     @map("executed_at")
   transactionNo     String?       @map("transaction_no") @db.VarChar(50)
   createdAt         DateTime      @default(now()) @map("created_at")
@@ -1633,8 +1633,8 @@ model Refund {
 }
 
 model PurchaseOrderItem {
-  id String @id @default(uuid()) @db.Uuid
-  orderId String @map("order_id") @db.Uuid
+  id String @id @default(uuid()) @db.VarChar(36)
+  orderId String @map("order_id") @db.VarChar(36)
   description String @db.VarChar(255)
   amount Decimal @db.Decimal(20, 2)
   quantity Decimal @default(1) @db.Decimal(20, 4)
@@ -1645,12 +1645,12 @@ model PurchaseOrderItem {
 }
 
 model Settlement {
-  id String @id @default(uuid()) @db.Uuid
+  id String @id @default(uuid()) @db.VarChar(36)
   settlementNo String @unique @map("settlement_no") @db.VarChar(50)
   settlementType SettlementType @default(SUPPLIER) @map("settlement_type")
-  organizationId String @map("organization_id") @db.Uuid
-  customerId String? @map("customer_id") @db.Uuid
-  supplierId String? @map("supplier_id") @db.Uuid
+  organizationId String @map("organization_id") @db.VarChar(36)
+  customerId String? @map("customer_id") @db.VarChar(36)
+  supplierId String? @map("supplier_id") @db.VarChar(36)
   periodStart DateTime @map("period_start")
   periodEnd DateTime @map("period_end")
   orderCount Int @default(0) @map("order_count")
@@ -1669,8 +1669,8 @@ model Settlement {
   grossProfit Decimal? @map("gross_profit") @db.Decimal(20, 2)
   realizedProfit Decimal? @map("realized_profit") @db.Decimal(20, 2)
   status SettlementStatus @default(DRAFT)
-  createdBy String @map("created_by") @db.Uuid
-  confirmedBy String? @map("confirmed_by") @db.Uuid
+  createdBy String @map("created_by") @db.VarChar(36)
+  confirmedBy String? @map("confirmed_by") @db.VarChar(36)
   confirmedAt DateTime? @map("confirmed_at")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1689,12 +1689,12 @@ model Settlement {
 }
 
 model SettlementItem {
-  id String @id @default(uuid()) @db.Uuid
-  settlementId String @map("settlement_id") @db.Uuid
-  orderId String @map("order_id") @db.Uuid
+  id String @id @default(uuid()) @db.VarChar(36)
+  settlementId String @map("settlement_id") @db.VarChar(36)
+  orderId String @map("order_id") @db.VarChar(36)
   settlementType SettlementType @default(SUPPLIER) @map("settlement_type")
-  customerId String? @map("customer_id") @db.Uuid
-  supplierId String? @map("supplier_id") @db.Uuid
+  customerId String? @map("customer_id") @db.VarChar(36)
+  supplierId String? @map("supplier_id") @db.VarChar(36)
   amount Decimal @db.Decimal(20, 2)
   paymentAmount Decimal @map("payment_amount") @db.Decimal(20, 2)
   rebateAmount Decimal @map("rebate_amount") @db.Decimal(20, 2)
@@ -1715,9 +1715,9 @@ model SettlementItem {
 }
 
 model AuditLog {
-  id String @id @default(uuid()) @db.Uuid
-  operatorId String @map("operator_id") @db.Uuid
-  organizationId String? @map("organization_id") @db.Uuid
+  id String @id @default(uuid()) @db.VarChar(36)
+  operatorId String @map("operator_id") @db.VarChar(36)
+  organizationId String? @map("organization_id") @db.VarChar(36)
   actionType String @map("action_type") @db.VarChar(100)
   businessType String? @map("business_type") @db.VarChar(100)
   businessId String? @map("business_id") @db.VarChar(100)
@@ -1763,18 +1763,18 @@ enum PaymentExpenseType {
 }
 
 model PaymentPostingApply {
-  id                String                     @id @default(uuid()) @db.Uuid
+  id                String                     @id @default(uuid()) @db.VarChar(36)
   applyNo           String                     @unique @map("apply_no") @db.VarChar(60)
-  organizationId    String                     @map("organization_id") @db.Uuid
-  customerId        String                     @map("customer_id") @db.Uuid
+  organizationId    String                     @map("organization_id") @db.VarChar(36)
+  customerId        String                     @map("customer_id") @db.VarChar(36)
   applyType         String                     @default("RECHARGE") @map("apply_type") @db.VarChar(50)
   totalAmount       Decimal                    @map("total_amount") @db.Decimal(20, 2)
   paidAmount        Decimal                    @default(0) @map("paid_amount") @db.Decimal(20, 2)
   serviceFeeAmount  Decimal                    @default(0) @map("service_fee_amount") @db.Decimal(20, 2)
   actualPayAmount   Decimal                    @default(0) @map("actual_pay_amount") @db.Decimal(20, 2)
   currency          String                     @default("CNY") @db.Char(3)
-  payerAccountId    String?                    @map("payer_account_id") @db.Uuid
-  payeeAccountId    String?                    @map("payee_account_id") @db.Uuid
+  payerAccountId    String?                    @map("payer_account_id") @db.VarChar(36)
+  payeeAccountId    String?                    @map("payee_account_id") @db.VarChar(36)
   paymentMethod     String?                    @map("payment_method") @db.VarChar(50)
   status            PaymentPostingApplyStatus  @default(DRAFT)
   oaStatus          PaymentPostingOaStatus     @default(PENDING) @map("oa_status")
@@ -1783,14 +1783,14 @@ model PaymentPostingApply {
   remark            String?                    @db.VarChar(500)
   attachmentUrl     String?                    @map("attachment_url") @db.VarChar(500)
   receiptUrl        String?                    @map("receipt_url") @db.VarChar(500)
-  createdBy         String                     @map("created_by") @db.Uuid
-  submittedBy       String?                    @map("submitted_by") @db.Uuid
+  createdBy         String                     @map("created_by") @db.VarChar(36)
+  submittedBy       String?                    @map("submitted_by") @db.VarChar(36)
   submittedAt       DateTime?                  @map("submitted_at")
-  approvedBy        String?                    @map("approved_by") @db.Uuid
+  approvedBy        String?                    @map("approved_by") @db.VarChar(36)
   approvedAt        DateTime?                  @map("approved_at")
-  paidBy            String?                    @map("paid_by") @db.Uuid
+  paidBy            String?                    @map("paid_by") @db.VarChar(36)
   paidAt            DateTime?                  @map("paid_at")
-  completedBy       String?                    @map("completed_by") @db.Uuid
+  completedBy       String?                    @map("completed_by") @db.VarChar(36)
   completedAt       DateTime?                  @map("completed_at")
   rejectReason      String?                    @map("reject_reason") @db.VarChar(500)
   createdAt         DateTime                   @default(now()) @map("created_at")
@@ -1808,7 +1808,7 @@ model PaymentPostingApply {
   receiveRecords    PaymentPostingApplyReceiveRecord[]
   oaRecords         PaymentPostingOaApply[]
   transaction       Transaction?               @relation("PaymentApplyTransaction", fields: [transactionId], references: [id])
-  transactionId     String?                    @unique @map("transaction_id") @db.Uuid
+  transactionId     String?                    @unique @map("transaction_id") @db.VarChar(36)
 
   @@index([organizationId, status, createdAt])
   @@index([customerId, createdAt])
@@ -1817,8 +1817,8 @@ model PaymentPostingApply {
 }
 
 model PaymentPostingApplyDetail {
-  id              String              @id @default(uuid()) @db.Uuid
-  applyId         String              @map("apply_id") @db.Uuid
+  id              String              @id @default(uuid()) @db.VarChar(36)
+  applyId         String              @map("apply_id") @db.VarChar(36)
   expenseTypeId   String?             @map("expense_type_id") @db.VarChar(100)
   expenseType     PaymentExpenseType  @default(AD_RECHARGE) @map("expense_type")
   applyAmount     Decimal             @map("apply_amount") @db.Decimal(20, 2)
@@ -1835,9 +1835,9 @@ model PaymentPostingApplyDetail {
 }
 
 model PaymentPostingApplyReceiveRecord {
-  id              String              @id @default(uuid()) @db.Uuid
-  applyId         String              @map("apply_id") @db.Uuid
-  receiveRecordId String              @map("receive_record_id") @db.Uuid
+  id              String              @id @default(uuid()) @db.VarChar(36)
+  applyId         String              @map("apply_id") @db.VarChar(36)
+  receiveRecordId String              @map("receive_record_id") @db.VarChar(36)
   amount          Decimal             @map("amount") @db.Decimal(20, 2)
   createdAt       DateTime            @default(now()) @map("created_at")
   apply           PaymentPostingApply @relation(fields: [applyId], references: [id], onDelete: Cascade)
@@ -1849,13 +1849,13 @@ model PaymentPostingApplyReceiveRecord {
 }
 
 model PaymentPostingOaApply {
-  id              String                 @id @default(uuid()) @db.Uuid
-  applyId         String                 @map("apply_id") @db.Uuid
+  id              String                 @id @default(uuid()) @db.VarChar(36)
+  applyId         String                 @map("apply_id") @db.VarChar(36)
   oaFlowNo        String                 @unique @map("oa_flow_no") @db.VarChar(100)
   oaStatus        PaymentPostingOaStatus @default(PENDING) @map("oa_status")
   oaType          String                 @default("PAYMENT_APPROVAL") @map("oa_type") @db.VarChar(50)
-  applicantId     String                 @map("applicant_id") @db.Uuid
-  approverId      String?                @map("approver_id") @db.Uuid
+  applicantId     String                 @map("applicant_id") @db.VarChar(36)
+  approverId      String?                @map("approver_id") @db.VarChar(36)
   approvedAt      DateTime?              @map("approved_at")
   rejectReason    String?                @map("reject_reason") @db.VarChar(500)
   retryCount      Int                    @default(0) @map("retry_count")
@@ -1890,10 +1890,10 @@ enum ServiceOrderDeliveryType {
 }
 
 model ServiceOrder {
-  id                      String                      @id @default(uuid()) @db.Uuid
+  id                      String                      @id @default(uuid()) @db.VarChar(36)
   orderNo                 String                      @unique @map("order_no") @db.VarChar(50)
-  customerId              String                      @map("customer_id") @db.Uuid
-  organizationId          String?                     @map("organization_id") @db.Uuid
+  customerId              String                      @map("customer_id") @db.VarChar(36)
+  organizationId          String?                     @map("organization_id") @db.VarChar(36)
   contractSubject         String?                     @map("contract_subject") @db.VarChar(200)
   transferCategory        ServiceOrderTransferCategory @default(AD_ACCOUNT) @map("transfer_category")
   deliveryType            ServiceOrderDeliveryType    @default(BIDDING) @map("delivery_type")
@@ -1904,11 +1904,11 @@ model ServiceOrder {
   creditAmount            Decimal                     @default(0) @map("credit_amount") @db.Decimal(18, 4)
   serviceFeeAmount        Decimal                     @default(0) @map("service_fee_amount") @db.Decimal(18, 4)
   status                  ServiceOrderStatus          @default(DRAFT)
-  confirmedBy             String?                     @map("confirmed_by") @db.Uuid
+  confirmedBy             String?                     @map("confirmed_by") @db.VarChar(36)
   confirmedAt             DateTime?                   @map("confirmed_at")
   confirmedPhone          String?                     @map("confirmed_phone") @db.VarChar(20)
   confirmedIp             String?                     @map("confirmed_ip") @db.VarChar(50)
-  createdBy               String?                     @map("created_by") @db.Uuid
+  createdBy               String?                     @map("created_by") @db.VarChar(36)
   remark                  String?                     @db.VarChar(500)
   createdAt               DateTime                    @default(now()) @map("created_at")
   updatedAt               DateTime                    @updatedAt @map("updated_at")
@@ -1924,9 +1924,9 @@ model ServiceOrder {
 }
 
 model ServiceOrderReceiveRecord {
-  id              String        @id @default(uuid()) @db.Uuid
-  serviceOrderId  String        @map("service_order_id") @db.Uuid
-  receiveRecordId String        @map("receive_record_id") @db.Uuid
+  id              String        @id @default(uuid()) @db.VarChar(36)
+  serviceOrderId  String        @map("service_order_id") @db.VarChar(36)
+  receiveRecordId String        @map("receive_record_id") @db.VarChar(36)
   amount          Decimal       @default(0) @db.Decimal(18, 4)
   serviceFee      Decimal       @default(0) @db.Decimal(18, 4)
   usedAmount      Decimal       @default(0) @map("used_amount") @db.Decimal(18, 4)
@@ -1939,11 +1939,11 @@ model ServiceOrderReceiveRecord {
 }
 
 model ServiceOrderPurchaseRecord {
-  id               String        @id @default(uuid()) @db.Uuid
-  serviceOrderId   String        @map("service_order_id") @db.Uuid
-  purchaseOrderId  String?       @map("purchase_order_id") @db.Uuid
-  adAccountId      String?       @map("ad_account_id") @db.Uuid
-  adSubjectId      String?       @map("ad_subject_id") @db.Uuid
+  id               String        @id @default(uuid()) @db.VarChar(36)
+  serviceOrderId   String        @map("service_order_id") @db.VarChar(36)
+  purchaseOrderId  String?       @map("purchase_order_id") @db.VarChar(36)
+  adAccountId      String?       @map("ad_account_id") @db.VarChar(36)
+  adSubjectId      String?       @map("ad_subject_id") @db.VarChar(36)
   transferAmount   Decimal       @default(0) @map("transfer_amount") @db.Decimal(18, 4)
   receivableAmount Decimal       @default(0) @map("receivable_amount") @db.Decimal(18, 4)
   remark           String?       @db.VarChar(255)
@@ -1956,12 +1956,12 @@ model ServiceOrderPurchaseRecord {
 }
 
 model ConsumptionRecord {
-  id              String    @id @default(uuid()) @db.Uuid
+  id              String    @id @default(uuid()) @db.VarChar(36)
   recordNo        String    @unique @map("record_no") @db.VarChar(50)
-  customerId      String    @map("customer_id") @db.Uuid
-  organizationId  String?   @map("organization_id") @db.Uuid
-  adAccountId     String?   @map("ad_account_id") @db.Uuid
-  adSubjectId     String?   @map("ad_subject_id") @db.Uuid
+  customerId      String    @map("customer_id") @db.VarChar(36)
+  organizationId  String?   @map("organization_id") @db.VarChar(36)
+  adAccountId     String?   @map("ad_account_id") @db.VarChar(36)
+  adSubjectId     String?   @map("ad_subject_id") @db.VarChar(36)
   consumptionDate DateTime  @map("consumption_date")
   creditAmount    Decimal   @default(0) @map("credit_amount") @db.Decimal(18, 4)
   cashAmount      Decimal   @default(0) @map("cash_amount") @db.Decimal(18, 4)
@@ -1969,7 +1969,7 @@ model ConsumptionRecord {
   serviceCost     Decimal   @default(0) @map("service_cost") @db.Decimal(18, 4)
   profitAmount    Decimal   @default(0) @map("profit_amount") @db.Decimal(18, 4)
   remark          String?   @db.VarChar(500)
-  createdBy       String?   @map("created_by") @db.Uuid
+  createdBy       String?   @map("created_by") @db.VarChar(36)
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
   customer        Customer  @relation(fields: [customerId], references: [id])
@@ -1981,8 +1981,8 @@ model ConsumptionRecord {
 }
 
 model TableColumnConfig {
-  id             String   @id @default(uuid()) @db.Uuid
-  userId         String   @map("user_id") @db.Uuid
+  id             String   @id @default(uuid()) @db.VarChar(36)
+  userId         String   @map("user_id") @db.VarChar(36)
   tableKey       String   @map("table_key") @db.VarChar(100)
   columns        String   @db.Text
   createdAt      DateTime @default(now()) @map("created_at")
@@ -1995,10 +1995,10 @@ model TableColumnConfig {
 
 // ========== 部门管理 ==========
 model Department {
-  id        String      @id @default(uuid()) @db.Uuid
+  id        String      @id @default(uuid()) @db.VarChar(36)
   name      String      @db.VarChar(100)
   code      String      @unique @db.VarChar(50)
-  parentId  String?     @map("parent_id") @db.Uuid
+  parentId  String?     @map("parent_id") @db.VarChar(36)
   sort      Int         @default(0)
   status    String      @default("ACTIVE") @db.VarChar(20)
   remark    String?     @db.VarChar(255)
@@ -2025,9 +2025,9 @@ enum CustomerContractStatus {
 }
 
 model CustomerContract {
-  id           String                  @id @default(uuid()) @db.Uuid
+  id           String                  @id @default(uuid()) @db.VarChar(36)
   contractNo   String                  @unique @map("contract_no") @db.VarChar(60)
-  customerId   String                  @map("customer_id") @db.Uuid
+  customerId   String                  @map("customer_id") @db.VarChar(36)
   name         String                  @db.VarChar(200)
   partyA       String?                 @map("party_a") @db.VarChar(200)
   partyB       String?                 @map("party_b") @db.VarChar(200)
@@ -2037,8 +2037,8 @@ model CustomerContract {
   amount       Decimal                 @default(0) @db.Decimal(20, 2)
   status       CustomerContractStatus  @default(DRAFT)
   remark       String?                 @db.VarChar(500)
-  createdBy    String                  @map("created_by") @db.Uuid
-  approvedBy   String?                 @map("approved_by") @db.Uuid
+  createdBy    String                  @map("created_by") @db.VarChar(36)
+  approvedBy   String?                 @map("approved_by") @db.VarChar(36)
   approvedAt   DateTime?               @map("approved_at")
   createdAt    DateTime                @default(now()) @map("created_at")
   updatedAt    DateTime                @updatedAt @map("updated_at")
@@ -2051,13 +2051,13 @@ model CustomerContract {
 }
 
 model CustomerContractAttachment {
-  id           String           @id @default(uuid()) @db.Uuid
-  contractId   String           @map("contract_id") @db.Uuid
+  id           String           @id @default(uuid()) @db.VarChar(36)
+  contractId   String           @map("contract_id") @db.VarChar(36)
   fileName     String           @map("file_name") @db.VarChar(200)
   fileUrl      String           @map("file_url") @db.VarChar(500)
   fileSize     Int              @default(0) @map("file_size")
   fileType     String?          @map("file_type") @db.VarChar(50)
-  uploadedBy   String           @map("uploaded_by") @db.Uuid
+  uploadedBy   String           @map("uploaded_by") @db.VarChar(36)
   createdAt    DateTime         @default(now()) @map("created_at")
   contract     CustomerContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
@@ -2067,8 +2067,8 @@ model CustomerContractAttachment {
 
 // ========== 客户打款账户 ==========
 model CustomerPaymentAccount {
-  id            String   @id @default(uuid()) @db.Uuid
-  customerId    String   @map("customer_id") @db.Uuid
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  customerId    String   @map("customer_id") @db.VarChar(36)
   accountName   String   @map("account_name") @db.VarChar(100)
   accountNumber String   @map("account_number") @db.VarChar(50)
   bankName      String   @map("bank_name") @db.VarChar(100)
@@ -2086,8 +2086,8 @@ model CustomerPaymentAccount {
 
 // ========== 服务费配置 ==========
 model ServiceFeeConfig {
-  id            String   @id @default(uuid()) @db.Uuid
-  customerId    String   @unique @map("customer_id") @db.Uuid
+  id            String   @id @default(uuid()) @db.VarChar(36)
+  customerId    String   @unique @map("customer_id") @db.VarChar(36)
   rate          Decimal  @default(0) @db.Decimal(5, 2)
   defaultAmount Decimal @default(0) @map("default_amount") @db.Decimal(20, 2)
   needInvoice   Boolean  @default(true) @map("need_invoice")
@@ -2109,13 +2109,13 @@ enum PolicyChangeRequestStatus {
 }
 
 model CustomerRebatePolicyChangeRequest {
-  id          String                        @id @default(uuid()) @db.Uuid
-  policyId    String                        @map("policy_id") @db.Uuid
-  customerId  String                        @map("customer_id") @db.Uuid
+  id          String                        @id @default(uuid()) @db.VarChar(36)
+  policyId    String                        @map("policy_id") @db.VarChar(36)
+  customerId  String                        @map("customer_id") @db.VarChar(36)
   changeData  String                        @map("change_data") @db.Text
   status      PolicyChangeRequestStatus     @default(PENDING)
-  applicantId String                        @map("applicant_id") @db.Uuid
-  approverId  String?                       @map("approver_id") @db.Uuid
+  applicantId String                        @map("applicant_id") @db.VarChar(36)
+  approverId  String?                       @map("approver_id") @db.VarChar(36)
   approvedAt  DateTime?                     @map("approved_at")
   rejectReason String?                      @map("reject_reason") @db.VarChar(500)
   remark      String?                       @db.VarChar(255)
@@ -2139,17 +2139,17 @@ enum ReceiveRefundStatus {
 }
 
 model ReceiveRefund {
-  id              String              @id @default(uuid()) @db.Uuid
+  id              String              @id @default(uuid()) @db.VarChar(36)
   refundNo        String              @unique @map("refund_no") @db.VarChar(60)
-  receiveRecordId String              @map("receive_record_id") @db.Uuid
-  customerId      String              @map("customer_id") @db.Uuid
+  receiveRecordId String              @map("receive_record_id") @db.VarChar(36)
+  customerId      String              @map("customer_id") @db.VarChar(36)
   amount          Decimal             @db.Decimal(20, 2)
   feeType         String              @default("REFUND") @map("fee_type") @db.VarChar(50)
   reason          String?             @db.VarChar(500)
   deductWallet    Boolean             @default(true) @map("deduct_wallet")
   status          ReceiveRefundStatus @default(PENDING_APPROVAL)
-  applicantId     String              @map("applicant_id") @db.Uuid
-  approverId      String?             @map("approver_id") @db.Uuid
+  applicantId     String              @map("applicant_id") @db.VarChar(36)
+  approverId      String?             @map("approver_id") @db.VarChar(36)
   approvedAt      DateTime?           @map("approved_at")
   executedAt      DateTime?           @map("executed_at")
   remark          String?             @db.VarChar(255)

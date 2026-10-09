@@ -22,8 +22,8 @@ export class ReceivingService {
       accountId: query.accountId,
       direction: query.direction,
       status: query.status,
-      counterpartyName: query.counterpartyName ? { contains: query.counterpartyName, mode: 'insensitive' } : undefined,
-      OR: query.keyword ? [{ transactionNo: { contains: query.keyword, mode: 'insensitive' } }, { externalTransactionId: { contains: query.keyword, mode: 'insensitive' } }, { summary: { contains: query.keyword, mode: 'insensitive' } }] : undefined,
+      counterpartyName: query.counterpartyName ? { contains: query.counterpartyName } : undefined,
+      OR: query.keyword ? [{ transactionNo: { contains: query.keyword } }, { externalTransactionId: { contains: query.keyword } }, { summary: { contains: query.keyword } }] : undefined,
       occurredAt: { gte: query.startDate ? new Date(query.startDate) : undefined, lt: query.endDate ? new Date(query.endDate) : undefined },
       amount: { gte: minAmount, lte: maxAmount },
     };

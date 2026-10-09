@@ -48,7 +48,7 @@ export class BusinessService {
 
   async listCustomers(query: ListQueryDto, context: AccessContext) {
     const ids = await this.scope.getOrganizationIds(context);
-    return this.prisma.customer.findMany({ where: { agentId: ids ? { in: ids } : undefined, OR: query.keyword ? [{ name: { contains: query.keyword, mode: 'insensitive' } }, { customerCode: { contains: query.keyword, mode: 'insensitive' } }] : undefined }, orderBy: { createdAt: 'desc' } });
+    return this.prisma.customer.findMany({ where: { agentId: ids ? { in: ids } : undefined, OR: query.keyword ? [{ name: { contains: query.keyword } }, { customerCode: { contains: query.keyword } }] : undefined }, orderBy: { createdAt: 'desc' } });
   }
 
   async createCustomer(dto: CreateCustomerDto, context: AccessContext) {
@@ -70,7 +70,7 @@ export class BusinessService {
 
   async listSuppliers(query: ListQueryDto, context: AccessContext) {
     const ids = await this.scope.getOrganizationIds(context);
-    return this.prisma.supplier.findMany({ where: { organizationId: ids ? { in: ids } : undefined, status: query.assetStatus, name: query.keyword ? { contains: query.keyword, mode: 'insensitive' } : undefined }, orderBy: { createdAt: 'desc' } });
+    return this.prisma.supplier.findMany({ where: { organizationId: ids ? { in: ids } : undefined, status: query.assetStatus, name: query.keyword ? { contains: query.keyword } : undefined }, orderBy: { createdAt: 'desc' } });
   }
 
   async createSupplier(dto: CreateSupplierDto, context: AccessContext) {
