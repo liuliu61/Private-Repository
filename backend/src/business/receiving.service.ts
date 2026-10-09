@@ -230,8 +230,52 @@ export class ReceivingService {
     if (amount.lte(0)) throw new BadRequestException('银行交易金额必须大于0');
     const existing = await tx.bankTransaction.findFirst({ where: { accountId: item.accountId, externalTransactionId: item.externalTransactionId } });
     if (existing) return { idempotent: true, bankTransaction: this.bankView(existing) };
-    const row = await tx.bankTransaction.create({ data: { transactionNo: this.generateBankNo(), organizationId: account.organizationId, accountId: account.id, occurredAt: new Date(item.occurredAt), bookedAt: item.bookedAt ? new Date(item.bookedAt) : null, direction: item.direction, amount, currency: 'CNY', counterpartyName: item.counterpartyName?.trim() || null, counterpartyAccount: item.counterpartyAccount?.trim() || null, summary: item.summary?.trim() || null, remark: item.remark?.trim() || null, source: item.source.trim(), externalTransactionId: item.externalTransactionId.trim(), status: BankTransactionStatus.CONFIRMING, createdBy: context.sub } });
-    await this.audit(tx, context, account.organizationId, row.id, 'BANK_TRANSACTION_IMPORT', null, { transactionNo: row.transactionNo, externalTransactionId: row.externalTransactionId, amount: moneyToString(amount), direction: row.direction });
+
+    // 自动匹配客户打款账户：先按对方账号精确匹配，再按对方户名模糊匹配
+    let matchedPaymentAccount: any = null;
+    const counterpartyAccount = item.counterpartyAccount?.trim();
+    const counterpartyName = item.counterpartyName?.trim();
+    if (counterpartyAccount) {
+      matchedPaymentAccount = await tx.customerPaymentAccount.findFirst({
+        where: { accountNumber: counterpartyAccount, status: 'ACTIVE' },
+        include: { customer: { select: { id: true, name: true, customerCode: true } } },
+      });
+    }
+    if (!matchedPaymentAccount && counterpartyName) {
+      matchedPaymentAccount = await tx.customerPaymentAccount.findFirst({
+        where: { accountName: { contains: counterpartyName }, status: 'ACTIVE' },
+        include: { customer: { select: { id: true, name: true, customerCode: true } } },
+      });
+    }
+
+    // 根据匹配结果决定初始状态：autoPost=true 自动匹配为 MATCHED，否则 UNPROCESSED
+    const initialStatus = matchedPaymentAccount?.autoPost
+      ? BankTransactionStatus.MATCHED
+      : BankTransactionStatus.UNPROCESSED;
+
+    const row = await tx.bankTransaction.create({
+      data: {
+        transactionNo: this.generateBankNo(),
+        organizationId: account.organizationId,
+        accountId: account.id,
+        occurredAt: new Date(item.occurredAt),
+        bookedAt: item.bookedAt ? new Date(item.bookedAt) : null,
+        direction: item.direction,
+        amount,
+        currency: 'CNY',
+        counterpartyName: counterpartyName || null,
+        counterpartyAccount: counterpartyAccount || null,
+        summary: item.summary?.trim() || null,
+        remark: item.remark?.trim() || null,
+        source: item.source.trim(),
+        externalTransactionId: item.externalTransactionId.trim(),
+        status: initialStatus,
+        matchedCustomerId: matchedPaymentAccount?.customerId || null,
+        createdBy: context.sub,
+      },
+      include: { matchedCustomer: { select: { id: true, name: true, customerCode: true } } },
+    });
+    await this.audit(tx, context, account.organizationId, row.id, 'BANK_TRANSACTION_IMPORT', null, { transactionNo: row.transactionNo, externalTransactionId: row.externalTransactionId, amount: moneyToString(amount), direction: row.direction, autoMatchedCustomerId: matchedPaymentAccount?.customerId || null, autoPost: matchedPaymentAccount?.autoPost || false });
     return { idempotent: false, bankTransaction: this.bankView(row) };
   }
 
