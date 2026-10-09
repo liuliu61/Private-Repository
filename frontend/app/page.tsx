@@ -156,7 +156,7 @@ export default function HomePage() {
   const refreshTransactions = () => { if (!token) return; apiRequest<{ items: Transaction[] }>('/transactions/all?page=1&pageSize=20', token).then(t => setTransactions(t.items)).catch(e => message.error(e.message)); };
   const perm = getPermissionActions(user);
   if (!token) return null;
-  return <Layout className="admin-shell"><Sider theme="light" width={228}><div className="system-brand"><div className="brand-mark small">财</div><span>代理商财务系统</span></div><Menu mode="inline" selectedKeys={[selected]} openKeys={openKeys} onOpenChange={setOpenKeys} items={menuItems} onClick={({ key }) => {
+  return <Layout className="admin-shell"><Sider theme="light" width={228}><div className="system-brand"><div className="brand-mark small">财</div><div className="brand-text"><span>代理商财务系统</span><span className="brand-sub">AGENT FINANCE</span></div></div><Menu mode="inline" selectedKeys={[selected]} openKeys={openKeys} onOpenChange={setOpenKeys} items={menuItems} onClick={({ key }) => {
   window.scrollTo({ top: 0, behavior: 'smooth' }); if (key === 'system') { setSelected('system'); return; }
   if (key === 'customer-contracts') { setSelected('customer-contracts'); return; }
   if (key === 'receive-refunds') { setSelected('receive-refunds'); return; }
