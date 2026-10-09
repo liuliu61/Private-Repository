@@ -107,7 +107,12 @@ export class ReceivingService {
   async listReceiveRecords(query: ReceiveRecordQueryDto, context: AccessContext) {
     this.assertPermission(context, 'FINANCE_RECEIVE_VIEW');
     const organizationIds = await this.scope.getOrganizationIds(context);
+    const isAdmin = this.scope.isSuperAdmin(context);
     const where: Prisma.ReceiveRecordWhereInput = { organizationId: organizationIds ? { in: organizationIds } : undefined, customerId: query.customerId, bankTransactionId: query.bankTransactionId, accountId: query.accountId, status: query.status, receiveNo: query.receiveNo, receivedAt: { gte: query.startDate ? new Date(query.startDate) : undefined, lt: query.endDate ? new Date(query.endDate) : undefined } };
+    // 部门数据隔离：非管理员且有部门归属时，按客户的 departmentId 过滤
+    if (!isAdmin && context.departmentId) {
+      (where as any).customer = { departmentId: context.departmentId };
+    }
     const [items, total] = await this.prisma.$transaction([
       this.prisma.receiveRecord.findMany({ where, include: { customer: { select: { id: true, name: true, customerCode: true } }, bankTransaction: { select: { id: true, transactionNo: true, counterpartyName: true } }, purchaseOrder: { select: { id: true, orderNo: true } }, account: { select: { id: true, name: true, accountCode: true } }, details: { orderBy: { createdAt: 'asc' } }, serviceFeeDetails: { orderBy: { createdAt: 'asc' }, include: { operator: { select: { id: true, displayName: true } } } } }, orderBy: [{ receivedAt: 'desc' }, { receiveNo: 'desc' }], skip: (query.page - 1) * query.pageSize, take: query.pageSize }),
       this.prisma.receiveRecord.count({ where }),

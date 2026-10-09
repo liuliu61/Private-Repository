@@ -5,6 +5,7 @@ import { apiRequest } from '../utils/api';
 import { MinusCircleOutlined, PlusOutlined } from '@ant-design/icons';
 import { Button, Card, DatePicker, Descriptions, Form, Input, Modal, Select, Space, Table, Tabs, Tag, Typography } from 'antd';
 import dayjs from 'dayjs';
+import type { PermissionActions } from '../utils/permissions';
 
 type Customer = { id: string; name: string; customerCode: string };
 type BankTransaction = { id: string; transactionNo: string; account?: { name: string; accountCode: string }; occurredAt: string; direction: string; amount: string; counterpartyName?: string; status: string; matchedCustomer?: { name: string }; receiveRecord?: { id: string; receiveNo: string; status: string }; details?: ReceiveDetail[] };
@@ -21,7 +22,8 @@ const amountToCents = (value?: string) => {
 };
 const centsToAmount = (value: number) => `${Math.trunc(value / 100)}.${Math.abs(value % 100).toString().padStart(2, '0')}`;
 
-export default function ReceivingPanel({ token, customers, onError }: { token: string; customers: Customer[]; onError: (message: string) => void }) {
+export default function ReceivingPanel({ token, customers, perm, onError }: { token: string; customers: Customer[]; perm?: PermissionActions; onError: (message: string) => void }) {
+  const canConfirm = perm?.canConfirm ?? true;
   const [tab, setTab] = useState('bank');
   const [banks, setBanks] = useState<BankTransaction[]>([]);
   const [receives, setReceives] = useState<ReceiveRecord[]>([]);
@@ -165,7 +167,7 @@ export default function ReceivingPanel({ token, customers, onError }: { token: s
         { title: '银行交易', render: (_: unknown, row: ReceiveRecord) => row.bankTransaction?.transactionNo || '-' },
         { title: '关联订单', render: (_: unknown, row: ReceiveRecord) => row.purchaseOrder?.orderNo || '-' },
         { title: '状态', dataIndex: 'status', render: (value: string) => <Tag>{receiveStatus[value] || value}</Tag> },
-        { title: '操作', render: (_: unknown, row: ReceiveRecord) => <Space><Button type="link" onClick={() => void showReceiveDetail(row.id)}>详情</Button>{row.status === 'PENDING_CONFIRMATION' && <Button type="link" onClick={() => void openPosting(row)}>确认入账</Button>}{row.transaction ? <span>{row.transaction.transactionNo}</span> : null}</Space> },
+        { title: '操作', render: (_: unknown, row: ReceiveRecord) => <Space><Button type="link" onClick={() => void showReceiveDetail(row.id)}>详情</Button>{row.status === 'PENDING_CONFIRMATION' && canConfirm && <Button type="link" onClick={() => void openPosting(row)}>确认入账</Button>}{row.transaction ? <span>{row.transaction.transactionNo}</span> : null}</Space> },
       ]} />
     </>}
     <Modal title="导入银行交易" open={importOpen} onCancel={() => setImportOpen(false)} onOk={() => form.submit()} okText="导入" cancelText="取消"><Form form={form} layout="vertical" onFinish={importBank}><Form.Item name="accountId" label="银行账户ID" rules={[{ required: true, message: '请输入银行账户ID' }]}><Input placeholder="请输入账户ID" /></Form.Item><Form.Item name="occurredAt" label="交易时间" rules={[{ required: true, message: '请选择交易时间' }]}><DatePicker showTime style={{ width: '100%' }} format="YYYY-MM-DD HH:mm:ss" placeholder="请选择交易时间" /></Form.Item><Form.Item name="direction" label="交易方向" initialValue="INCOME"><Select options={[{ value: 'INCOME', label: '收入' }, { value: 'EXPENSE', label: '支出' }]} /></Form.Item><Form.Item name="amount" label="金额" rules={[{ required: true, message: '请输入金额' }]}><Input /></Form.Item><Form.Item name="source" label="来源" initialValue="MANUAL" rules={[{ required: true, message: '请选择来源' }]}><Select options={[{ value: 'MANUAL', label: '手工录入' }, { value: 'IMPORT', label: '文件导入' }, { value: 'API', label: '接口同步' }, { value: 'BANK_API', label: '银行直连' }]} /></Form.Item><Form.Item name="externalTransactionId" label="原始交易编号" rules={[{ required: true, message: '请输入原始交易编号' }]}><Input /></Form.Item><Form.Item name="counterpartyName" label="对方名称"><Input /></Form.Item><Form.Item name="summary" label="摘要"><Input /></Form.Item></Form></Modal>

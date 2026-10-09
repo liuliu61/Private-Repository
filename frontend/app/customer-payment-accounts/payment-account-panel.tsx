@@ -7,6 +7,7 @@ import {
   Switch, message, Popconfirm,
 } from 'antd';
 import { PlusOutlined, ReloadOutlined } from '@ant-design/icons';
+import type { PermissionActions } from '../utils/permissions';
 
 interface Customer { id: string; name: string; customerCode: string; }
 
@@ -24,11 +25,13 @@ interface PaymentAccount {
   customer?: Customer;
 }
 
-export default function PaymentAccountPanel({ token, customers, onError }: {
+export default function PaymentAccountPanel({ token, customers, perm, onError }: {
   token: string;
   customers: Customer[];
+  perm?: PermissionActions;
   onError: (error: string) => void;
 }) {
+  const canDelete = perm?.canDelete ?? true;
   const [data, setData] = useState<PaymentAccount[]>([]);
   const [loading, setLoading] = useState(false);
   const [filterCustomerId, setFilterCustomerId] = useState<string>('');
@@ -142,16 +145,18 @@ export default function PaymentAccountPanel({ token, customers, onError }: {
           <Button type="link" size="small" onClick={() => handleOpenModal(record)}>
             编辑
           </Button>
-          <Popconfirm
-            title="确定删除该打款账户？"
-            onConfirm={() => handleDelete(record.id)}
-            okText="确定"
-            cancelText="取消"
-          >
-            <Button type="link" size="small" danger>
-              删除
-            </Button>
-          </Popconfirm>
+          {canDelete && (
+            <Popconfirm
+              title="确定删除该打款账户？"
+              onConfirm={() => handleDelete(record.id)}
+              okText="确定"
+              cancelText="取消"
+            >
+              <Button type="link" size="small" danger>
+                删除
+              </Button>
+            </Popconfirm>
+          )}
         </Space>
       ),
     },

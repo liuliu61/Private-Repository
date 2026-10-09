@@ -8,5 +8,5 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(config: ConfigService) {
     super({ jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(), secretOrKey: config.getOrThrow<string>('JWT_SECRET') });
   }
-  validate(payload: { sub: string; username: string; roles: string[]; permissions: string[] }) { return payload; }
+  validate(payload: { sub: string; username: string; roles: string[]; permissions: string[]; departmentId?: string }) { return payload; }
 }

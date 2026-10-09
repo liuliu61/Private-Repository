@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { apiRequest, getToken } from '../utils/api';
 import { Upload, Button, message } from 'antd';
 import { UploadOutlined, DeleteOutlined, DownloadOutlined } from '@ant-design/icons';
+import { getUserInfo, getPermissionActions } from '../utils/permissions';
 
 const statusMap: any = {
   DRAFT: { label: '草稿', color: 'gray' },
@@ -37,6 +38,10 @@ function daysUntil(expiryDate?: string) {
 }
 
 export default function CustomerContractsPage() {
+  const user = getUserInfo();
+  const perm = getPermissionActions(user);
+  const canDelete = perm.canDelete;
+  const canApprove = perm.canApprove;
   const [contracts, setContracts] = useState<any[]>([]);
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -192,16 +197,16 @@ export default function CustomerContractsPage() {
                       <>
                         <button className="text-blue-500 mr-2" onClick={() => { setEditing(c); setShowModal(true); }}>编辑</button>
                         <button className="text-green-500 mr-2" onClick={() => submitApproval(c.id)}>提交审批</button>
-                        <button className="text-red-500" onClick={() => remove(c.id)}>删除</button>
+                        {canDelete && <button className="text-red-500" onClick={() => remove(c.id)}>删除</button>}
                       </>
                     )}
                     {c.status === 'PENDING_APPROVAL' && (
                       <>
-                        <button className="text-green-500 mr-2" onClick={() => approve(c.id)}>通过</button>
-                        <button className="text-red-500" onClick={() => reject(c.id)}>驳回</button>
+                        {canApprove && <button className="text-green-500 mr-2" onClick={() => approve(c.id)}>通过</button>}
+                        {canApprove && <button className="text-red-500" onClick={() => reject(c.id)}>驳回</button>}
                       </>
                     )}
-                    {(c.status === 'ACTIVE' || c.status === 'EXPIRING') && (
+                    {(c.status === 'ACTIVE' || c.status === 'EXPIRING') && canApprove && (
                       <button className="text-red-500" onClick={() => terminate(c.id)}>终止</button>
                     )}
                   </td>

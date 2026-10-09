@@ -6,9 +6,11 @@ import { CreatePaymentAccountDto, UpdatePaymentAccountDto } from './business-ext
 export class PaymentAccountService {
   constructor(private prisma: PrismaService) {}
 
-  async findAll(customerId?: string) {
+  async findAll(customerId?: string, departmentId?: string) {
     const where: any = {};
     if (customerId) where.customerId = customerId;
+    // 部门数据隔离：按客户的 departmentId 过滤
+    if (departmentId) where.customer = { departmentId };
     const items = await this.prisma.customerPaymentAccount.findMany({
       where,
       include: { customer: { select: { id: true, name: true, customerCode: true } } },

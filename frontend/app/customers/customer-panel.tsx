@@ -7,13 +7,16 @@ import {
   message, Descriptions, Row, Col
 } from 'antd';
 import { PlusOutlined, ReloadOutlined, EyeOutlined } from '@ant-design/icons';
+import type { PermissionActions } from '../utils/permissions';
 
 interface CustomerPanelProps {
   token: string;
+  perm?: PermissionActions;
   onError: (error: string) => void;
 }
 
-export default function CustomerPanel({ token, onError }: CustomerPanelProps) {
+export default function CustomerPanel({ token, perm, onError }: CustomerPanelProps) {
+  const canCreate = perm?.canCreate ?? true;
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [total, setTotal] = useState(0);
@@ -79,7 +82,7 @@ export default function CustomerPanel({ token, onError }: CustomerPanelProps) {
         extra={
           <Space>
             <Button icon={<ReloadOutlined />} onClick={fetchData}>刷新</Button>
-            <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setCreateModalOpen(true); }}>新建客户</Button>
+            {canCreate && <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setCreateModalOpen(true); }}>新建客户</Button>}
           </Space>
         }
       >

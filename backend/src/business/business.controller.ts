@@ -14,7 +14,7 @@ import { FinancialAdjustmentService } from './financial-adjustment.service';
 import { SourcingSettingService } from './sourcing-setting.service';
 import { SettlementType } from '@prisma/client';
 
-interface AuthenticatedRequest extends Request { user: { sub: string; username: string; roles: string[]; permissions: string[] }; }
+interface AuthenticatedRequest extends Request { user: { sub: string; username: string; roles: string[]; permissions: string[]; departmentId?: string }; }
 
 @Controller()
 @UseGuards(JwtAuthGuard)

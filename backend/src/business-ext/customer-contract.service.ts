@@ -32,7 +32,7 @@ export class CustomerContractService {
     });
   }
 
-  async findAll(page = 1, pageSize = 20, customerId?: string, status?: string, keyword?: string) {
+  async findAll(page = 1, pageSize = 20, customerId?: string, status?: string, keyword?: string, departmentId?: string) {
     // 查询前自动更新到期状态
     await this.updateExpiryStatuses();
 
@@ -40,6 +40,8 @@ export class CustomerContractService {
     if (customerId) where.customerId = customerId;
     if (status) where.status = status;
     if (keyword) where.name = { contains: keyword };
+    // 部门数据隔离：按客户的 departmentId 过滤
+    if (departmentId) where.customer = { departmentId };
     const [items, total] = await Promise.all([
       this.prisma.customerContract.findMany({
         where,

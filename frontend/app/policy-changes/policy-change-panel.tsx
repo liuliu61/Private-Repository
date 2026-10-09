@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../utils/api';
 import { Button, Card, Descriptions, Form, Input, Modal, Select, Space, Table, Tabs, Tag, Typography, message } from 'antd';
+import type { PermissionActions } from '../utils/permissions';
 
 type Customer = { id: string; name: string; customerCode: string };
 type Policy = { id: string; name: string; customerId: string | null; status: string; remark: string | null; versions?: { id: string; version: number; rebateType: string; rate: string; calculationMode: string | null; effectiveFrom: string; status: string }[] };
@@ -49,7 +50,9 @@ function formatValue(key: string, value: any): string {
   return String(value);
 }
 
-export default function PolicyChangePanel({ token, customers, onError }: { token: string; customers: Customer[]; onError: (msg: string) => void }) {
+export default function PolicyChangePanel({ token, customers, perm, onError }: { token: string; customers: Customer[]; perm?: PermissionActions; onError: (msg: string) => void }) {
+  const canApprove = perm?.canApprove ?? true;
+  const canDelete = perm?.canDelete ?? true;
   const [activeTab, setActiveTab] = useState('ALL');
   const [items, setItems] = useState<ChangeRequest[]>([]);
   const [total, setTotal] = useState(0);
@@ -218,13 +221,13 @@ export default function PolicyChangePanel({ token, customers, onError }: { token
       render: (_: any, row: ChangeRequest) => (
         <Space size="small">
           <Button type="link" size="small" onClick={() => showDetail(row)}>详情</Button>
-          {row.status === 'PENDING' && (
+          {row.status === 'PENDING' && canApprove && (
             <>
               <Button type="link" size="small" style={{ color: '#52c41a' }} onClick={() => { setCurrent(row); setApproveOpen(true); }}>通过</Button>
               <Button type="link" size="small" danger onClick={() => { setCurrent(row); setRejectOpen(true); }}>驳回</Button>
             </>
           )}
-          {row.status !== 'APPROVED' && <Button type="link" size="small" danger onClick={() => handleDelete(row)}>删除</Button>}
+          {row.status !== 'APPROVED' && canDelete && <Button type="link" size="small" danger onClick={() => handleDelete(row)}>删除</Button>}
         </Space>
       ),
     },

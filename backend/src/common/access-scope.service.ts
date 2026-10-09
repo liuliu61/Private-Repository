@@ -1,7 +1,7 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
-export interface AccessContext { sub: string; username: string; roles: string[]; permissions: string[]; }
+export interface AccessContext { sub: string; username: string; roles: string[]; permissions: string[]; departmentId?: string; }
 
 @Injectable()
 export class AccessScopeService {

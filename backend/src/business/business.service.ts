@@ -48,7 +48,15 @@ export class BusinessService {
 
   async listCustomers(query: ListQueryDto, context: AccessContext) {
     const ids = await this.scope.getOrganizationIds(context);
-    return this.prisma.customer.findMany({ where: { agentId: ids ? { in: ids } : undefined, OR: query.keyword ? [{ name: { contains: query.keyword } }, { customerCode: { contains: query.keyword } }] : undefined }, orderBy: { createdAt: 'desc' } });
+    const isAdmin = this.scope.isSuperAdmin(context);
+    const where: any = { agentId: ids ? { in: ids } : undefined };
+    if (!isAdmin && context.departmentId) {
+      where.departmentId = context.departmentId;
+    }
+    if (query.keyword) {
+      where.OR = [{ name: { contains: query.keyword } }, { customerCode: { contains: query.keyword } }];
+    }
+    return this.prisma.customer.findMany({ where, orderBy: { createdAt: 'desc' } });
   }
 
   async createCustomer(dto: CreateCustomerDto, context: AccessContext) {
