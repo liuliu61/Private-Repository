@@ -157,7 +157,7 @@ export default function HomePage() {
   const perm = getPermissionActions(user);
   if (!token) return null;
   return <Layout className="admin-shell"><Sider theme="light" width={228}><div className="system-brand"><div className="brand-mark small">财</div><span>代理商财务系统</span></div><Menu mode="inline" selectedKeys={[selected]} openKeys={openKeys} onOpenChange={setOpenKeys} items={menuItems} onClick={({ key }) => {
-  if (key === 'system') { setSelected('system'); return; }
+  window.scrollTo({ top: 0, behavior: 'smooth' }); if (key === 'system') { setSelected('system'); return; }
   if (key === 'customer-contracts') { setSelected('customer-contracts'); return; }
   if (key === 'receive-refunds') { setSelected('receive-refunds'); return; }
   setSelected(key);

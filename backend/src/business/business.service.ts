@@ -60,8 +60,9 @@ export class BusinessService {
   }
 
   async createCustomer(dto: CreateCustomerDto, context: AccessContext) {
-    const agentId = dto.agentId ?? (await this.scope.getOrganizationIds(context))?.[0];
-    if (!agentId && !this.scope.isSuperAdmin(context)) throw new BadRequestException('请先配置客户所属组织');
+    let agentId = dto.agentId ?? (await this.scope.getOrganizationIds(context))?.[0];
+    if (!agentId && this.scope.isSuperAdmin(context)) { const defOrg = await this.prisma.organization.findFirst({ where: { code: 'DEFAULT' } }); agentId = defOrg?.id; }
+    if (!agentId) throw new BadRequestException('请先配置客户所属组织');
     if (agentId) await this.scope.assertOrganizationAccess(agentId, context);
     const customer = await this.prisma.customer.create({ data: { customerCode: dto.customerCode, name: dto.name, fullName: dto.fullName, contact: dto.contact, phone: dto.phone, departmentId: dto.departmentId, agentId, remark: dto.remark } });
     // 创建客户后自动创建默认财务V钱包（如果不存在）
