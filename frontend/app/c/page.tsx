@@ -143,7 +143,6 @@ export default function CustomerPortalPage() {
                       { title: '平台', dataIndex: 'platform' },
                       { title: '平台账号ID', dataIndex: 'platformAccountId' },
                       { title: '端口', dataIndex: 'channelName' },
-                      { title: '累计充值金额', dataIndex: 'currentBalance', render: (v: string) => <b>¥{v}</b> },
                       { title: '状态', dataIndex: 'status', render: (v: string) => <Tag color={v === 'ACTIVE' ? 'green' : 'default'}>{v === 'ACTIVE' ? '正常' : '停用'}</Tag> },
                       { title: '操作', render: (_: any, r: any) => <Button type="link" size="small" onClick={() => loadAccountTx(token!, r.id)}>账户流水</Button> },
                     ]} />
@@ -185,7 +184,7 @@ export default function CustomerPortalPage() {
       <Modal title="提交充值申请" open={modalOpen} onCancel={() => setModalOpen(false)} footer={null} destroyOnClose>
         <Form form={form} layout="vertical" onFinish={submitRequest} requiredMark={false}>
           <Form.Item name="promotionAccountId" label="推广账户" rules={[{ required: true, message: '请选择推广账户' }]}>
-            <Select placeholder="请选择推广账户" options={accounts.map((a: any) => ({ value: a.id, label: `${a.accountName}（余额 ¥${a.currentBalance}）` }))} />
+            <Select placeholder="请选择推广账户" options={accounts.map((a: any) => ({ value: a.id, label: a.accountName }))} />
           </Form.Item>
           <Form.Item name="amount" label="充值金额" rules={[{ required: true, message: '请输入充值金额' }]}>
             <InputNumber style={{ width: '100%' }} min={0.01} precision={2} placeholder="请输入充值金额" prefix="¥" />
@@ -201,9 +200,7 @@ export default function CustomerPortalPage() {
         <Table rowKey="id" size="small" pagination={false} dataSource={accountTx} locale={{ emptyText: '暂无流水' }} columns={[
           { title: '交易单号', dataIndex: 'transactionNo' },
           { title: '变动金额', dataIndex: 'changeAmount', render: (v: string) => <b style={{ color: v.startsWith('-') ? '#ef4444' : '#22c55e' }}>{v}</b> },
-          { title: '余额', dataIndex: 'balanceAfter' },
           { title: '客户返点', dataIndex: 'customerRebate', render: (v: string) => v ? `${v}%` : '—' },
-          { title: '成本返点', dataIndex: 'costRebate', render: (v: string) => v ? `${v}%` : '—' },
           { title: '实打金额', dataIndex: 'remitAmount', render: (v: string) => v || '—' },
           { title: '时间', dataIndex: 'occurredAt', render: (v: string) => new Date(v).toLocaleString('zh-CN') },
         ]} />
