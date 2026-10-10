@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { apiRequest } from '../utils/api';
-import { Card, Table, Button, Tag, Space, Modal, Form, Input, Select, message, Popconfirm } from 'antd';
+import { Card, Table, Button, Tag, Space, Modal, Form, Input, Select, message, Popconfirm, Typography } from 'antd';
 import { PlusOutlined, ReloadOutlined, KeyOutlined, LinkOutlined, DisconnectOutlined } from '@ant-design/icons';
 
 interface AgentUser {
@@ -13,7 +13,7 @@ interface AgentUser {
   remark: string | null;
   status: string;
   createdAt: string;
-  _count?: { agentCustomers: number };
+  customers?: { id: string; name: string; customerCode?: string | null }[];
 }
 
 interface AgentCustomer {
@@ -78,16 +78,7 @@ export default function AgentPortalPanel({ token, customers, onError }: {
     setCurrent(record);
     setBindOpen(true);
     bindForm.resetFields();
-    try {
-      const d: any = await apiRequest(`/portal/b/customers?agentUserId=${record.id}`, token, {});
-      setBound([]);
-    } catch (e: any) {
-      // 管理端查看绑定关系：直接查询 agent_customers
-      try {
-        const all = await apiRequest('/portal/admin/agent-users?pageSize=100', token, {});
-        setBound(all.items || []);
-      } catch (e2: any) { setBound([]); }
-    }
+    setBound((record.customers || []).map((c: any) => ({ id: c.id, customerId: c.id, customer: { name: c.name, customerCode: c.customerCode } })));
   }
 
   async function bindCustomers(values: any) {
@@ -109,6 +100,7 @@ export default function AgentPortalPanel({ token, customers, onError }: {
         body: JSON.stringify({}),
       });
       message.success('已解绑');
+      setBound((b) => b.filter((x) => x.customerId !== customerId));
       load();
     } catch (e: any) { onError(e.message); }
   }
@@ -122,7 +114,7 @@ export default function AgentPortalPanel({ token, customers, onError }: {
         { title: '登录账号', dataIndex: 'username' },
         { title: '显示名称', dataIndex: 'displayName' },
         { title: '手机号', dataIndex: 'phone', render: (v: string) => v || '—' },
-        { title: '绑定客户数', dataIndex: '_count', render: (v: any) => v?.agentCustomers ?? 0 },
+        { title: '绑定客户数', dataIndex: 'customers', render: (_: any, r: AgentUser) => r.customers?.length ?? 0 },
         { title: '状态', dataIndex: 'status', render: (v: string) => <Tag color={v === 'ACTIVE' ? 'green' : 'default'}>{v === 'ACTIVE' ? '正常' : '停用'}</Tag> },
         { title: '创建时间', dataIndex: 'createdAt', render: (v: string) => new Date(v).toLocaleString('zh-CN') },
         {
@@ -166,6 +158,18 @@ export default function AgentPortalPanel({ token, customers, onError }: {
       </Modal>
 
       <Modal title={`绑定客户：${current?.displayName || ''}`} open={bindOpen} onCancel={() => setBindOpen(false)} footer={null} width={640}>
+        {bound.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <Typography.Text strong>已绑定客户</Typography.Text>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+              {bound.map((b) => (
+                <Tag key={b.customerId} closable onClose={() => unbindCustomer(b.customerId)} color="blue">
+                  {b.customer?.name || b.customerId}
+                </Tag>
+              ))}
+            </div>
+          </div>
+        )}
         <Form form={bindForm} layout="vertical" onFinish={bindCustomers} requiredMark={false}>
           <Form.Item name="customerIds" label="选择要绑定的客户" rules={[{ required: true, message: '请选择客户' }]}>
             <Select mode="multiple" showSearch optionFilterProp="label" placeholder="可多选"
