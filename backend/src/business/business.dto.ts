@@ -20,7 +20,7 @@ export class CreateAccountDto {
   @IsString() @IsNotEmpty() @MaxLength(50) accountCode!: string;
   @IsEnum(AccountType) accountType!: AccountType;
   @IsOptional() @IsUUID('4') organizationId?: string;
-  @IsOptional() @Matches(money) openingBalance?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(money) openingBalance?: string;
 }
 
 export class CreateCustomerDto {
@@ -55,18 +55,18 @@ export class CreatePromotionAccountDto {
   @IsOptional() @IsString() @MaxLength(100) platformAccountId?: string;
   @IsOptional() @IsString() @MaxLength(50) accountCategory?: string;
   @IsOptional() @IsString() @MaxLength(100) channelName?: string;
-  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '对公客户返点格式不正确' }) customerRebatePublic?: string;
-  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '对私客户返点格式不正确' }) customerRebatePrivate?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '对公客户返点格式不正确' }) customerRebatePublic?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '对私客户返点格式不正确' }) customerRebatePrivate?: string;
 }
 
 export class PromotionAccountCreditDto {
-  @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '充值金额格式不正确' }) amount!: string;
-  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '客户返点格式不正确' }) customerRebate?: string;
-  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '成本返点格式不正确' }) costRebate?: string;
-  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '打款金额格式不正确' }) remitAmount?: string;
-  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '额外费用格式不正确' }) additionalFee?: string;
-  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '运营费用格式不正确' }) operateFee?: string;
-  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '利润格式不正确' }) profit?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '充值金额格式不正确' }) amount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '客户返点格式不正确' }) customerRebate?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '成本返点格式不正确' }) costRebate?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '打款金额格式不正确' }) remitAmount?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '额外费用格式不正确' }) additionalFee?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '运营费用格式不正确' }) operateFee?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '利润格式不正确' }) profit?: string;
   @IsOptional() @IsString() @MaxLength(50) accountCategory?: string;
   @IsOptional() @IsString() @MaxLength(100) channelName?: string;
   @IsOptional() @IsString() @MaxLength(20) paymentNature?: string;
@@ -75,7 +75,7 @@ export class PromotionAccountCreditDto {
 }
 
 export class PromotionAccountRefundDto {
-  @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '退款金额格式不正确' }) amount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '退款金额格式不正确' }) amount!: string;
   @IsUUID('4', { message: '客户钱包ID格式不正确' }) customerWalletId!: string;
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
 }
@@ -87,7 +87,7 @@ export class PromotionAccountTransactionQueryDto {
 
 export class RecordCustomerCreditDto {
   @IsUUID('4', { message: '推广账户ID格式不正确' }) promotionAccountId!: string;
-  @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '到账账户币金额格式不正确' }) creditAmount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '到账账户币金额格式不正确' }) creditAmount!: string;
   @IsString() @IsNotEmpty() @MaxLength(100) businessNo!: string;
   @IsString() @IsNotEmpty() @MaxLength(100) idempotencyKey!: string;
   @IsDateString({}, { message: '到账时间格式不正确' }) occurredAt!: string;
@@ -95,7 +95,7 @@ export class RecordCustomerCreditDto {
 }
 
 export class RecordCustomerPaymentDto {
-  @Matches(money, { message: '实际收款金额格式不正确' }) actualAmount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(money, { message: '实际收款金额格式不正确' }) actualAmount!: string;
   @IsString() @IsNotEmpty() @MaxLength(100) businessNo!: string;
   @IsString() @IsNotEmpty() @MaxLength(100) idempotencyKey!: string;
   @IsDateString({}, { message: '收款时间格式不正确' }) occurredAt!: string;
@@ -104,7 +104,7 @@ export class RecordCustomerPaymentDto {
 
 export class RecordSupplierPaymentDto {
   @IsUUID('4') supplierAccountId!: string;
-  @Matches(money, { message: '实际付款金额格式不正确' }) actualAmount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(money, { message: '实际付款金额格式不正确' }) actualAmount!: string;
   @IsString() @IsNotEmpty() @MaxLength(100) businessNo!: string;
   @IsString() @IsNotEmpty() @MaxLength(100) idempotencyKey!: string;
   @IsDateString({}, { message: '付款时间格式不正确' }) occurredAt!: string;
@@ -112,7 +112,7 @@ export class RecordSupplierPaymentDto {
 }
 
 export class CreateRefundDto {
-  @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '退款金额格式不正确' }) refundAmount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '退款金额格式不正确' }) refundAmount!: string;
   @IsString() @IsNotEmpty() @MaxLength(255) refundReason!: string;
   @IsString() @IsNotEmpty() @MaxLength(100) idempotencyKey!: string;
 }
@@ -153,8 +153,8 @@ export class CreatePurchaseOrderDto {
   @IsOptional() @IsUUID('4') adAccountId?: string;
   @IsOptional() @IsEnum(SupplierPlatform) platform?: SupplierPlatform;
   @IsUUID('4') cashAccountId!: string;
-  @IsOptional() @Matches(money) baseAmount?: string;
-  @IsOptional() @Matches(money) amount?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(money) baseAmount?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(money) amount?: string;
   @IsOptional() @IsDateString() orderTime?: string;
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
 }
@@ -171,7 +171,7 @@ export class CreateProcurementOrderDto {
   @IsUUID('4') subjectId!: string;
   @IsUUID('4') accountId!: string;
   @IsUUID('4', { message: '公司资金账户ID格式不正确' }) cashAccountId!: string;
-  @Matches(money, { message: '基准金额格式不正确' }) baseAmount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(money, { message: '基准金额格式不正确' }) baseAmount!: string;
   @IsDateString({}, { message: '业务时间格式不正确' }) businessTime!: string;
   @IsOptional() @IsString() @MaxLength(100) inboundAccountId?: string;
   @IsOptional() @IsString() @MaxLength(120) inboundAccountName?: string;
@@ -225,7 +225,7 @@ export class CreateCustomerPolicyDto {
   @IsOptional() @IsUUID('4') adAccountId?: string;
   @IsEnum(RebateRuleType) rebateType!: RebateRuleType;
   @IsEnum(RebateCalculationMode) calculationMode!: RebateCalculationMode;
-  @Matches(rate) rate!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(rate) rate!: string;
   @IsDateString() effectiveFrom!: string;
   @IsOptional() @IsDateString() effectiveTo?: string;
 }
@@ -238,7 +238,7 @@ export class CreateSupplierPolicyDto {
   @IsOptional() @IsUUID('4') adAccountId?: string;
   @IsEnum(RebateRuleType) rebateType!: RebateRuleType;
   @IsEnum(RebateCalculationMode) calculationMode!: RebateCalculationMode;
-  @Matches(rate) rate!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(rate) rate!: string;
   @IsEnum(SupplierSettlementType) settlementType!: SupplierSettlementType;
   @IsDateString() effectiveFrom!: string;
   @IsOptional() @IsDateString() effectiveTo?: string;
@@ -276,7 +276,7 @@ export class CreateCustomerRebatePolicyVersionDto {
   @IsOptional() @IsUUID('4', { message: '广告账户ID格式不正确' }) accountId?: string;
   @IsEnum(RebateRuleType) rebateType!: RebateRuleType;
   @IsEnum(RebateCalculationMode) calculationMode!: RebateCalculationMode;
-  @Matches(rate) rate!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(rate) rate!: string;
   @IsDateString({}, { message: '生效时间格式不正确' }) effectiveFrom!: string;
   @IsOptional() @IsDateString({}, { message: '失效时间格式不正确' }) effectiveTo?: string;
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
@@ -299,7 +299,7 @@ export class CreateSupplierRebatePolicyVersionDto {
   @IsOptional() @IsUUID('4', { message: '广告账户ID格式不正确' }) accountId?: string;
   @IsEnum(RebateRuleType) rebateType!: RebateRuleType;
   @IsEnum(RebateCalculationMode) calculationMode!: RebateCalculationMode;
-  @Matches(rate) rate!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(rate) rate!: string;
   @IsDateString({}, { message: '生效时间格式不正确' }) effectiveFrom!: string;
   @IsOptional() @IsDateString({}, { message: '失效时间格式不正确' }) effectiveTo?: string;
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
@@ -351,7 +351,7 @@ export class ReconciliationQueryDto {
   @IsUUID('4') accountId!: string;
   @IsDateString() periodStart!: string;
   @IsDateString() periodEnd!: string;
-  @IsOptional() @Matches(money) actualClosingBalance?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(money) actualClosingBalance?: string;
 }
 
 export class GenerateReconciliationDto {
@@ -376,7 +376,7 @@ export class CreateFinancialAdjustmentDto {
   @IsOptional() @IsUUID('4', { message: '推广账户ID格式不正确' }) promotionAccountId?: string;
   @IsEnum(AccountUnit, { message: '账户类型不正确' }) accountType!: AccountUnit;
   @IsEnum(FinancialAdjustmentType, { message: '调整类型不正确' }) type!: FinancialAdjustmentType;
-  @Matches(money, { message: '调整金额格式不正确，请输入最多两位小数的正数' }) amount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(money, { message: '调整金额格式不正确，请输入最多两位小数的正数' }) amount!: string;
   @IsString() @IsNotEmpty() @MaxLength(255) reason!: string;
 }
 
@@ -421,11 +421,11 @@ export class CustomerWalletListQueryDto {
   @IsOptional() @IsEnum(AccountUnit, { message: '钱包单位不正确' }) unit?: AccountUnit;
   @IsOptional() @Transform(trim) @IsString() @MaxLength(100) keyword?: string;
   @IsOptional() @IsEnum(WalletComparisonOperator) totalBalanceOperator?: WalletComparisonOperator;
-  @IsOptional() @Matches(money, { message: '总余额筛选金额格式不正确' }) totalBalance?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(money, { message: '总余额筛选金额格式不正确' }) totalBalance?: string;
   @IsOptional() @IsEnum(WalletComparisonOperator) advanceOperator?: WalletComparisonOperator;
-  @IsOptional() @Matches(money, { message: '垫款筛选金额格式不正确' }) advanceOutstanding?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(money, { message: '垫款筛选金额格式不正确' }) advanceOutstanding?: string;
   @IsOptional() @IsEnum(WalletComparisonOperator) creditLimitOperator?: WalletComparisonOperator;
-  @IsOptional() @Matches(money, { message: '授信额度筛选金额格式不正确' }) creditLimit?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(money, { message: '授信额度筛选金额格式不正确' }) creditLimit?: string;
 }
 
 export class CustomerWalletTransactionQueryDto {
@@ -435,12 +435,12 @@ export class CustomerWalletTransactionQueryDto {
   @IsOptional() @IsString() @MaxLength(60) transactionNo?: string;
   @IsOptional() @IsDateString({}, { message: '开始时间格式不正确' }) startDate?: string;
   @IsOptional() @IsDateString({}, { message: '结束时间格式不正确' }) endDate?: string;
-  @IsOptional() @Matches(money, { message: '最小金额格式不正确' }) minAmount?: string;
-  @IsOptional() @Matches(money, { message: '最大金额格式不正确' }) maxAmount?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(money, { message: '最小金额格式不正确' }) minAmount?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(money, { message: '最大金额格式不正确' }) maxAmount?: string;
 }
 
 export class WalletOpeningBalanceDto {
-  @Matches(money, { message: '期初余额格式不正确' }) amount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(money, { message: '期初余额格式不正确' }) amount!: string;
   @IsOptional() @IsString() @MaxLength(100) businessNo?: string;
   @IsOptional() @IsString() @MaxLength(100) idempotencyKey?: string;
   @IsOptional() @IsDateString({}, { message: '发生时间格式不正确' }) occurredAt?: string;
@@ -450,7 +450,7 @@ export class WalletOpeningBalanceDto {
 export class WalletAdjustmentDto {
   @IsEnum(CustomerWalletTransactionType, { message: '钱包调整类型不正确' }) type!: CustomerWalletTransactionType;
   @IsOptional() @IsEnum(WalletAdjustmentDirection, { message: '调整方向不正确' }) direction?: WalletAdjustmentDirection;
-  @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '调整金额格式不正确，请输入最多两位小数的正数' }) amount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '调整金额格式不正确，请输入最多两位小数的正数' }) amount!: string;
   @IsOptional() @IsString() @MaxLength(100) businessNo?: string;
   @IsOptional() @IsString() @MaxLength(100) idempotencyKey?: string;
   @IsOptional() @IsDateString({}, { message: '发生时间格式不正确' }) occurredAt?: string;
@@ -458,20 +458,20 @@ export class WalletAdjustmentDto {
 }
 
 export class WalletCreditUpdateDto {
-  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '授信额度格式不正确' }) creditLimit?: string;
-  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '授信已使用金额格式不正确' }) creditUsed?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '授信额度格式不正确' }) creditLimit?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '授信已使用金额格式不正确' }) creditUsed?: string;
   @IsOptional() @IsDateString({}, { message: '生效时间格式不正确' }) effectiveAt?: string;
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
 }
 
 export class WalletAdvanceUpdateDto {
-  @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '垫款金额格式不正确' }) advanceOutstanding!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '垫款金额格式不正确' }) advanceOutstanding!: string;
   @IsOptional() @IsDateString({}, { message: '生效时间格式不正确' }) effectiveAt?: string;
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
 }
 
 export class WalletAdvanceRepayDto {
-  @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '还款金额格式不正确' }) amount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '还款金额格式不正确' }) amount!: string;
   @IsOptional() @IsString() @MaxLength(100) businessNo?: string;
   @IsOptional() @IsString() @MaxLength(100) idempotencyKey?: string;
   @IsOptional() @IsDateString({}, { message: '发生时间格式不正确' }) occurredAt?: string;
@@ -479,7 +479,7 @@ export class WalletAdvanceRepayDto {
 }
 
 export class WalletAdvanceWaiveDto {
-  @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '豁免金额格式不正确' }) amount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '豁免金额格式不正确' }) amount!: string;
   @IsString() @MaxLength(255) reason!: string;
   @IsOptional() @IsString() @MaxLength(100) businessNo?: string;
   @IsOptional() @IsString() @MaxLength(100) idempotencyKey?: string;
@@ -499,8 +499,8 @@ export class BankTransactionQueryDto {
   @IsOptional() @IsString() @MaxLength(100) keyword?: string;
   @IsOptional() @IsDateString({}, { message: '开始时间格式不正确' }) startDate?: string;
   @IsOptional() @IsDateString({}, { message: '结束时间格式不正确' }) endDate?: string;
-  @IsOptional() @Matches(positiveMoney, { message: '最小金额格式不正确' }) minAmount?: string;
-  @IsOptional() @Matches(positiveMoney, { message: '最大金额格式不正确' }) maxAmount?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(positiveMoney, { message: '最小金额格式不正确' }) minAmount?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(positiveMoney, { message: '最大金额格式不正确' }) maxAmount?: string;
 }
 
 export class BankTransactionImportItemDto {
@@ -508,7 +508,7 @@ export class BankTransactionImportItemDto {
   @IsDateString({}, { message: '交易时间格式不正确' }) occurredAt!: string;
   @IsOptional() @IsDateString({}, { message: '入账时间格式不正确' }) bookedAt?: string;
   @IsEnum(BankTransactionDirection, { message: '交易方向不正确' }) direction!: BankTransactionDirection;
-  @Matches(positiveMoney, { message: '交易金额格式不正确' }) amount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(positiveMoney, { message: '交易金额格式不正确' }) amount!: string;
   @IsOptional() @IsString() @MaxLength(120) counterpartyName?: string;
   @IsOptional() @IsString() @MaxLength(120) counterpartyAccount?: string;
   @IsOptional() @IsString() @MaxLength(255) summary?: string;
@@ -535,18 +535,18 @@ export class CreateReceiveRecordDto {
   @IsUUID('4', { message: '银行交易ID格式不正确' }) bankTransactionId!: string;
   @IsOptional() @IsUUID('4', { message: '客户ID格式不正确' }) customerId?: string;
   @IsOptional() @IsUUID('4', { message: '订单ID格式不正确' }) purchaseOrderId?: string;
-  @IsOptional() @Matches(positiveMoney, { message: '收款金额格式不正确' }) amount?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(positiveMoney, { message: '收款金额格式不正确' }) amount?: string;
   @IsOptional() @IsDateString({}, { message: '收款时间格式不正确' }) receivedAt?: string;
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
 }
 
 export class ReceivePostingDetailDto {
   @IsEnum(ReceivePaymentNature, { message: '入账性质不正确' }) type!: ReceivePaymentNature;
-  @Matches(positiveMoney, { message: '入账明细金额格式不正确' }) amount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(positiveMoney, { message: '入账明细金额格式不正确' }) amount!: string;
 }
 
 export class ReceivePostingDto {
-  @Matches(positiveMoney, { message: '服务费金额格式不正确' }) serviceFeeAmount = '0.00';
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(positiveMoney, { message: '服务费金额格式不正确' }) serviceFeeAmount = '0.00';
   @IsArray({ message: '入账明细格式不正确' }) @ArrayMinSize(1, { message: '至少需要填写一条入账明细' }) @ValidateNested({ each: true }) @Type(() => ReceivePostingDetailDto) details!: ReceivePostingDetailDto[];
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
   @IsOptional() @IsString() @MaxLength(100) idempotencyKey?: string;
@@ -567,7 +567,7 @@ export class CreateCustomerInvoiceProfileDto {
 export class UpdateCustomerInvoiceProfileDto extends CreateCustomerInvoiceProfileDto {}
 
 export class UpdateInvoiceTaskDto {
-  @Matches(positiveMoney, { message: '需开票金额格式不正确' }) invoiceAmount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(positiveMoney, { message: '需开票金额格式不正确' }) invoiceAmount!: string;
   @IsOptional() @IsUUID('4', { message: '开票信息ID格式不正确' }) invoiceProfileId?: string;
   @IsOptional() @IsString() @MaxLength(150) titleName?: string;
   @IsOptional() @IsString() @MaxLength(100) taxpayerCode?: string;
@@ -582,7 +582,7 @@ export class UpdateInvoiceTaskDto {
 export class InvoiceTaskReviewDto { @IsOptional() @IsString() @MaxLength(255) approvalRemark?: string; }
 export class InvoiceTaskRejectDto { @IsString() @IsNotEmpty({ message: '请填写驳回原因' }) @MaxLength(255) rejectReason!: string; }
 export class CompleteInvoiceTaskDto {
-  @Matches(positiveMoney, { message: '实际开票金额格式不正确' }) amount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(positiveMoney, { message: '实际开票金额格式不正确' }) amount!: string;
   @IsString() @IsNotEmpty({ message: '请选择发票类型!' }) @IsIn(['增值税电子专用发票', '增值税电子普通发票', '增值税专用发票', '增值税普通发票', '形式发票'], { message: '发票类型不正确' }) invoiceType!: string;
   @IsOptional() @IsString() @MaxLength(100) invoiceCode?: string;
   @IsOptional() @IsDateString({}, { message: '开票日期格式不正确' }) invoiceDate?: string;
@@ -601,7 +601,7 @@ export class InvoiceTaskQueryDto {
 }
 
 export class CreateReceiveRefundDto {
-  @Matches(positiveMoney, { message: '退款金额格式不正确' }) refundAmount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(positiveMoney, { message: '退款金额格式不正确' }) refundAmount!: string;
   @IsString() @IsNotEmpty() @MaxLength(255) refundReason!: string;
   @IsString() @IsNotEmpty() @MaxLength(100) idempotencyKey!: string;
 }
@@ -636,7 +636,7 @@ export class CreateInvoiceDto {
   @IsOptional() @IsUUID('4', { message: '客户ID格式不正确' }) customerId?: string;
   @IsOptional() @IsUUID('4', { message: '订单ID格式不正确' }) purchaseOrderId?: string;
   @IsOptional() @IsUUID('4', { message: '收款记录ID格式不正确' }) receiveRecordId?: string;
-  @Matches(positiveMoney, { message: '开票金额格式不正确，请输入最多两位小数的正数' }) amount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(positiveMoney, { message: '开票金额格式不正确，请输入最多两位小数的正数' }) amount!: string;
   @IsOptional() @IsDateString({}, { message: '开票日期格式不正确' }) invoiceDate?: string;
   @IsOptional() @IsString() @MaxLength(100) invoiceNumber?: string;
   @IsOptional() @IsString() @MaxLength(50) invoiceType?: string;
@@ -671,7 +671,7 @@ export class InvoiceVoidDto {
 }
 
 export class InvoiceApplicationItemDto {
-  @Matches(positiveMoney, { message: '发票明细金额格式不正确' }) amount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(positiveMoney, { message: '发票明细金额格式不正确' }) amount!: string;
   @IsOptional() @IsString() @MaxLength(50) itemType?: string;
   @IsOptional() @IsString() @MaxLength(255) content?: string;
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
@@ -679,7 +679,7 @@ export class InvoiceApplicationItemDto {
 
 export class CreateInvoiceApplicationDto {
   @IsArray() @ArrayMinSize(1, { message: '至少选择一笔收款记录' }) @IsUUID('4', { each: true, message: '收款记录ID格式不正确' }) receiveRecordIds!: string[];
-  @Matches(positiveMoney, { message: '申请开票金额格式不正确' }) amount!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(positiveMoney, { message: '申请开票金额格式不正确' }) amount!: string;
   @IsOptional() @IsDateString({}, { message: '开票日期格式不正确' }) invoiceDate?: string;
   @IsOptional() @IsString() @MaxLength(100) invoiceNumber?: string;
   @IsOptional() @IsBoolean() autoSplit = true;
@@ -695,7 +695,7 @@ export class CreateInvoiceApplicationDto {
 }
 
 export class UpdateInvoiceApplicationDto {
-  @IsOptional() @Matches(positiveMoney, { message: '申请开票金额格式不正确' }) amount?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(positiveMoney, { message: '申请开票金额格式不正确' }) amount?: string;
   @IsOptional() @IsDateString({}, { message: '开票日期格式不正确' }) invoiceDate?: string;
   @IsOptional() @IsString() @MaxLength(100) invoiceNumber?: string;
   @IsOptional() @IsArray() @IsUUID('4', { each: true, message: '收款记录ID格式不正确' }) receiveRecordIds?: string[];
@@ -716,14 +716,14 @@ export class InvoiceReviewDto {
 
 export class UploadInvoiceDetailDto {
   @IsOptional() @IsUUID('4', { message: '发票申请明细ID格式不正确' }) invoiceApplicationItemId?: string;
-  @IsOptional() @Matches(money, { message: '发票金额格式不正确' }) amount?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(money, { message: '发票金额格式不正确' }) amount?: string;
   @IsString() @IsNotEmpty({ message: '请选择发票类型!' }) @MaxLength(50) invoiceType!: string;
   @IsOptional() @IsString() @MaxLength(255) invoiceContent?: string;
   @IsOptional() @IsString() @MaxLength(100) invoiceCode?: string;
 }
 
 export class UpdateInvoiceDetailDto {
-  @IsOptional() @Matches(money, { message: '发票金额格式不正确' }) amount?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(money, { message: '发票金额格式不正确' }) amount?: string;
   @IsString() @IsNotEmpty({ message: '请选择发票类型!' }) @MaxLength(50) invoiceType!: string;
   @IsOptional() @IsString() @MaxLength(255) invoiceContent?: string;
   @IsOptional() @IsString() @MaxLength(100) invoiceCode?: string;
