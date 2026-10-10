@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import useAutoRefresh from '../utils/useAutoRefresh';
 import { apiRequest } from '../utils/api';
 import { Alert, Button, Card, Form, Input, Modal, Select, Space, Table, Tag, Typography, Tabs } from 'antd';
 
@@ -54,6 +55,7 @@ export default function RebatePolicyPanel({ token, customers: propCustomers, onE
   const customers = localCustomers.length > 0 ? localCustomers : propCustomers;
 
   useEffect(() => { if (!customerId && customers[0]) setCustomerId(customers[0].id); }, [customerId, customers]);
+  useAutoRefresh(() => { if (!token) return; apiRequest<any>('/ad-accounts?page=1&pageSize=100', token).then((res: any) => { const list = Array.isArray(res) ? res : (res.items || []); setAccounts(list); }).catch(() => {}); }, [token]);
 
   // 加载广告主体列表
   useEffect(() => {

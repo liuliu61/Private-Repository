@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import useAutoRefresh from '../utils/useAutoRefresh';
 import { apiRequest } from '../utils/api';
 import {
   Card, Table, Button, Tag, Space, Modal, Form, Input,
@@ -38,6 +39,7 @@ export default function CustomerPanel({ token, perm, onError }: CustomerPanelPro
   }, [token, page, pageSize, onError]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData);
 
   const handleCreate = async (values: any) => {
     try {

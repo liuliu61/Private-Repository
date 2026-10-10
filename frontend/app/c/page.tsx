@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import useAutoRefresh from '../utils/useAutoRefresh';
 import {
   Button, Card, Col, Descriptions, Form, Input, InputNumber, List, message, Modal, Row, Select,
   Radio, Space, Statistic, Table, Tabs, Tag, Typography,
@@ -35,6 +36,7 @@ export default function CustomerPortalPage() {
     const t = localStorage.getItem('cToken');
     if (t) { setToken(t); loadAll(t); }
   }, []);
+  useAutoRefresh(() => { if (token) loadAll(token, true); }, [token]);
 
   const fetchJson = async (t: string, path: string, opts?: any) => {
     const res = await fetch(`${apiUrl}${path}`, { ...opts, headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${t}`, ...(opts?.headers || {}) } });
@@ -43,8 +45,8 @@ export default function CustomerPortalPage() {
     return data;
   };
 
-  async function loadAll(t: string) {
-    setLoading(true);
+  async function loadAll(t: string, silent?: boolean) {
+    if (!silent) setLoading(true);
     try {
       const [meData, walletData, accountData, requestData, invoiceData] = await Promise.all([
         fetchJson(t, '/portal/c/me'),

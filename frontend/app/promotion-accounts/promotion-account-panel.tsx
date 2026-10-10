@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import useAutoRefresh from '../utils/useAutoRefresh';
 import { apiRequest } from '../utils/api';
 import {
   Card, Table, Button, Tag, Space, Modal, Form, Input, InputNumber, Select,
@@ -50,6 +51,7 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
   }, [token, selectedCustomer, onError]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData);
 
   const handleCreate = async (values: any) => {
     if (!selectedCustomer) return;

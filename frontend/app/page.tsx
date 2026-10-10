@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
+import useAutoRefresh from './utils/useAutoRefresh';
 import { apiRequest } from './utils/api';
 import { getUserInfo, getPermissionActions, type UserInfo, type PermissionActions } from './utils/permissions';
 import { App, Badge, Button, Card, Col, Layout, List, Menu, Popover, Row, Space, Statistic, Table, Tag, Typography } from 'antd';
@@ -99,11 +100,22 @@ export default function HomePage() {
   const [notifOpen, setNotifOpen] = useState(false);
 
   useEffect(() => { const value = localStorage.getItem('accessToken'); if (!value) window.location.href = '/login'; else { setToken(value); setUser(getUserInfo()); } }, []);
-  useEffect(() => { if (!token) return; Promise.all([apiRequest<Dashboard>('/dashboard', token), apiRequest<Account[]>('/accounts', token), apiRequest<{ items: Transaction[] }>('/transactions/all?page=1&pageSize=20', token), apiRequest<Customer[]>('/customers', token), apiRequest<Supplier[]>('/suppliers', token), apiRequest<{ items: ReceiveRecord[] }>('/receive-records?page=1&pageSize=50', token)]).then(([d, a, t, c, s, r]) => { setDashboard(d); setAccounts(a); setTransactions(t.items); setCustomers(c); setSuppliers(s); setReceiveRecords(r.items || []); }).catch((error) => message.error(error.message)).finally(() => setLoading(false)); }, [token, message]);
+  const refreshMain = useCallback(async (silent = false) => {
+    if (!token) return;
+    try {
+      const [d, a, t, c, s, r] = await Promise.all([apiRequest<Dashboard>('/dashboard', token), apiRequest<Account[]>('/accounts', token), apiRequest<{ items: Transaction[] }>('/transactions/all?page=1&pageSize=20', token), apiRequest<Customer[]>('/customers', token), apiRequest<Supplier[]>('/suppliers', token), apiRequest<{ items: ReceiveRecord[] }>('/receive-records?page=1&pageSize=50', token)]);
+      setDashboard(d); setAccounts(a); setTransactions(t.items); setCustomers(c); setSuppliers(s); setReceiveRecords(r.items || []);
+    } catch (error) { if (!silent) message.error((error as Error).message); }
+  }, [token, message]);
+  useEffect(() => { if (!token) return; refreshMain(); }, [refreshMain]);
+  useAutoRefresh(() => { refreshMain(true); }, [token]);
+  // 合同到期提醒也随轮询刷新
+  useAutoRefresh(() => { if (!token) return; apiRequest<any[]>('/customer-contracts/expiring?days=30', token).then((data) => setExpiringContracts(data || [])).catch(() => {}); }, [token]);
   // 每次切换菜单时刷新客户和供应商列表，确保新建客户后其他页面能看到
   useEffect(() => { if (!token || !selected) return; Promise.all([apiRequest<Customer[]>('/customers', token), apiRequest<Supplier[]>('/suppliers', token)]).then(([c, s]) => { setCustomers(c); setSuppliers(s); }).catch(() => {}); }, [token, selected]);
   useEffect(() => { if (!token || (!customers.length && !suppliers.length)) return; const validCustomers = customers.filter((c: any) => c.agentId); Promise.allSettled([...validCustomers.map((item) => apiRequest<PromotionAccount[]>(`/customers/${item.id}/promotion-accounts`, token)), ...suppliers.map((item) => apiRequest<PromotionAccount[]>(`/suppliers/${item.id}/promotion-accounts`, token))]).then((results) => { const accounts = results.filter((r) => r.status === 'fulfilled').flatMap((r: any) => r.value || []); setPromotionAccounts(accounts); }); }, [token, customers, suppliers]);
-  useEffect(() => { if (!token) return; apiRequest<any[]>('/customer-contracts/expiring?days=30', token).then((data) => setExpiringContracts(data || [])).catch(() => {}); }, [token]);
+
+
   useEffect(() => { if (!token) return; const fetchUnread = () => { apiRequest<{ count: number }>('/notifications/unread-count', token).then((d) => setUnreadCount(d.count || 0)).catch(() => {}); }; fetchUnread(); const timer = setInterval(fetchUnread, 30000); return () => clearInterval(timer); }, [token]);
   useEffect(() => { if (!token || !notifOpen) return; apiRequest<{ items: any[] }>('/notifications?page=1&pageSize=20', token).then((d) => setNotifications(d.items || [])).catch(() => {}); }, [token, notifOpen]);
   const menuItems = useMemo(() => [

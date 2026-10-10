@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import useAutoRefresh from '../utils/useAutoRefresh';
 import { apiRequest } from '../utils/api';
 import { Button, Card, Descriptions, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag } from 'antd';
 import { generateWalletAdjustNo, generateWalletOpeningNo, generateCommonBusinessNo } from '../utils/businessNo';
@@ -59,6 +60,7 @@ export default function CustomerWalletPanel({ token, customers, onError }: { tok
   }
 
   useEffect(() => { void refresh(); }, [token, selectedCustomer]);
+  useAutoRefresh(() => { void refresh(); }, [token, selectedCustomer]);
 
   async function create(values: { customerId: string; walletName?: string }) {
     try { await apiRequest('/customer-wallets', token, { method: 'POST', body: JSON.stringify(values) }); setCreateOpen(false); form.resetFields(); await refresh(); }

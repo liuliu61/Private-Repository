@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import useAutoRefresh from '../utils/useAutoRefresh';
 import { apiRequest } from '../utils/api';
 import { Button, Card, Descriptions, Form, Input, Modal, Select, Space, Table, Tabs, Tag, Typography, message } from 'antd';
 import type { PermissionActions } from '../utils/permissions';
@@ -91,6 +92,7 @@ export default function PolicyChangePanel({ token, customers, perm, onError }: {
   }
 
   useEffect(() => { void load(1); }, [token, activeTab]);
+  useAutoRefresh(() => { void load(page, activeTab); }, [token, activeTab]);
 
   // 加载客户的政策列表
   useEffect(() => {

@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import useAutoRefresh from '../utils/useAutoRefresh';
 import { apiRequest, getToken } from '../utils/api';
 
 const statusMap: any = {
@@ -22,6 +23,7 @@ export default function ReceiveRefundsPage() {
     loadReceiveRecords();
     loadCustomers();
   }, []);
+  useAutoRefresh(() => { loadRefunds(); loadReceiveRecords(); loadCustomers(); }, []);
 
   const loadRefunds = async () => {
     setLoading(true);

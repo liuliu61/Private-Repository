@@ -1,5 +1,6 @@
 'use client';
 import { useState, useEffect } from 'react';
+import useAutoRefresh from '../utils/useAutoRefresh';
 import { apiRequest, getToken } from '../utils/api';
 import { downloadExcel } from '../utils/export';
 import { Upload, Button, message } from 'antd';
@@ -54,6 +55,7 @@ export default function CustomerContractsPage() {
     loadContracts();
     loadCustomers();
   }, []);
+  useAutoRefresh(() => { loadContracts(); loadCustomers(); }, []);
 
   const loadContracts = async () => {
     setLoading(true);

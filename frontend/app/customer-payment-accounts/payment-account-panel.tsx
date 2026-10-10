@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import useAutoRefresh from '../utils/useAutoRefresh';
 import { apiRequest } from '../utils/api';
 import {
   Card, Table, Button, Tag, Space, Modal, Form, Input, Select,
@@ -54,6 +55,7 @@ export default function PaymentAccountPanel({ token, customers, perm, onError }:
   }, [token, filterCustomerId, onError]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
+  useAutoRefresh(fetchData);
 
   const handleOpenModal = (record?: PaymentAccount) => {
     setEditing(record || null);
