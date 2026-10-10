@@ -267,7 +267,7 @@ export default function AgentPortalPage() {
                       form.setFieldsValue({
                         costRebate: ch ? (v === 'PUBLIC' ? Number(ch.defaultCostRebatePublic) : Number(ch.defaultCostRebatePrivate)) : 0,
                         customerRebate: custReb,
-                        remitAmount: (Number(currentReq?.amount ?? 0) / (1 + custReb / 100)).toFixed(2),
+                        remitAmount: (Math.floor((Number(currentReq?.amount ?? 0) / (1 + custReb / 100)) * 100) / 100).toFixed(2),
                       });
                     }} />
                   </Form.Item>

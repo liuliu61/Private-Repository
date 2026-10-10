@@ -472,11 +472,13 @@ export class PortalService {
       const walletLocked = await tx.$queryRaw(Prisma.sql`SELECT id FROM customer_wallets WHERE id = ${wallet.id} FOR UPDATE`);
       if (!walletLocked || (walletLocked as any[]).length === 0) throw new NotFoundException('客户钱包不存在');
       const walletCurrent = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
-      if (walletCurrent!.cashBalance.lt(amount)) {
+      // 钱包扣款按客户现金成本（实打金额）扣除：申请金额 ÷ (1 + 客户返点%)；未传时兜底按申请全额
+      const walletDeduction = remitAmount ?? amount;
+      if (walletCurrent!.cashBalance.lt(walletDeduction)) {
         throw new BadRequestException(`客户钱包余额不足，当前余额：${moneyToString(walletCurrent!.cashBalance)}`);
       }
       const walletBalanceBefore = walletCurrent!.cashBalance;
-      const walletBalanceAfter = walletBalanceBefore.sub(amount);
+      const walletBalanceAfter = walletBalanceBefore.sub(walletDeduction);
 
       await tx.customerWalletTransaction.create({
         data: {
@@ -485,7 +487,7 @@ export class PortalService {
           unit: wallet.unit,
           businessType: CustomerWalletTransactionType.PROMOTION_ACCOUNT_CREDIT,
           businessNo: transactionNo,
-          changeAmount: amount.negated(),
+          changeAmount: walletDeduction.negated(),
           balanceBefore: walletBalanceBefore,
           balanceAfter: walletBalanceAfter,
           operatorId,
