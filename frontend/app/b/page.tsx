@@ -75,13 +75,15 @@ export default function AgentPortalPage() {
     setCurrentReq(req);
     setConfirmOpen(true);
     form.resetFields();
-    const defCustRebate = Number(req.promotionRebatePrivate ?? req.promotionRebatePublic ?? 0);
+    const isPublic = req.fundType === 'PUBLIC';
+    const defCustRebate = Number(isPublic ? (req.promotionRebatePublic ?? req.promotionRebatePrivate ?? 0) : (req.promotionRebatePrivate ?? req.promotionRebatePublic ?? 0));
     const defRemit = Number(req.amount) / (1 + defCustRebate / 100);
+    const ch = channels[0];
     form.setFieldsValue({
       customerRebate: defCustRebate,
-      costRebate: Number(channels[0]?.defaultCostRebatePrivate || 0),
-      portId: channels[0]?.id,
-      paymentNature: 'PRIVATE',
+      costRebate: Number(ch ? (isPublic ? ch.defaultCostRebatePublic : ch.defaultCostRebatePrivate) : 0),
+      portId: ch?.id,
+      paymentNature: isPublic ? 'PUBLIC' : 'PRIVATE',
       remitAmount: defRemit.toFixed(2),
     });
   }
@@ -244,6 +246,7 @@ export default function AgentPortalPage() {
             <Descriptions size="small" column={2} bordered>
               <Descriptions.Item label="客户">{currentReq.customerName}</Descriptions.Item>
               <Descriptions.Item label="推广账户">{currentReq.promotionAccountName}</Descriptions.Item>
+              <Descriptions.Item label="资金类型"><Tag color={currentReq.fundType === 'PUBLIC' ? 'blue' : 'green'}>{currentReq.fundType === 'PUBLIC' ? '对公' : '对私'}</Tag></Descriptions.Item>
               <Descriptions.Item label="申请金额"><b style={{ color: '#4338ca' }}>¥{currentReq.amount}</b></Descriptions.Item>
               <Descriptions.Item label="申请时间">{new Date(currentReq.createdAt).toLocaleString('zh-CN')}</Descriptions.Item>
               {currentReq.remark ? <Descriptions.Item label="备注" span={2}>{currentReq.remark}</Descriptions.Item> : null}

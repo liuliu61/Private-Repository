@@ -1005,6 +1005,8 @@ model CustomerWallet {
   walletType         CustomerWalletType @default(FINANCE_V) @map("wallet_type")
   unit               AccountUnit   @default(ACCOUNT_CREDIT)
   cashBalance        Decimal       @default(0) @map("cash_balance") @db.Decimal(20, 2)
+  cashBalancePublic  Decimal       @default(0) @map("cash_balance_public") @db.Decimal(20, 2)
+  cashBalancePrivate Decimal       @default(0) @map("cash_balance_private") @db.Decimal(20, 2)
   groupBalance       Decimal       @default(0) @map("group_balance") @db.Decimal(20, 2)
   creditLimit        Decimal       @default(0) @map("credit_limit") @db.Decimal(20, 2)
   creditUsed         Decimal       @default(0) @map("credit_used") @db.Decimal(20, 2)
@@ -1034,6 +1036,7 @@ model CustomerWalletTransaction {
   changeAmount   Decimal                       @map("change_amount") @db.Decimal(20, 2)
   balanceBefore  Decimal                       @map("balance_before") @db.Decimal(20, 2)
   balanceAfter   Decimal                       @map("balance_after") @db.Decimal(20, 2)
+  fundType       FundType                      @default(PRIVATE) @map("fund_type")
   operatorId     String                        @map("operator_id") @db.VarChar(36)
   occurredAt     DateTime                      @default(now()) @map("occurred_at")
   remark         String?                       @db.VarChar(255)
@@ -2264,6 +2267,7 @@ model RechargeRequest {
   customerUserId     String                @map("customer_user_id") @db.VarChar(36)
   promotionAccountId String                @map("promotion_account_id") @db.VarChar(36)
   amount             Decimal               @default(0) @map("amount") @db.Decimal(20, 2)
+  fundType           FundType              @default(PRIVATE) @map("fund_type")
   customerRebate     Decimal?              @map("customer_rebate") @db.Decimal(5, 2)
   costRebate         Decimal?              @map("cost_rebate") @db.Decimal(5, 2)
   remitAmount        Decimal?              @map("remit_amount") @db.Decimal(20, 2)
@@ -2285,4 +2289,9 @@ model RechargeRequest {
   @@index([status, createdAt])
   @@index([promotionAccountId])
   @@map("recharge_requests")
+}
+
+enum FundType {
+  PUBLIC
+  PRIVATE
 }

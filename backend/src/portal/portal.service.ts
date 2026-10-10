@@ -169,6 +169,8 @@ export class PortalService {
         businessNo: t.businessNo,
         changeAmount: moneyToString(t.changeAmount),
         balanceAfter: moneyToString(t.balanceAfter),
+        fundType: t.fundType || 'PRIVATE',
+        fundTypeLabel: t.fundType === 'PUBLIC' ? '对公' : '对私',
         occurredAt: t.occurredAt,
         remark: t.remark,
       })),
@@ -225,10 +227,11 @@ export class PortalService {
     };
   }
 
-  async cCreateRechargeRequest(payload: PortalPayload, dto: { promotionAccountId: string; amount: string; remark?: string }) {
+  async cCreateRechargeRequest(payload: PortalPayload, dto: { promotionAccountId: string; amount: string; fundType?: string; remark?: string }) {
     const customerId = payload.customerId!;
     const amount = toMoney(dto.amount, '充值金额');
     if (amount.lte(0)) throw new BadRequestException('充值金额必须大于 0');
+    const fundType = dto.fundType === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE';
     const account = await this.prisma.promotionAccount.findUnique({ where: { id: dto.promotionAccountId } });
     if (!account || account.customerId !== customerId) throw new BadRequestException('推广账户不存在或不属于当前客户');
     if (account.status !== AccountStatus.ACTIVE) throw new BadRequestException('推广账户已停用，不能发起充值');
@@ -241,6 +244,7 @@ export class PortalService {
         customerUserId: cu.id,
         promotionAccountId: account.id,
         amount,
+        fundType,
         remark: dto.remark || null,
         status: RechargeRequestStatus.PENDING,
       },
@@ -468,17 +472,22 @@ export class PortalService {
       const balanceBefore = current!.currentBalance;
       const balanceAfter = balanceBefore.add(amount);
 
-      // 锁定钱包并扣款
+      // 锁定钱包并扣款（按申请资金类型：对公/对私）
       const walletLocked = await tx.$queryRaw(Prisma.sql`SELECT id FROM customer_wallets WHERE id = ${wallet.id} FOR UPDATE`);
       if (!walletLocked || (walletLocked as any[]).length === 0) throw new NotFoundException('客户钱包不存在');
-      const walletCurrent = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+      const walletCurrent: any = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
       // 钱包扣款按客户现金成本（实打金额）扣除：申请金额 ÷ (1 + 客户返点%)；未传时兜底按申请全额
       const walletDeduction = remitAmount ?? amount;
-      if (walletCurrent!.cashBalance.lt(walletDeduction)) {
-        throw new BadRequestException(`客户钱包余额不足，当前余额：${moneyToString(walletCurrent!.cashBalance)}`);
+      const fundType = req.fundType || 'PRIVATE';
+      const fundBefore = fundType === 'PUBLIC'
+        ? new Prisma.Decimal(walletCurrent.cashBalancePublic ?? 0)
+        : new Prisma.Decimal(walletCurrent.cashBalancePrivate ?? 0);
+      if (fundBefore.lt(walletDeduction)) {
+        throw new BadRequestException(`客户${fundType === 'PUBLIC' ? '对公' : '对私'}资金余额不足，当前余额：${moneyToString(fundBefore)}`);
       }
-      const walletBalanceBefore = walletCurrent!.cashBalance;
+      const walletBalanceBefore = new Prisma.Decimal(walletCurrent.cashBalance);
       const walletBalanceAfter = walletBalanceBefore.sub(walletDeduction);
+      const fundBalanceAfter = fundBefore.sub(walletDeduction);
 
       await tx.customerWalletTransaction.create({
         data: {
@@ -490,11 +499,16 @@ export class PortalService {
           changeAmount: walletDeduction.negated(),
           balanceBefore: walletBalanceBefore,
           balanceAfter: walletBalanceAfter,
+          fundType,
           operatorId,
-          remark: `推广账户充值扣款：${account.accountName}（由一级代理确认）`,
+          remark: `推广账户充值扣款（${fundType === 'PUBLIC' ? '对公' : '对私'}）：${account.accountName}（由一级代理确认）`,
         },
       });
-      await tx.customerWallet.update({ where: { id: wallet.id }, data: { cashBalance: walletBalanceAfter } });
+      if (fundType === 'PUBLIC') {
+        await tx.$executeRaw(Prisma.sql`UPDATE customer_wallets SET cash_balance = ${walletBalanceAfter}, cash_balance_public = ${fundBalanceAfter} WHERE id = ${wallet.id}`);
+      } else {
+        await tx.$executeRaw(Prisma.sql`UPDATE customer_wallets SET cash_balance = ${walletBalanceAfter}, cash_balance_private = ${fundBalanceAfter} WHERE id = ${wallet.id}`);
+      }
 
       // 推广账户交易流水
       await tx.promotionTransaction.create({
@@ -873,6 +887,8 @@ export class PortalService {
       walletType: w.walletType,
       unit: w.unit,
       cashBalance: moneyToString(w.cashBalance),
+      cashBalancePublic: moneyToString(w.cashBalancePublic ?? 0),
+      cashBalancePrivate: moneyToString(w.cashBalancePrivate ?? 0),
       groupBalance: moneyToString(w.groupBalance),
       creditLimit: moneyToString(w.creditLimit),
       creditUsed: moneyToString(w.creditUsed),
@@ -912,6 +928,7 @@ export class PortalService {
       portId: r.portId,
       portName: r.port?.name || null,
       amount: moneyToString(r.amount),
+      fundType: r.fundType || 'PRIVATE',
       customerRebate: r.customerRebate ? moneyToString(r.customerRebate) : null,
       costRebate: r.costRebate ? moneyToString(r.costRebate) : null,
       remitAmount: r.remitAmount ? moneyToString(r.remitAmount) : null,

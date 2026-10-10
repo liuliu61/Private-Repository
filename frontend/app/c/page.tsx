@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import {
   Button, Card, Col, Descriptions, Form, Input, InputNumber, List, message, Modal, Row, Select,
-  Space, Statistic, Table, Tabs, Tag, Typography,
+  Radio, Space, Statistic, Table, Tabs, Tag, Typography,
 } from 'antd';
 import {
   AccountBookOutlined, BellOutlined, CreditCardOutlined,
@@ -108,6 +108,8 @@ async function loadWalletTx(t: string, walletId: string) {
   const txStatusLabel = (s: string) => ({ CONFIRMED: '充值成功', REJECTED: '已驳回', PENDING: '待处理' }[s] || s);
 
   const totalCash = wallets.reduce((s: number, w: any) => s + Number(w.cashBalance), 0);
+  const totalPublic = wallets.reduce((s: number, w: any) => s + Number(w.cashBalancePublic || 0), 0);
+  const totalPrivate = wallets.reduce((s: number, w: any) => s + Number(w.cashBalancePrivate || 0), 0);
 
   return (
     <main className="portal-shell">
@@ -119,7 +121,7 @@ async function loadWalletTx(t: string, walletId: string) {
 
       <div className="portal-body">
         <Row gutter={[16, 16]}>
-          <Col xs={24} md={8}><Card className="portal-card"><Statistic title="钱包现金余额" value={totalCash.toFixed(2)} prefix="¥" loading={loading} /></Card></Col>
+          <Col xs={24} md={8}><Card className="portal-card"><Statistic title="对公资金" value={totalPublic.toFixed(2)} prefix="¥" loading={loading} /><Statistic title="对私资金" value={totalPrivate.toFixed(2)} prefix="¥" loading={loading} style={{ marginTop: 8 }} /></Card></Col>
           <Col xs={24} md={8}><Card className="portal-card"><Statistic title="推广账户" value={accounts.length} suffix="个" loading={loading} /></Card></Col>
           <Col xs={24} md={8}><Card className="portal-card"><Statistic title="待处理充值申请" value={requests.filter((r: any) => r.status === 'PENDING').length} suffix="笔" loading={loading} /></Card></Col>
         </Row>
@@ -132,11 +134,16 @@ async function loadWalletTx(t: string, walletId: string) {
                 children: (
                   <Space direction="vertical" size="middle" style={{ width: '100%' }}>
                     <Space wrap>
-                      <Select style={{ width: 280 }} placeholder="选择钱包" value={activeWallet} onChange={(v) => { setActiveWallet(v); loadWalletTx(token!, v); }} options={wallets.map((w: any) => ({ value: w.id, label: `${w.walletName}（现金 ¥${w.cashBalance}）` }))} />
+                      <Select style={{ width: 280 }} placeholder="选择钱包" value={activeWallet} onChange={(v) => { setActiveWallet(v); loadWalletTx(token!, v); }} options={wallets.map((w: any) => ({ value: w.id, label: `${w.walletName}（对公 ¥${w.cashBalancePublic ?? 0} / 对私 ¥${w.cashBalancePrivate ?? 0}）` }))} />
                       <Button type="primary" icon={<PayCircleOutlined />} onClick={() => { loadRechargeAccounts(); setRechargeOpen(true); }}>钱包充值</Button>
+                    </Space>
+                    <Space wrap size="small">
+                      <Tag color="blue">对公资金 ¥{wallets.find((w: any) => w.id === activeWallet)?.cashBalancePublic ?? '0.00'}</Tag>
+                      <Tag color="green">对私资金 ¥{wallets.find((w: any) => w.id === activeWallet)?.cashBalancePrivate ?? '0.00'}</Tag>
                     </Space>
                     <Table rowKey="id" size="small" loading={loading} pagination={false} dataSource={transactions} locale={{ emptyText: '暂无流水' }} columns={[
                       { title: '类型', dataIndex: 'businessTypeLabel' },
+                      { title: '资金类型', dataIndex: 'fundTypeLabel', render: (v: string) => <Tag color={v === '对公' ? 'blue' : 'green'}>{v}</Tag> },
                       { title: '变动金额', dataIndex: 'changeAmount', render: (v: string) => <b style={{ color: v.startsWith('-') ? '#ef4444' : '#22c55e' }}>{v}</b> },
                       { title: '余额', dataIndex: 'balanceAfter' },
                       { title: '业务单号', dataIndex: 'businessNo' },
@@ -234,6 +241,12 @@ async function loadWalletTx(t: string, walletId: string) {
           </Form.Item>
           <Form.Item name="amount" label="充值金额" rules={[{ required: true, message: '请输入充值金额' }]}>
             <InputNumber style={{ width: '100%' }} min={0.01} precision={2} placeholder="请输入充值金额" prefix="¥" />
+          </Form.Item>
+          <Form.Item name="fundType" label="资金类型" rules={[{ required: true, message: '请选择资金类型' }]}>
+            <Radio.Group>
+              <Radio value="PUBLIC">对公</Radio>
+              <Radio value="PRIVATE">对私</Radio>
+            </Radio.Group>
           </Form.Item>
           <Form.Item name="remark" label="备注">
             <Input.TextArea rows={2} placeholder="选填" />
