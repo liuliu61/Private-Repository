@@ -36,6 +36,7 @@ export class BusinessController {
   }
   @Post('customers') createCustomer(@Body() dto: CreateCustomerDto, @Req() r: AuthenticatedRequest) { return this.service.createCustomer(dto, r.user); }
   @Get('customers/:customerId/rebate-policy') customerRebatePolicy(@Param() params: CustomerIdParamDto, @Query() query: CustomerPolicyAtQueryDto, @Req() r: AuthenticatedRequest) { return this.customerPolicyService.getCurrent(params.customerId, query, r.user); }
+  @Get('customers/:customerId/rebate-policy') customerCurrentRebatePolicy(@Param() params: CustomerIdParamDto, @Query() query: CustomerPolicyAtQueryDto, @Req() r: AuthenticatedRequest) { return this.customerPolicyService.getCurrent(params.customerId, query, r.user); }
   @Get('customers/:customerId/rebate-policies') customerRebatePolicies(@Param() params: CustomerIdParamDto, @Query() query: CustomerPolicyListQueryDto, @Req() r: AuthenticatedRequest) { return this.customerPolicyService.list(params.customerId, query, r.user); }
   @Post('customers/:customerId/rebate-policies') createCustomerRebatePolicy(@Param() params: CustomerIdParamDto, @Body() dto: CreateCustomerRebatePolicyVersionDto, @Req() r: AuthenticatedRequest) { return this.customerPolicyService.create(params.customerId, dto, r.user); }
   @Post('customers/:customerId/rebate-policies/:id/disable') disableCustomerRebatePolicy(@Param() params: CustomerPolicyIdParamDto, @Req() r: AuthenticatedRequest) { return this.customerPolicyService.disable(params.customerId, params.id, r.user); }
