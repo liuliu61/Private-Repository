@@ -107,10 +107,14 @@ h1 { margin: 0; text-align: center; font-size: 26px; font-weight: 700; backgroun
   top: 0;
   overflow: hidden;
 }
-.admin-shell > .ant-layout-sider .ant-menu {
+.admin-shell > .ant-layout-sider > .ant-menu {
   height: calc(100vh - 72px);
   overflow-y: auto;
   overflow-x: hidden;
+}
+.admin-shell .ant-menu-sub.ant-menu-inline {
+  height: auto !important;
+  min-height: 0 !important;
 }
 .admin-shell > .ant-layout {
   height: 100vh;
