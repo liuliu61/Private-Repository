@@ -37,6 +37,7 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
   const [rechargeModalOpen, setRechargeModalOpen] = useState(false);
   const [refundModalOpen, setRefundModalOpen] = useState(false);
   const [wallets, setWallets] = useState<any[]>([]);
+  const [channels, setChannels] = useState<any[]>([]);
   const [form] = Form.useForm();
   const [rechargeForm] = Form.useForm();
   const [refundForm] = Form.useForm();
@@ -52,6 +53,26 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
 
   useEffect(() => { fetchData(); }, [fetchData]);
   useAutoRefresh(fetchData);
+  // 加载端口列表（跟随端口管理页配置，30秒自动同步）
+  useEffect(() => {
+    async function loadChannels() {
+      try {
+        const response = await fetch(`${API_BASE}/channels/all`, { headers: { Authorization: `Bearer ${token}` } });
+        const data = await response.json();
+        if (Array.isArray(data)) setChannels(data);
+      } catch { /* 用默认端口 */ }
+    }
+    void loadChannels();
+  }, [token]);
+  useAutoRefresh(() => {
+    if (!token) return;
+    fetch(`${API_BASE}/channels/all`, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => res.json())
+      .then((data) => { if (Array.isArray(data)) setChannels(data); })
+      .catch(() => {});
+  }, [token]);
+
+
 
   const handleCreate = async (values: any) => {
     if (!selectedCustomer) return;
@@ -247,14 +268,11 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
             </Col>
             <Col span={12}>
               <Form.Item name="channelName" label="端口">
-                <Select placeholder="请选择端口" allowClear showSearch>
-                  <Select.Option value="全网对公">全网对公</Select.Option>
-                  <Select.Option value="全网对私">全网对私</Select.Option>
-                  <Select.Option value="星途">星途</Select.Option>
-                  <Select.Option value="智星">智星</Select.Option>
-                  <Select.Option value="至真">至真</Select.Option>
-                  <Select.Option value="其他">其他</Select.Option>
-                </Select>
+                <Select placeholder="请选择端口" allowClear showSearch optionFilterProp="label"
+                  options={channels.length > 0
+                    ? channels.map((c) => ({ value: c.name, label: c.name }))
+                    : [{ value: '全网对公', label: '全网对公' }, { value: '全网对私', label: '全网对私' }, { value: '星途', label: '星途' }, { value: '智星', label: '智星' }, { value: '至真', label: '至真' }, { value: '其他', label: '其他' }]}
+                />
               </Form.Item>
             </Col>
           </Row>
@@ -313,7 +331,7 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
 
       {/* 充值弹窗 */}
       <Modal title="推广账户充值" open={rechargeModalOpen} onCancel={() => setRechargeModalOpen(false)} onOk={() => rechargeForm.submit()} width={700} okText="确认充值" cancelText="取消">
-        {currentAccount && <RechargeFormContent form={rechargeForm} account={currentAccount} token={token} wallets={wallets} onFinish={handleRecharge} />}
+        {currentAccount && <RechargeFormContent form={rechargeForm} account={currentAccount} token={token} wallets={wallets} channels={channels} onFinish={handleRecharge} />}
       </Modal>
 
       {/* 退款弹窗 */}
@@ -352,8 +370,7 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
   );
 }
 
-function RechargeFormContent({ form, account, token, wallets, onFinish }: { form: any; account: PromotionAccount; token: string; wallets: any[]; onFinish: (values: any) => void }) {
-  const [channels, setChannels] = useState<any[]>([]);
+function RechargeFormContent({ form, account, token, wallets, channels, onFinish }: { form: any; account: PromotionAccount; token: string; wallets: any[]; channels: any[]; onFinish: (values: any) => void }) {
   const creditAmount = Form.useWatch('creditAmount', form);
   const customerRebate = Form.useWatch('customerRebate', form);
   const costRebate = Form.useWatch('costRebate', form);
@@ -362,17 +379,7 @@ function RechargeFormContent({ form, account, token, wallets, onFinish }: { form
   const channelName = Form.useWatch('channelName', form);
   const paymentNature = Form.useWatch('paymentNature', form);
 
-  // 加载端口列表
-  useEffect(() => {
-    async function loadChannels() {
-      try {
-        const response = await fetch(`${API_BASE}/channels/all`, { headers: { Authorization: `Bearer ${token}` } });
-        const data = await response.json();
-        if (Array.isArray(data)) setChannels(data);
-      } catch { /* 用默认端口 */ }
-    }
-    void loadChannels();
-  }, [token]);
+
 
   // 根据端口和款项类型自动设置成本返点
   useEffect(() => {
