@@ -541,6 +541,47 @@ export class PortalService {
     };
   }
 
+  /** 读取对公/对私充值收款账户（C 端与管理员共用） */
+  async cRechargeAccounts() {
+    const rows = await this.prisma.$queryRaw<any[]>`
+      SELECT config_type as configType, account_name as accountName, bank_name as bankName,
+             account_no as accountNo, remark
+      FROM recharge_account_configs
+    `;
+    const res: any = { public: null, private: null };
+    for (const r of rows || []) {
+      if (r.configType === 'PUBLIC') res.public = r;
+      if (r.configType === 'PRIVATE') res.private = r;
+    }
+    return res;
+  }
+
+  /** 保存对公/对私充值收款账户（管理员） */
+  async adminSaveRechargeAccounts(adminPayload: any, dto: { public?: any; private?: any }) {
+    if (!adminPayload.roles?.includes('SUPER_ADMIN') && !adminPayload.permissions?.includes('SYSTEM_MANAGE')) {
+      throw new ForbiddenException('无权限配置收款账户');
+    }
+    const rows: { configType: 'PUBLIC' | 'PRIVATE'; accountName?: string; bankName?: string; accountNo?: string; remark?: string }[] = [];
+    if (dto.public) rows.push({ configType: 'PUBLIC', ...dto.public });
+    if (dto.private) rows.push({ configType: 'PRIVATE', ...dto.private });
+    if (rows.length === 0) throw new BadRequestException('请填写至少一个账户');
+    for (const r of rows) {
+      await this.prisma.$executeRaw`
+        INSERT INTO recharge_account_configs (id, config_type, account_name, bank_name, account_no, remark, updated_by, updated_at)
+        VALUES (UUID(), ${r.configType}, ${r.accountName ?? null}, ${r.bankName ?? null}, ${r.accountNo ?? null}, ${r.remark ?? null}, ${adminPayload.userId ?? null}, NOW(3))
+        ON DUPLICATE KEY UPDATE
+          account_name = VALUES(account_name),
+          bank_name = VALUES(bank_name),
+          account_no = VALUES(account_no),
+          remark = VALUES(remark),
+          updated_by = VALUES(updated_by),
+          updated_at = VALUES(updated_at)
+      `;
+    }
+    return { success: true };
+  }
+
+
   async bRejectRecharge(agentUserId: string, requestId: string, dto: { reason: string }) {
     const req = await this.prisma.rechargeRequest.findUnique({ where: { id: requestId } });
     if (!req) throw new NotFoundException('充值申请不存在');

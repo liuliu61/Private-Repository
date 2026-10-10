@@ -1,0 +1,13 @@
+-- C端钱包充值收款账户配置表（对公/对私）
+CREATE TABLE IF NOT EXISTS recharge_account_configs (
+  id VARCHAR(36) NOT NULL,
+  config_type ENUM('PUBLIC','PRIVATE') NOT NULL,
+  account_name VARCHAR(100) DEFAULT NULL COMMENT '户名',
+  bank_name VARCHAR(100) DEFAULT NULL COMMENT '开户行',
+  account_no VARCHAR(50) DEFAULT NULL COMMENT '账号',
+  remark VARCHAR(200) DEFAULT NULL COMMENT '备注',
+  updated_by VARCHAR(36) DEFAULT NULL,
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_type (config_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

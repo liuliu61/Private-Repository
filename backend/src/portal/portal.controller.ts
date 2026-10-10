@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, Req, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { PortalPayload, PortalService } from './portal.service';
 
@@ -52,6 +52,24 @@ export class PortalController {
   @Get('c/promotion-accounts/:id/transactions')
   cPromotionAccountTransactions(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Query() query: Record<string, any>) {
     return this.service.cPromotionAccountTransactions(req.user!, id, query);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('c/recharge-accounts')
+  cRechargeAccounts() {
+    return this.service.cRechargeAccounts();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('admin/recharge-accounts')
+  adminRechargeAccounts() {
+    return this.service.cRechargeAccounts();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Put('admin/recharge-accounts')
+  adminSaveRechargeAccounts(@Req() req: AuthenticatedRequest, @Body() dto: { public?: any; private?: any }) {
+    return this.service.adminSaveRechargeAccounts(req.user!, dto);
   }
 
   @UseGuards(JwtAuthGuard)

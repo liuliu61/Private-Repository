@@ -6,7 +6,7 @@ import {
   Card, Table, Button, Tag, Space, Modal, Form, Input, Select,
   message, Descriptions, Row, Col, Divider, Avatar, Typography
 } from 'antd';
-import { ReloadOutlined, PlusOutlined, UserOutlined } from '@ant-design/icons';
+import { ReloadOutlined, PlusOutlined, SaveOutlined, UserOutlined } from '@ant-design/icons';
 
 interface SettingsPanelProps {
   token: string;
@@ -17,7 +17,11 @@ export default function SettingsPanel({ token, onError }: SettingsPanelProps) {
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'org' | 'password' | 'about'>('org');
+  const [activeTab, setActiveTab] = useState<'org' | 'password' | 'about' | 'recharge'>('org');
+  const [rcLoading, setRcLoading] = useState(false);
+  const [rcSaving, setRcSaving] = useState(false);
+  const [rechargePub, setRechargePub] = useState<any>({ accountName: '', bankName: '', accountNo: '', remark: '' });
+  const [rechargePrv, setRechargePrv] = useState<any>({ accountName: '', bankName: '', accountNo: '', remark: '' });
   const [pwdForm] = Form.useForm();
   const [pwdLoading, setPwdLoading] = useState(false);
 
@@ -29,6 +33,27 @@ export default function SettingsPanel({ token, onError }: SettingsPanelProps) {
   }, [token, onError]);
 
   useEffect(() => { fetchOrganizations(); }, [fetchOrganizations]);
+
+  const fetchRechargeAccounts = useCallback(async () => {
+    try {
+      const data = await apiRequest('/portal/admin/recharge-accounts', token, {});
+      setRechargePub(data?.public || { accountName: '', bankName: '', accountNo: '', remark: '' });
+      setRechargePrv(data?.private || { accountName: '', bankName: '', accountNo: '', remark: '' });
+    } catch (e: any) { onError(e.message); }
+  }, [token, onError]);
+
+  useEffect(() => { if (activeTab === 'recharge') fetchRechargeAccounts(); }, [activeTab, fetchRechargeAccounts]);
+
+  const handleSaveRecharge = async () => {
+    setRcSaving(true);
+    try {
+      await apiRequest('/portal/admin/recharge-accounts', token, {
+        method: 'PUT',
+        body: JSON.stringify({ public: rechargePub, private: rechargePrv }),
+      });
+      message.success('收款账户配置已保存');
+    } catch (e: any) { onError(e.message); } finally { setRcSaving(false); }
+  };
 
   const handleChangePassword = async (values: any) => {
     if (values.newPassword !== values.confirmPassword) {
@@ -72,10 +97,11 @@ export default function SettingsPanel({ token, onError }: SettingsPanelProps) {
         tabList={[
           { key: 'org', tab: '组织管理' },
           { key: 'password', tab: '修改密码' },
+          { key: 'recharge', tab: '收款账户' },
           { key: 'about', tab: '关于系统' },
         ]}
         activeTabKey={activeTab}
-        onTabChange={(key) => setActiveTab(key as 'org' | 'password' | 'about')}
+        onTabChange={(key) => setActiveTab(key as 'org' | 'password' | 'about' | 'recharge')}
         extra={<Button icon={<ReloadOutlined />} onClick={fetchOrganizations}>刷新</Button>}
       >
         {activeTab === 'org' && (
@@ -107,6 +133,39 @@ export default function SettingsPanel({ token, onError }: SettingsPanelProps) {
                 <Button type="primary" htmlType="submit" loading={pwdLoading}>确认修改</Button>
               </Form.Item>
             </Form>
+          </div>
+        )}
+
+        {activeTab === 'recharge' && (
+          <div>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 16 }}>
+              配置客户钱包充值时展示的对公 / 对私收款账户，保存后 C 端（客户中心）钱包充值弹窗将展示给客户。
+            </Typography.Paragraph>
+            <Row gutter={[24, 24]}>
+              <Col xs={24} lg={12}>
+                <Card title="对公账户" size="small" extra={<Tag color="blue">对公</Tag>}>
+                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                    <Input placeholder="户名" value={rechargePub.accountName} onChange={(e) => setRechargePub({ ...rechargePub, accountName: e.target.value })} />
+                    <Input placeholder="开户行" value={rechargePub.bankName} onChange={(e) => setRechargePub({ ...rechargePub, bankName: e.target.value })} />
+                    <Input placeholder="账号" value={rechargePub.accountNo} onChange={(e) => setRechargePub({ ...rechargePub, accountNo: e.target.value })} />
+                    <Input placeholder="备注（选填）" value={rechargePub.remark} onChange={(e) => setRechargePub({ ...rechargePub, remark: e.target.value })} />
+                  </Space>
+                </Card>
+              </Col>
+              <Col xs={24} lg={12}>
+                <Card title="对私账户" size="small" extra={<Tag color="green">对私</Tag>}>
+                  <Space direction="vertical" size="small" style={{ width: '100%' }}>
+                    <Input placeholder="户名" value={rechargePrv.accountName} onChange={(e) => setRechargePrv({ ...rechargePrv, accountName: e.target.value })} />
+                    <Input placeholder="开户行" value={rechargePrv.bankName} onChange={(e) => setRechargePrv({ ...rechargePrv, bankName: e.target.value })} />
+                    <Input placeholder="账号" value={rechargePrv.accountNo} onChange={(e) => setRechargePrv({ ...rechargePrv, accountNo: e.target.value })} />
+                    <Input placeholder="备注（选填）" value={rechargePrv.remark} onChange={(e) => setRechargePrv({ ...rechargePrv, remark: e.target.value })} />
+                  </Space>
+                </Card>
+              </Col>
+            </Row>
+            <div style={{ marginTop: 16 }}>
+              <Button type="primary" icon={<SaveOutlined />} loading={rcSaving} onClick={handleSaveRecharge}>保存收款账户</Button>
+            </div>
           </div>
         )}
 

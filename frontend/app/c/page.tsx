@@ -7,7 +7,7 @@ import {
 } from 'antd';
 import {
   AccountBookOutlined, BellOutlined, CreditCardOutlined,
-  FileDoneOutlined, LockOutlined, LogoutOutlined, PlusOutlined, ReloadOutlined, UserOutlined, WalletOutlined,
+  FileDoneOutlined, LockOutlined, LogoutOutlined, PayCircleOutlined, PlusOutlined, ReloadOutlined, UserOutlined, WalletOutlined,
 } from '@ant-design/icons';
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
@@ -22,6 +22,8 @@ export default function CustomerPortalPage() {
   const [transactions, setTransactions] = useState<any[]>([]);
   const [activeWallet, setActiveWallet] = useState<string>('');
   const [accountTx, setAccountTx] = useState<any[]>([]);
+  const [rechargeOpen, setRechargeOpen] = useState(false);
+  const [rechargeAccounts, setRechargeAccounts] = useState<any>({ public: null, private: null });
   const [accountTxAccount, setAccountTxAccount] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
@@ -64,7 +66,15 @@ export default function CustomerPortalPage() {
     finally { setLoading(false); }
   }
 
-  async function loadWalletTx(t: string, walletId: string) {
+  
+async function loadRechargeAccounts() {
+  try {
+    const d = await fetchJson(token!, '/portal/c/recharge-accounts');
+    setRechargeAccounts(d || { public: null, private: null });
+  } catch { /* ignore */ }
+}
+
+async function loadWalletTx(t: string, walletId: string) {
     try { const d = await fetchJson(t, `/portal/c/wallets/${walletId}/transactions?pageSize=50`); setTransactions(d.items || []); }
     catch (e) { message.error(e instanceof Error ? e.message : '流水加载失败'); }
   }
@@ -121,7 +131,10 @@ export default function CustomerPortalPage() {
                 key: 'wallets', label: <span><WalletOutlined /> 钱包与流水</span>,
                 children: (
                   <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                    <Select style={{ width: 280 }} placeholder="选择钱包" value={activeWallet} onChange={(v) => { setActiveWallet(v); loadWalletTx(token!, v); }} options={wallets.map((w: any) => ({ value: w.id, label: `${w.walletName}（现金 ¥${w.cashBalance}）` }))} />
+                    <Space wrap>
+                      <Select style={{ width: 280 }} placeholder="选择钱包" value={activeWallet} onChange={(v) => { setActiveWallet(v); loadWalletTx(token!, v); }} options={wallets.map((w: any) => ({ value: w.id, label: `${w.walletName}（现金 ¥${w.cashBalance}）` }))} />
+                      <Button type="primary" icon={<PayCircleOutlined />} onClick={() => { loadRechargeAccounts(); setRechargeOpen(true); }}>钱包充值</Button>
+                    </Space>
                     <Table rowKey="id" size="small" loading={loading} pagination={false} dataSource={transactions} locale={{ emptyText: '暂无流水' }} columns={[
                       { title: '类型', dataIndex: 'businessTypeLabel' },
                       { title: '变动金额', dataIndex: 'changeAmount', render: (v: string) => <b style={{ color: v.startsWith('-') ? '#ef4444' : '#22c55e' }}>{v}</b> },
@@ -180,6 +193,39 @@ export default function CustomerPortalPage() {
           />
         </Card>
       </div>
+
+      <Modal title="钱包充值" open={rechargeOpen} onCancel={() => setRechargeOpen(false)} footer={null} destroyOnClose>
+        <div style={{ textAlign: 'center', padding: '24px 0 16px' }}>
+          <Typography.Title level={4} style={{ margin: 0 }}>钱包充值请联系销售</Typography.Title>
+          <Typography.Text type="secondary">如需充值，请联系您的销售顾问获取帮助</Typography.Text>
+        </div>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} md={12}>
+            <Card title="对公账户" size="small" extra={<Tag color="blue">对公</Tag>}>
+              {rechargeAccounts?.public ? (
+                <Space direction="vertical" size={2} style={{ width: '100%' }}>
+                  <div>户名：{rechargeAccounts.public.accountName || '—'}</div>
+                  <div>开户行：{rechargeAccounts.public.bankName || '—'}</div>
+                  <div>账号：{rechargeAccounts.public.accountNo || '—'}</div>
+                  {rechargeAccounts.public.remark && <div style={{ color: '#94a3b8', fontSize: 12 }}>{rechargeAccounts.public.remark}</div>}
+                </Space>
+              ) : <Typography.Text type="secondary">暂未配置</Typography.Text>}
+            </Card>
+          </Col>
+          <Col xs={24} md={12}>
+            <Card title="对私账户" size="small" extra={<Tag color="green">对私</Tag>}>
+              {rechargeAccounts?.private ? (
+                <Space direction="vertical" size={2} style={{ width: '100%' }}>
+                  <div>户名：{rechargeAccounts.private.accountName || '—'}</div>
+                  <div>开户行：{rechargeAccounts.private.bankName || '—'}</div>
+                  <div>账号：{rechargeAccounts.private.accountNo || '—'}</div>
+                  {rechargeAccounts.private.remark && <div style={{ color: '#94a3b8', fontSize: 12 }}>{rechargeAccounts.private.remark}</div>}
+                </Space>
+              ) : <Typography.Text type="secondary">暂未配置</Typography.Text>}
+            </Card>
+          </Col>
+        </Row>
+      </Modal>
 
       <Modal title="提交充值申请" open={modalOpen} onCancel={() => setModalOpen(false)} footer={null} destroyOnClose>
         <Form form={form} layout="vertical" onFinish={submitRequest} requiredMark={false}>
