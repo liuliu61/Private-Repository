@@ -26,7 +26,7 @@ export class PromotionAccountService {
     if (customer.status !== 'ACTIVE') throw new BadRequestException('客户已停用，不能创建推广账户');
     await this.assertOrganizationAccess(customer.agentId, context);
     if (!customer.agentId) throw new BadRequestException('客户未配置所属组织');
-    const row = await this.prisma.promotionAccount.create({ data: { organizationId: customer.agentId, ownerType: PromotionAccountOwnerType.CUSTOMER, ownerId: customerId, customerId, accountName: dto.accountName, platform: dto.platform, platformAccountId: dto.platformAccountId, accountCategory: dto.accountCategory, channelName: dto.channelName, unit: PromotionAccountUnit.ACCOUNT_CREDIT, currentBalance: new Prisma.Decimal(0), status: AccountStatus.ACTIVE } });
+    const row = await this.prisma.promotionAccount.create({ data: { organizationId: customer.agentId, ownerType: PromotionAccountOwnerType.CUSTOMER, ownerId: customerId, customerId, accountName: dto.accountName, platform: dto.platform, platformAccountId: dto.platformAccountId, accountCategory: dto.accountCategory, channelName: dto.channelName, customerRebatePublic: dto.customerRebatePublic ? new Prisma.Decimal(Number(dto.customerRebatePublic)) : undefined, customerRebatePrivate: dto.customerRebatePrivate ? new Prisma.Decimal(Number(dto.customerRebatePrivate)) : undefined, unit: PromotionAccountUnit.ACCOUNT_CREDIT, currentBalance: new Prisma.Decimal(0), status: AccountStatus.ACTIVE } });
     return this.view(row);
   }
 
@@ -47,7 +47,7 @@ export class PromotionAccountService {
     const orgId = supplier.organizationId || (await this.scope.getOrganizationIds(context))?.[0];
     if (!orgId) throw new BadRequestException('无法确定所属组织');
     await this.scope.assertOrganizationAccess(orgId, context);
-    const row = await this.prisma.promotionAccount.create({ data: { organizationId: orgId, ownerType: PromotionAccountOwnerType.SUPPLIER, ownerId: supplierId, supplierId, accountName: dto.accountName, platform: dto.platform, platformAccountId: dto.platformAccountId, accountCategory: dto.accountCategory, channelName: dto.channelName, unit: PromotionAccountUnit.ACCOUNT_CREDIT, currentBalance: new Prisma.Decimal(0), status: AccountStatus.ACTIVE } });
+    const row = await this.prisma.promotionAccount.create({ data: { organizationId: orgId, ownerType: PromotionAccountOwnerType.SUPPLIER, ownerId: supplierId, supplierId, accountName: dto.accountName, platform: dto.platform, platformAccountId: dto.platformAccountId, accountCategory: dto.accountCategory, channelName: dto.channelName, customerRebatePublic: dto.customerRebatePublic ? new Prisma.Decimal(Number(dto.customerRebatePublic)) : undefined, customerRebatePrivate: dto.customerRebatePrivate ? new Prisma.Decimal(Number(dto.customerRebatePrivate)) : undefined, unit: PromotionAccountUnit.ACCOUNT_CREDIT, currentBalance: new Prisma.Decimal(0), status: AccountStatus.ACTIVE } });
     return this.view(row);
   }
 
@@ -253,7 +253,9 @@ export class PromotionAccountService {
   }
 
   private generateTransactionNo() { return `PTX${new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}${randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase()}`; }
-  private view(row: any) { return { ...row, currentBalance: moneyToString(row.currentBalance), unit: row.unit ?? PromotionAccountUnit.ACCOUNT_CREDIT }; }
+  private view(row: any) { return { ...row, currentBalance: moneyToString(row.currentBalance), unit: row.unit ?? PromotionAccountUnit.ACCOUNT_CREDIT, customerRebatePublic: row.customerRebatePublic ? moneyToString(row.customerRebatePublic) : null,
+    customerRebatePrivate: row.customerRebatePrivate ? moneyToString(row.customerRebatePrivate) : null,
+}; }
   private viewOrder(row: any) { return { ...row, customerCreditAmount: row.customerCreditAmount ? moneyToString(row.customerCreditAmount) : null, customerCreditedAmount: moneyToString(row.customerCreditedAmount), customerCreditRemaining: row.customerCreditAmount ? moneyToString(row.customerCreditAmount.sub(row.customerCreditedAmount)) : null }; }
   private creditView(row: any) { return { ...row, amount: moneyToString(row.amount) }; }
 }

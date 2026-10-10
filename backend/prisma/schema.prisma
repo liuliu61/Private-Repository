@@ -908,6 +908,8 @@ model PromotionAccount {
   platformAccountId String?                 @map("platform_account_id") @db.VarChar(100)
   accountCategory String?                   @map("account_category") @db.VarChar(50)
   channelName     String?                   @map("channel_name") @db.VarChar(100)
+  customerRebatePublic  Decimal?          @map("customer_rebate_public") @db.Decimal(5, 2)
+  customerRebatePrivate Decimal?          @map("customer_rebate_private") @db.Decimal(5, 2)
   unit            PromotionAccountUnit      @default(ACCOUNT_CREDIT)
   currentBalance  Decimal                   @default(0) @map("current_balance") @db.Decimal(20, 2)
   status          AccountStatus             @default(ACTIVE)

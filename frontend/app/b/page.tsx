@@ -75,12 +75,14 @@ export default function AgentPortalPage() {
     setCurrentReq(req);
     setConfirmOpen(true);
     form.resetFields();
+    const defCustRebate = Number(req.promotionRebatePrivate ?? req.promotionRebatePublic ?? 0);
+    const defRemit = Number(req.amount) / (1 + defCustRebate / 100);
     form.setFieldsValue({
-      customerRebate: 0,
+      customerRebate: defCustRebate,
       costRebate: Number(channels[0]?.defaultCostRebatePrivate || 0),
       portId: channels[0]?.id,
       paymentNature: 'PRIVATE',
-      remitAmount: (Number(req.amount) / 1).toFixed(2),
+      remitAmount: defRemit.toFixed(2),
     });
   }
 
@@ -261,7 +263,12 @@ export default function AgentPortalPage() {
                   <Form.Item name="paymentNature" label="款项性质" initialValue="PRIVATE">
                     <Select options={[{ value: 'PRIVATE', label: '对私' }, { value: 'PUBLIC', label: '对公' }]} onChange={(v) => {
                       const ch = channels.find((c: any) => c.id === form.getFieldValue('portId'));
-                      if (ch) form.setFieldsValue({ costRebate: v === 'PUBLIC' ? Number(ch.defaultCostRebatePublic) : Number(ch.defaultCostRebatePrivate) });
+                      const custReb = v === 'PUBLIC' ? Number(currentReq?.promotionRebatePublic ?? 0) : Number(currentReq?.promotionRebatePrivate ?? 0);
+                      form.setFieldsValue({
+                        costRebate: ch ? (v === 'PUBLIC' ? Number(ch.defaultCostRebatePublic) : Number(ch.defaultCostRebatePrivate)) : 0,
+                        customerRebate: custReb,
+                        remitAmount: (Number(currentReq?.amount ?? 0) / (1 + custReb / 100)).toFixed(2),
+                      });
                     }} />
                   </Form.Item>
                 </Col>

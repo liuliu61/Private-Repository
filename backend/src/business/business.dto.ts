@@ -55,6 +55,8 @@ export class CreatePromotionAccountDto {
   @IsOptional() @IsString() @MaxLength(100) platformAccountId?: string;
   @IsOptional() @IsString() @MaxLength(50) accountCategory?: string;
   @IsOptional() @IsString() @MaxLength(100) channelName?: string;
+  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '对公客户返点格式不正确' }) customerRebatePublic?: string;
+  @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '对私客户返点格式不正确' }) customerRebatePrivate?: string;
 }
 
 export class PromotionAccountCreditDto {

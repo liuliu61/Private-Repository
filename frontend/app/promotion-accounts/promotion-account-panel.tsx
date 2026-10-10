@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { apiRequest } from '../utils/api';
 import {
-  Card, Table, Button, Tag, Space, Modal, Form, Input, Select,
+  Card, Table, Button, Tag, Space, Modal, Form, Input, InputNumber, Select,
   message, Descriptions, Tabs, Statistic, Row, Col
 } from 'antd';
 import { PlusOutlined, ReloadOutlined, EyeOutlined, WalletOutlined } from '@ant-design/icons';
@@ -14,6 +14,7 @@ interface Customer { id: string; name: string; customerCode: string; }
 interface PromotionAccount {
   id: string; accountName: string; platform?: string; platformAccountId?: string;
   accountCategory?: string; channelName?: string; unit: string; currentBalance: string;
+  customerRebatePublic?: string | null; customerRebatePrivate?: string | null;
   status: string; customerId: string; createdAt: string; customer?: Customer;
 }
 interface PromotionTransaction {
@@ -255,6 +256,18 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
               </Form.Item>
             </Col>
           </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="customerRebatePublic" label="客户返点(对公%)">
+                <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="对公客户返点" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="customerRebatePrivate" label="客户返点(对私%)">
+                <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="对私客户返点" />
+              </Form.Item>
+            </Col>
+          </Row>
           <Form.Item name="unit" label="账户单位" initialValue="ACCOUNT_CREDIT">
             <Select options={[{ value: 'ACCOUNT_CREDIT', label: '账户币' }]} />
           </Form.Item>
@@ -275,6 +288,8 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
                   <Descriptions.Item label="平台账号ID">{currentAccount.platformAccountId || '-'}</Descriptions.Item>
                   <Descriptions.Item label="账户分类">{currentAccount.accountCategory || '-'}</Descriptions.Item>
                   <Descriptions.Item label="端口">{currentAccount.channelName || '-'}</Descriptions.Item>
+                  <Descriptions.Item label="客户返点(对公)">{currentAccount.customerRebatePublic != null ? `${currentAccount.customerRebatePublic}%` : '-'}</Descriptions.Item>
+                  <Descriptions.Item label="客户返点(对私)">{currentAccount.customerRebatePrivate != null ? `${currentAccount.customerRebatePrivate}%` : '-'}</Descriptions.Item>
                   <Descriptions.Item label="单位">{currentAccount.unit === 'ACCOUNT_CREDIT' ? '账户币' : currentAccount.unit}</Descriptions.Item>
                   <Descriptions.Item label="累计充值金额"><b style={{ color: '#1677ff', fontSize: 16 }}>{currentAccount.currentBalance}</b></Descriptions.Item>
                   <Descriptions.Item label="状态"><Tag color={currentAccount.status === 'ACTIVE' ? 'green' : 'default'}>{currentAccount.status === 'ACTIVE' ? '正常' : '停用'}</Tag></Descriptions.Item>
