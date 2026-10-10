@@ -99,7 +99,17 @@ export default function HomePage() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [notifOpen, setNotifOpen] = useState(false);
 
-  useEffect(() => { const value = localStorage.getItem('accessToken'); if (!value) window.location.href = '/login'; else { setToken(value); setUser(getUserInfo()); } }, []);
+  useEffect(() => {
+    const value = localStorage.getItem('accessToken');
+    if (!value) { window.location.href = '/login'; return; }
+    setToken(value);
+    const cached = getUserInfo();
+    if (cached) { setUser(cached); return; }
+    // 旧登录态兜底：无 userInfo 时按 token 拉取用户信息（含角色权限），刷新即可恢复按钮级权限
+    apiRequest<{ user: UserInfo }>('/auth/me', value).then((d) => {
+      if (d?.user) { localStorage.setItem('userInfo', JSON.stringify(d.user)); setUser(d.user); }
+    }).catch(() => { window.location.href = '/login'; });
+  }, []);
   const refreshMain = useCallback(async (silent = false) => {
     if (!token) return;
     try {

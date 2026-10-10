@@ -21,6 +21,17 @@ export class AuthService {
     return { accessToken, user: { id: user.id, username: user.username, displayName: user.displayName, roles, permissions, departmentId: user.departmentId, departmentName: user.department?.name || null } };
   }
 
+  async me(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      include: { department: true, userRoles: { include: { role: { include: { permissions: { include: { permission: true } } } } } } },
+    });
+    if (!user) throw new UnauthorizedException('用户不存在');
+    const roles = user.userRoles.map((item) => item.role.code);
+    const permissions = user.userRoles.flatMap((item) => item.role.permissions.map((item) => item.permission.code));
+    return { user: { id: user.id, username: user.username, displayName: user.displayName, roles, permissions, departmentId: user.departmentId, departmentName: user.department?.name || null } };
+  }
+
   async changePassword(userId: string, oldPassword: string, newPassword: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException('用户不存在');
