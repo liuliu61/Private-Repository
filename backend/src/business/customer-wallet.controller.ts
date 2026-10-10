@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { BusinessIdParamDto, CreateCustomerWalletDto, CustomerWalletListQueryDto, CustomerWalletTransactionQueryDto, WalletAdvanceUpdateDto, WalletAdvanceRepayDto, WalletAdvanceWaiveDto, WalletAdjustmentDto, WalletCreditUpdateDto, WalletOpeningBalanceDto } from './business.dto';
@@ -25,6 +25,9 @@ export class CustomerWalletController {
 
   @Get(':id/balance/check')
   checkBalance(@Param() params: BusinessIdParamDto, @Req() request: AuthenticatedRequest) { return this.service.checkBalance(params.id, request.user); }
+
+  @Patch(':id')
+  rename(@Param() params: BusinessIdParamDto, @Body() dto: UpdateWalletNameDto, @Req() request: AuthenticatedRequest) { return this.service.updateName(params.id, dto, request.user); }
 
   @Post(':id/opening-balance')
   openingBalance(@Param() params: BusinessIdParamDto, @Body() dto: WalletOpeningBalanceDto, @Req() request: AuthenticatedRequest) { return this.service.openingBalance(params.id, dto, request.user); }

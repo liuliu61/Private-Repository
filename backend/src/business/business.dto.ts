@@ -439,8 +439,13 @@ export class CustomerWalletTransactionQueryDto {
   @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(money, { message: '最大金额格式不正确' }) maxAmount?: string;
 }
 
+export class UpdateWalletNameDto {
+  @IsString() @IsNotEmpty() @MaxLength(100) walletName!: string;
+}
+
 export class WalletOpeningBalanceDto {
   @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(money, { message: '期初余额格式不正确' }) amount!: string;
+  @IsOptional() @IsIn(['PUBLIC', 'PRIVATE'], { message: '资金类型不正确' }) fundType?: string;
   @IsOptional() @IsString() @MaxLength(100) businessNo?: string;
   @IsOptional() @IsString() @MaxLength(100) idempotencyKey?: string;
   @IsOptional() @IsDateString({}, { message: '发生时间格式不正确' }) occurredAt?: string;
@@ -450,6 +455,7 @@ export class WalletOpeningBalanceDto {
 export class WalletAdjustmentDto {
   @IsEnum(CustomerWalletTransactionType, { message: '钱包调整类型不正确' }) type!: CustomerWalletTransactionType;
   @IsOptional() @IsEnum(WalletAdjustmentDirection, { message: '调整方向不正确' }) direction?: WalletAdjustmentDirection;
+  @IsOptional() @IsIn(['PUBLIC', 'PRIVATE'], { message: '资金类型不正确' }) fundType?: string;
   @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '调整金额格式不正确，请输入最多两位小数的正数' }) amount!: string;
   @IsOptional() @IsString() @MaxLength(100) businessNo?: string;
   @IsOptional() @IsString() @MaxLength(100) idempotencyKey?: string;

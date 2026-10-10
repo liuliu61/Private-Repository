@@ -7,7 +7,7 @@ import { Button, Card, Descriptions, Form, Input, Modal, Popconfirm, Select, Spa
 import { generateWalletAdjustNo, generateWalletOpeningNo, generateCommonBusinessNo } from '../utils/businessNo';
 
 type Customer = { id: string; name: string; customerCode: string };
-type Wallet = { id: string; customerId: string; walletName: string; unit: string; cashBalance: string; groupBalance: string; totalBalance: string; creditLimit: string; creditUsed: string; creditAvailable: string; advanceOutstanding: string; status: string; customer?: Customer };
+type Wallet = { id: string; customerId: string; walletName: string; unit: string; cashBalance: string; cashBalancePublic: string; cashBalancePrivate: string; groupBalance: string; totalBalance: string; creditLimit: string; creditUsed: string; creditAvailable: string; advanceOutstanding: string; status: string; customer?: Customer };
 type WalletTransaction = { id: string; transactionNo: string; businessType: string; businessNo?: string | null; changeAmount: string; balanceBefore: string; balanceAfter: string; operatorId: string; occurredAt: string; remark?: string | null };
 
 const typeName: Record<string, string> = {
@@ -86,9 +86,28 @@ export default function CustomerWalletPanel({ token, customers, onError }: { tok
     actionForm.resetFields();
     // 自动生成业务单号
     const businessNo = type === 'opening' ? generateWalletOpeningNo() : type === 'adjust' ? generateWalletAdjustNo() : generateCommonBusinessNo();
-    actionForm.setFieldsValue({ businessNo });
+    actionForm.setFieldsValue({ businessNo, fundType: 'PRIVATE' });
     setActionOpen(true);
   };
+
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameForm] = Form.useForm();
+
+  const openRename = (wallet: Wallet) => {
+    setSelected(wallet);
+    renameForm.resetFields();
+    renameForm.setFieldsValue({ walletName: wallet.walletName });
+    setRenameOpen(true);
+  };
+
+  async function submitRename(values: { walletName: string }) {
+    if (!selected) return;
+    try {
+      await apiRequest(`/customer-wallets/${selected.id}`, token, { method: 'PATCH', body: JSON.stringify(values) });
+      setRenameOpen(false); renameForm.resetFields();
+      await refresh();
+    } catch (error) { onError(error instanceof Error ? error.message : '钱包名称修改失败'); }
+  }
 
   const openRepay = (wallet: Wallet) => {
     setSelected(wallet);
@@ -134,13 +153,13 @@ export default function CustomerWalletPanel({ token, customers, onError }: { tok
       { title: '钱包名称', dataIndex: 'walletName', width: 140 },
       { title: '单位', dataIndex: 'unit', width: 70 },
       { title: '总余额', dataIndex: 'totalBalance', width: 110, render: (v: string) => <span style={{ fontWeight: 700, color: '#1677ff' }}>{v}</span> },
-      { title: '现金余额', dataIndex: 'cashBalance', width: 100 },
+      { title: '现金余额', dataIndex: 'cashBalance', width: 100 },{ title: '对公余额', dataIndex: 'cashBalancePublic', width: 100 },{ title: '对私余额', dataIndex: 'cashBalancePrivate', width: 100 },
       { title: '集团余额', dataIndex: 'groupBalance', width: 100 },
       { title: '垫款未还', dataIndex: 'advanceOutstanding', width: 100, render: (v: string) => <span style={{ color: Number(v) > 0 ? '#ef4444' : undefined, fontWeight: 600 }}>{v}</span> },
       { title: '授信额度', dataIndex: 'creditLimit', width: 100 },
       { title: '授信余额', dataIndex: 'creditAvailable', width: 100, render: (v: string) => <span style={{ color: '#10b981', fontWeight: 600 }}>{v}</span> },
       { title: '状态', dataIndex: 'status', width: 80, render: (value: string) => <Tag color={value === 'ACTIVE' ? 'green' : 'default'}>{value === 'ACTIVE' ? '正常' : '停用'}</Tag> },
-      { title: '操作', width: 220, fixed: 'right', render: (_: unknown, row: Wallet) => <Space size={4} wrap><Button type="link" size="small" onClick={() => void showDetail(row)}>详情</Button><Button type="link" size="small" onClick={() => openAction(row, 'opening')}>期初</Button><Button type="link" size="small" onClick={() => openAction(row, 'adjust')}>调整</Button><Button type="link" size="small" onClick={() => openAction(row, 'credit')}>授信</Button><Button type="link" size="small" onClick={() => openAction(row, 'advance')}>垫款</Button></Space> },
+      { title: '操作', width: 220, fixed: 'right', render: (_: unknown, row: Wallet) => <Space size={4} wrap><Button type="link" size="small" onClick={() => void showDetail(row)}>详情</Button><Button type="link" size="small" onClick={() => openRename(row)}>编辑</Button><Button type="link" size="small" onClick={() => openAction(row, 'opening')}>期初</Button><Button type="link" size="small" onClick={() => openAction(row, 'adjust')}>调整</Button><Button type="link" size="small" onClick={() => openAction(row, 'credit')}>授信</Button><Button type="link" size="small" onClick={() => openAction(row, 'advance')}>垫款</Button></Space> },
     ]} />
     <Modal title="创建客户钱包" open={createOpen} onCancel={() => setCreateOpen(false)} onOk={() => form.submit()} okText="保存" cancelText="取消"><Form form={form} layout="vertical" onFinish={create}><Form.Item name="customerId" label="客户" rules={[{ required: true, message: '请选择客户' }]}><Select options={customers.map((item) => ({ value: item.id, label: `${item.name}（${item.customerCode}）` }))} placeholder="请选择客户" /></Form.Item><Form.Item name="walletName" label="钱包名称"><Input maxLength={100} placeholder="默认使用客户名称加钱包" /></Form.Item></Form></Modal>
     <Modal title="钱包详情" open={Boolean(selected) && !actionOpen} onCancel={() => setSelected(null)} footer={null} width={1000}>{selected && <>
@@ -174,7 +193,10 @@ export default function CustomerWalletPanel({ token, customers, onError }: { tok
       actionType === 'advance' && Number(selected?.advanceOutstanding) > 0 && <Button key="waive" style={{ color: '#faad14', borderColor: '#faad14' }} onClick={() => { openWaive(selected as Wallet); setActionOpen(false); }}>豁免</Button>,
       <Button key="cancel" onClick={() => setActionOpen(false)}>取消</Button>,
       <Button key="submit" type="primary" onClick={() => void actionForm.submit()}>提交</Button>,
-    ]}><Form form={actionForm} layout="vertical" onFinish={submitAction}>{actionType === 'adjust' && <><Form.Item name="type" label="调整类型" initialValue="MANUAL_ADJUSTMENT"><Select options={[{ value: 'ADJUSTMENT_RED', label: '红冲（减少）' }, { value: 'ADJUSTMENT_BLUE', label: '蓝补（增加）' }, { value: 'MANUAL_ADJUSTMENT', label: '手工调整' }]} /></Form.Item><Form.Item name="direction" label="手工调整方向"><Select allowClear options={[{ value: 'INCOME', label: '增加' }, { value: 'EXPENSE', label: '减少' }]} /></Form.Item></>}{actionType === 'credit' && <><Form.Item name="creditLimit" label="授信额度"><Input placeholder="例如 10000.00" /></Form.Item><Form.Item name="creditUsed" label="授信已使用"><Input placeholder="可选" /></Form.Item></>}{actionType === 'advance' ? <Form.Item name="advanceOutstanding" label="垫款未还" rules={[{ required: true, message: '请输入垫款金额' }]}><Input /></Form.Item> : actionType !== 'credit' && <Form.Item name="amount" label="金额" rules={[{ required: true, message: '请输入金额' }]}><Input placeholder="最多两位小数" /></Form.Item>}<Form.Item name="businessNo" label="业务单号"><Input maxLength={100} disabled /></Form.Item><Form.Item name="idempotencyKey" label="幂等键"><Input maxLength={100} placeholder="重复提交时保持一致" /></Form.Item><Form.Item name="remark" label="备注"><Input.TextArea maxLength={255} /></Form.Item></Form></Modal>
+    ]}><Form form={actionForm} layout="vertical" onFinish={submitAction}>{actionType === 'adjust' && <><Form.Item name="type" label="调整类型" initialValue="MANUAL_ADJUSTMENT"><Select options={[{ value: 'ADJUSTMENT_RED', label: '红冲（减少）' }, { value: 'ADJUSTMENT_BLUE', label: '蓝补（增加）' }, { value: 'MANUAL_ADJUSTMENT', label: '手工调整' }]} /></Form.Item><Form.Item name="direction" label="手工调整方向"><Select allowClear options={[{ value: 'INCOME', label: '增加' }, { value: 'EXPENSE', label: '减少' }]} /></Form.Item></>}{actionType === 'credit' && <><Form.Item name="creditLimit" label="授信额度"><Input placeholder="例如 10000.00" /></Form.Item><Form.Item name="creditUsed" label="授信已使用"><Input placeholder="可选" /></Form.Item></>}{actionType !== 'credit' && actionType !== 'advance' && <Form.Item name="fundType" label="资金类型" initialValue="PRIVATE"><Select options={[{ value: 'PRIVATE', label: '对私' }, { value: 'PUBLIC', label: '对公' }]} /></Form.Item>}{actionType === 'advance' ? <Form.Item name="advanceOutstanding" label="垫款未还" rules={[{ required: true, message: '请输入垫款金额' }]}><Input /></Form.Item> : actionType !== 'credit' && <Form.Item name="amount" label="金额" rules={[{ required: true, message: '请输入金额' }]}><Input placeholder="最多两位小数" /></Form.Item>}<Form.Item name="businessNo" label="业务单号"><Input maxLength={100} disabled /></Form.Item><Form.Item name="idempotencyKey" label="幂等键"><Input maxLength={100} placeholder="重复提交时保持一致" /></Form.Item><Form.Item name="remark" label="备注"><Input.TextArea maxLength={255} /></Form.Item></Form></Modal><Modal title="编辑钱包名称" open={renameOpen} onCancel={() => setRenameOpen(false)} footer={[
+    <Button key="cancel" onClick={() => setRenameOpen(false)}>取消</Button>,
+    <Button key="ok" type="primary" onClick={() => renameForm.submit()}>保存</Button>,
+  ]}><Form form={renameForm} layout="vertical" onFinish={submitRename}><Form.Item name="walletName" label="钱包名称" rules={[{ required: true, message: '请输入钱包名称' }]}><Input maxLength={100} /></Form.Item></Form></Modal>
     <Modal title="垫款还款" open={repayOpen} onCancel={() => setRepayOpen(false)} onOk={() => repayForm.submit()} okText="确认还款" cancelText="取消" width={480}>
       <Form form={repayForm} layout="vertical" onFinish={submitRepay}>
         <div style={{ background: '#f6ffed', border: '1px solid #b7eb8f', borderRadius: 8, padding: '10px 14px', marginBottom: 16, fontSize: 13 }}>

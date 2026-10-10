@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { AccessContext, AccessScopeService } from '../common/access-scope.service';
 import { moneyToString, toMoney } from '../cashflow/utils/money.util';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreateCustomerWalletDto, CustomerWalletListQueryDto, CustomerWalletTransactionQueryDto, WalletAdjustmentDirection, WalletAdjustmentDto, WalletAdvanceUpdateDto, WalletAdvanceRepayDto, WalletAdvanceWaiveDto, WalletComparisonOperator, WalletCreditUpdateDto, WalletOpeningBalanceDto } from './business.dto';
+import { CreateCustomerWalletDto, CustomerWalletListQueryDto, CustomerWalletTransactionQueryDto, WalletAdjustmentDirection, WalletAdjustmentDto, WalletAdvanceUpdateDto, WalletAdvanceRepayDto, WalletAdvanceWaiveDto, WalletComparisonOperator, WalletCreditUpdateDto, WalletOpeningBalanceDto, UpdateWalletNameDto } from './business.dto';
 
 @Injectable()
 export class CustomerWalletService {
@@ -80,11 +80,19 @@ export class CustomerWalletService {
     return { items: items.slice(start, start + query.pageSize), total: items.length, page: query.page, pageSize: query.pageSize };
   }
 
+  async updateName(walletId: string, dto: UpdateWalletNameDto, context: AccessContext) {
+    this.assertPermission(context, 'FINANCE_WALLET_ADJUST');
+    const wallet = await this.getWallet(walletId, context);
+    this.assertActive(wallet.status);
+    const updated = await this.prisma.customerWallet.update({ where: { id: walletId }, data: { walletName: dto.walletName.trim() } });
+    return this.walletView(updated, updated.customer);
+  }
+
   async openingBalance(walletId: string, dto: WalletOpeningBalanceDto, context: AccessContext) {
     this.assertPermission(context, 'FINANCE_WALLET_OPENING_BALANCE');
     const amount = toMoney(dto.amount, '期初余额');
     if (amount.isZero()) throw new BadRequestException('期初余额不能为0');
-    return this.createLedger(walletId, CustomerWalletTransactionType.OPENING_BALANCE, amount, dto, context, 'CUSTOMER_WALLET_OPENING_BALANCE');
+    return this.createLedger(walletId, CustomerWalletTransactionType.OPENING_BALANCE, amount, { ...dto, fundType: dto.fundType === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE' }, context, 'CUSTOMER_WALLET_OPENING_BALANCE');
   }
 
   async adjust(walletId: string, dto: WalletAdjustmentDto, context: AccessContext) {
@@ -95,7 +103,7 @@ export class CustomerWalletService {
     const amount = toMoney(dto.amount, '调整金额');
     if (amount.lte(0)) throw new BadRequestException('调整金额必须大于0');
     const changeAmount = dto.type === CustomerWalletTransactionType.ADJUSTMENT_RED || (dto.type === CustomerWalletTransactionType.MANUAL_ADJUSTMENT && dto.direction === WalletAdjustmentDirection.EXPENSE) ? amount.negated() : amount;
-    return this.createLedger(walletId, dto.type, changeAmount, dto, context, `CUSTOMER_WALLET_${dto.type}`);
+    return this.createLedger(walletId, dto.type, changeAmount, { ...dto, fundType: dto.fundType === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE' }, context, `CUSTOMER_WALLET_${dto.type}`);
   }
 
   async updateCredit(walletId: string, dto: WalletCreditUpdateDto, context: AccessContext) {
@@ -341,7 +349,7 @@ export class CustomerWalletService {
     return;
   }
 
-  private async createLedger(walletId: string, businessType: CustomerWalletTransactionType, changeAmount: Prisma.Decimal, dto: { businessNo?: string; idempotencyKey?: string; occurredAt?: string; remark?: string }, context: AccessContext, action: string) {
+  private async createLedger(walletId: string, businessType: CustomerWalletTransactionType, changeAmount: Prisma.Decimal, dto: { businessNo?: string; idempotencyKey?: string; occurredAt?: string; remark?: string; fundType?: string }, context: AccessContext, action: string) {
     const occurredAt = dto.occurredAt ? new Date(dto.occurredAt) : new Date();
     if (Number.isNaN(occurredAt.getTime())) throw new BadRequestException('发生时间格式不正确');
     return this.prisma.$transaction(async (tx) => {
@@ -357,8 +365,15 @@ export class CustomerWalletService {
       const balanceBefore = toMoney(wallet.cashBalance, '钱包当前余额');
       const balanceAfter = balanceBefore.add(changeAmount).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
       const transactionNo = this.generateTransactionNo();
-      const transaction = await tx.customerWalletTransaction.create({ data: { transactionNo, walletId, unit: wallet.unit, businessType, businessNo: dto.businessNo?.trim() || null, changeAmount: changeAmount.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP), balanceBefore, balanceAfter, operatorId: context.sub, occurredAt, remark: dto.remark?.trim() || null, idempotencyKey: dto.idempotencyKey?.trim() || null } });
-      const updated = await tx.customerWallet.update({ where: { id: walletId }, data: { cashBalance: balanceAfter } });
+      const fundType = dto.fundType === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE';
+      const transaction = await tx.customerWalletTransaction.create({ data: { transactionNo, walletId, unit: wallet.unit, businessType, businessNo: dto.businessNo?.trim() || null, changeAmount: changeAmount.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP), balanceBefore, balanceAfter, fundType, operatorId: context.sub, occurredAt, remark: dto.remark?.trim() || null, idempotencyKey: dto.idempotencyKey?.trim() || null } });
+      const updateData: Prisma.CustomerWalletUpdateInput = { cashBalance: balanceAfter };
+      if (fundType === 'PUBLIC') {
+        updateData.cashBalancePublic = toMoney(wallet.cashBalancePublic ?? 0, '对公余额').add(changeAmount).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+      } else {
+        updateData.cashBalancePrivate = toMoney(wallet.cashBalancePrivate ?? 0, '对私余额').add(changeAmount).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+      }
+      const updated = await tx.customerWallet.update({ where: { id: walletId }, data: updateData });
       await this.audit(tx, context, wallet.organizationId, walletId, action, { cashBalance: moneyToString(balanceBefore) }, { cashBalance: moneyToString(balanceAfter), transactionNo, changeAmount: moneyToString(changeAmount), businessType });
       return { idempotent: false, transaction: this.transactionView(transaction), wallet: this.walletView(updated) };
     });
@@ -383,9 +398,11 @@ export class CustomerWalletService {
   private walletView(row: any, customer?: any) {
     const currentGroup = toMoney(row.creditUsed, '授信已使用').add(toMoney(row.advanceOutstanding, '垫款未还')).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
     const cashBalance = toMoney(row.cashBalance, '钱包现金余额');
+    const cashBalancePublic = toMoney(row.cashBalancePublic ?? 0, '对公余额');
+    const cashBalancePrivate = toMoney(row.cashBalancePrivate ?? 0, '对私余额');
     const totalBalance = cashBalance.add(currentGroup).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
     const creditAvailable = toMoney(row.creditLimit, '授信额度').sub(toMoney(row.creditUsed, '授信已使用金额')).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
-    return { id: row.id, customerId: row.customerId, organizationId: row.organizationId, walletName: row.walletName, walletType: row.walletType, unit: row.unit, cashBalance: moneyToString(cashBalance), groupBalance: moneyToString(currentGroup), totalBalance: moneyToString(totalBalance), creditLimit: moneyToString(row.creditLimit), creditUsed: moneyToString(row.creditUsed), creditAvailable: moneyToString(creditAvailable), advanceOutstanding: moneyToString(row.advanceOutstanding), status: row.status, createdAt: row.createdAt, updatedAt: row.updatedAt, customer: customer || row.customer };
+    return { id: row.id, customerId: row.customerId, organizationId: row.organizationId, walletName: row.walletName, walletType: row.walletType, unit: row.unit, cashBalance: moneyToString(cashBalance), cashBalancePublic: moneyToString(cashBalancePublic), cashBalancePrivate: moneyToString(cashBalancePrivate), groupBalance: moneyToString(currentGroup), totalBalance: moneyToString(totalBalance), creditLimit: moneyToString(row.creditLimit), creditUsed: moneyToString(row.creditUsed), creditAvailable: moneyToString(creditAvailable), advanceOutstanding: moneyToString(row.advanceOutstanding), status: row.status, createdAt: row.createdAt, updatedAt: row.updatedAt, customer: customer || row.customer };
   }
 
   private transactionView(row: any) { return { id: row.id, transactionNo: row.transactionNo, walletId: row.walletId, unit: row.unit, businessType: row.businessType, businessNo: row.businessNo, changeAmount: moneyToString(row.changeAmount), balanceBefore: moneyToString(row.balanceBefore), balanceAfter: moneyToString(row.balanceAfter), operatorId: row.operatorId, occurredAt: row.occurredAt, remark: row.remark }; }
