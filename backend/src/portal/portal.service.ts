@@ -645,8 +645,8 @@ export class PortalService {
 
   /** 开通客户登录账号（管理员） */
   async adminListCustomerUsers(query: { keyword?: string; page?: number; pageSize?: number }) {
-    const page = query.page || 1;
-    const pageSize = query.pageSize || 10;
+    const page = Number(query.page) || 1;
+    const pageSize = Number(query.pageSize) || 10;
     const where: any = {};
     if (query.keyword) {
       where.OR = [
