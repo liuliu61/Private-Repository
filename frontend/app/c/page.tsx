@@ -30,7 +30,13 @@ export default function CustomerPortalPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [txModalOpen, setTxModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [calcCash, setCalcCash] = useState<number | null>(null);
   const [form] = Form.useForm();
+  const watchAccount = Form.useWatch('promotionAccountId', form);
+  const watchFund = Form.useWatch('fundType', form);
+  const selectedAccount = accounts.find((a: any) => a.id === watchAccount);
+  const rebateRate = parseFloat(watchFund === 'PUBLIC' ? (selectedAccount?.customerRebatePublic ?? '0') : (selectedAccount?.customerRebatePrivate ?? '0')) || 0;
+  const calcArrived = calcCash != null && calcCash > 0 ? calcCash / (1 + rebateRate / 100) : 0;
 
   useEffect(() => {
     const t = localStorage.getItem('cToken');
@@ -236,25 +242,45 @@ async function loadWalletTx(t: string, walletId: string) {
         </Row>
       </Modal>
 
-      <Modal title="提交充值申请" open={modalOpen} onCancel={() => setModalOpen(false)} footer={null} destroyOnClose>
-        <Form form={form} layout="vertical" onFinish={submitRequest} requiredMark={false}>
-          <Form.Item name="promotionAccountId" label="推广账户" rules={[{ required: true, message: '请选择推广账户' }]}>
-            <Select placeholder="请选择推广账户" options={accounts.map((a: any) => ({ value: a.id, label: a.accountName }))} />
-          </Form.Item>
-          <Form.Item name="amount" label="充值金额" rules={[{ required: true, message: '请输入充值金额' }]}>
-            <InputNumber style={{ width: '100%' }} min={0.01} precision={2} placeholder="请输入充值金额" prefix="¥" />
-          </Form.Item>
-          <Form.Item name="fundType" label="资金类型" rules={[{ required: true, message: '请选择资金类型' }]}>
-            <Radio.Group>
-              <Radio value="PUBLIC">对公</Radio>
-              <Radio value="PRIVATE">对私</Radio>
-            </Radio.Group>
-          </Form.Item>
-          <Form.Item name="remark" label="备注">
-            <Input.TextArea rows={2} placeholder="选填" />
-          </Form.Item>
-          <Button type="primary" htmlType="submit" block loading={submitting}>提交申请</Button>
-        </Form>
+      <Modal title="提交充值申请" open={modalOpen} onCancel={() => setModalOpen(false)} footer={null} destroyOnClose width={760}>
+        <Row gutter={16}>
+          <Col span={13}>
+            <Form form={form} layout="vertical" onFinish={submitRequest} requiredMark={false}>
+              <Form.Item name="promotionAccountId" label="推广账户" rules={[{ required: true, message: '请选择推广账户' }]}>
+                <Select placeholder="请选择推广账户" options={accounts.map((a: any) => ({ value: a.id, label: `${a.accountName}（${a.platformAccountId || '无ID'}）` }))} />
+              </Form.Item>
+              {watchAccount && <div style={{ marginBottom: 8 }}>已选账户：{selectedAccount?.accountName}（{selectedAccount?.platformAccountId || '无ID'}）</div>}
+              <Form.Item name="amount" label="到账金额" rules={[{ required: true, message: '请输入到账金额' }]}>
+                <InputNumber style={{ width: '100%' }} min={0.01} precision={2} placeholder="请输入到账金额" prefix="¥" />
+              </Form.Item>
+              <Form.Item name="fundType" label="资金类型" rules={[{ required: true, message: '请选择资金类型' }]}>
+                <Radio.Group>
+                  <Radio value="PUBLIC">对公</Radio>
+                  <Radio value="PRIVATE">对私</Radio>
+                </Radio.Group>
+              </Form.Item>
+              <Form.Item name="remark" label="备注">
+                <Input.TextArea rows={2} placeholder="选填" />
+              </Form.Item>
+              <Button type="primary" htmlType="submit" block loading={submitting}>提交申请</Button>
+            </Form>
+          </Col>
+          <Col span={11}>
+            <Card title="现金换算到账币" size="small" style={{ background: '#fafafa', height: '100%' }}>
+              <div style={{ marginBottom: 8 }}>当前返点比例：<Tag color="blue">{rebateRate}%</Tag></div>
+              <div style={{ marginBottom: 8 }}>
+                <div style={{ marginBottom: 4 }}>客户打款现金(元)</div>
+                <InputNumber style={{ width: '100%' }} value={calcCash} onChange={setCalcCash} min={0} precision={2} placeholder="输入现金金额" prefix="¥" />
+              </div>
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ marginBottom: 4 }}>到账广告币(元)</div>
+                <div style={{ fontSize: 22, fontWeight: 600, color: '#1677ff' }}>¥{calcArrived.toFixed(2)}</div>
+                <div style={{ fontSize: 12, color: '#999' }}>到账 = 现金 ÷ (1 + 返点%)</div>
+              </div>
+              <Button size="small" type="primary" disabled={calcArrived <= 0} onClick={() => form.setFieldValue('amount', Math.round(calcArrived * 100) / 100)}>填入到账金额</Button>
+            </Card>
+          </Col>
+        </Row>
       </Modal>
 
       <Modal title={`账户流水：${accounts.find((a: any) => a.id === accountTxAccount)?.accountName || ''}`} open={txModalOpen} onCancel={() => setTxModalOpen(false)} footer={null} width={760}>

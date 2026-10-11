@@ -190,6 +190,8 @@ export class PortalService {
       channelName: r.channelName,
       accountCategory: r.accountCategory,
       currentBalance: moneyToString(r.currentBalance),
+      customerRebatePublic: r.customerRebatePublic ? r.customerRebatePublic.toString() : null,
+      customerRebatePrivate: r.customerRebatePrivate ? r.customerRebatePrivate.toString() : null,
       status: r.status,
     }));
   }
