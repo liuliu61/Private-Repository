@@ -36,7 +36,7 @@ export default function CustomerPortalPage() {
   const watchFund = Form.useWatch('fundType', form);
   const selectedAccount = accounts.find((a: any) => a.id === watchAccount);
   const rebateRate = parseFloat(watchFund === 'PUBLIC' ? (selectedAccount?.customerRebatePublic ?? '0') : (selectedAccount?.customerRebatePrivate ?? '0')) || 0;
-  const calcArrived = calcCash != null && calcCash > 0 ? calcCash / (1 + rebateRate / 100) : 0;
+  const calcArrived = calcCash != null && calcCash > 0 ? calcCash * (1 + rebateRate / 100) : 0;
 
   useEffect(() => {
     const t = localStorage.getItem('cToken');
@@ -275,7 +275,7 @@ async function loadWalletTx(t: string, walletId: string) {
               <div style={{ marginBottom: 12 }}>
                 <div style={{ marginBottom: 4 }}>到账广告币(元)</div>
                 <div style={{ fontSize: 22, fontWeight: 600, color: '#1677ff' }}>¥{calcArrived.toFixed(2)}</div>
-                <div style={{ fontSize: 12, color: '#999' }}>到账 = 现金 ÷ (1 + 返点%)</div>
+                <div style={{ fontSize: 12, color: '#999' }}>到账 = 现金 × (1 + 返点%)</div>
               </div>
               <Button size="small" type="primary" disabled={calcArrived <= 0} onClick={() => form.setFieldValue('amount', Math.round(calcArrived * 100) / 100)}>填入到账金额</Button>
             </Card>
