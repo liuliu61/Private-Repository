@@ -469,7 +469,7 @@ export class PortalService {
         include: {
           customer: { select: { id: true, name: true } },
           customerUser: { select: { displayName: true, username: true } },
-          promotionAccount: { select: { id: true, accountName: true, channelName: true, customerRebatePublic: true, customerRebatePrivate: true } },
+          promotionAccount: { select: { id: true, accountName: true, channelName: true, platformAccountId: true, customerRebatePublic: true, customerRebatePrivate: true } },
           port: { select: { id: true, name: true } },
           agentUser: { select: { id: true, displayName: true } },
         },
@@ -968,6 +968,7 @@ export class PortalService {
       submitterName: r.customerUser?.displayName || r.customerUser?.username || null,
       promotionAccountId: r.promotionAccountId,
       promotionAccountName: r.promotionAccount?.accountName || null,
+      platformAccountId: r.promotionAccount?.platformAccountId || null,
       promotionRebatePublic: r.promotionAccount?.customerRebatePublic ? moneyToString(r.promotionAccount.customerRebatePublic) : null,
       promotionRebatePrivate: r.promotionAccount?.customerRebatePrivate ? moneyToString(r.promotionAccount.customerRebatePrivate) : null,
       portId: r.portId,

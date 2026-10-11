@@ -247,7 +247,7 @@ export default function AgentPortalPage() {
           <Space direction="vertical" size="middle" style={{ width: '100%' }}>
             <Descriptions size="small" column={2} bordered>
               <Descriptions.Item label="客户">{currentReq.customerName}</Descriptions.Item>
-              <Descriptions.Item label="推广账户">{currentReq.promotionAccountName}</Descriptions.Item>
+              <Descriptions.Item label="推广账户">{currentReq.promotionAccountName}（{currentReq.platformAccountId || '无ID'}）</Descriptions.Item>
               <Descriptions.Item label="资金类型"><Tag color={currentReq.fundType === 'PUBLIC' ? 'blue' : 'green'}>{currentReq.fundType === 'PUBLIC' ? '对公' : '对私'}</Tag></Descriptions.Item>
               <Descriptions.Item label="申请金额"><b style={{ color: '#4338ca' }}>¥{currentReq.amount}</b></Descriptions.Item>
               <Descriptions.Item label="申请时间">{new Date(currentReq.createdAt).toLocaleString('zh-CN')}</Descriptions.Item>
@@ -256,46 +256,25 @@ export default function AgentPortalPage() {
             <Form form={form} layout="vertical" onFinish={confirmRecharge} requiredMark={false}>
               <Row gutter={12}>
                 <Col span={12}>
-                  <Form.Item name="portId" label="端口" rules={[{ required: true, message: '请选择端口' }]}>
-                    <Select placeholder="选择端口" options={channels.map((c: any) => ({ value: c.id, label: c.name }))} onChange={(v) => {
-                      const ch = channels.find((c: any) => c.id === v);
-                      const nature = form.getFieldValue('paymentNature');
-                      if (ch) form.setFieldsValue({ costRebate: nature === 'PUBLIC' ? Number(ch.defaultCostRebatePublic) : Number(ch.defaultCostRebatePrivate) });
-                    }} />
+                  <Form.Item name="portId" label="端口">
+                    <Select disabled placeholder="选择端口" options={channels.map((c: any) => ({ value: c.id, label: c.name }))} />
                   </Form.Item>
                 </Col>
                 <Col span={12}>
                   <Form.Item name="paymentNature" label="款项性质" initialValue="PRIVATE">
-                    <Select options={[{ value: 'PRIVATE', label: '对私' }, { value: 'PUBLIC', label: '对公' }]} onChange={(v) => {
-                      const ch = channels.find((c: any) => c.id === form.getFieldValue('portId'));
-                      const custReb = v === 'PUBLIC' ? Number(currentReq?.promotionRebatePublic ?? 0) : Number(currentReq?.promotionRebatePrivate ?? 0);
-                      form.setFieldsValue({
-                        costRebate: ch ? (v === 'PUBLIC' ? Number(ch.defaultCostRebatePublic) : Number(ch.defaultCostRebatePrivate)) : 0,
-                        customerRebate: custReb,
-                        remitAmount: (Math.floor((Number(currentReq?.amount ?? 0) / (1 + custReb / 100)) * 100) / 100).toFixed(2),
-                      });
-                    }} />
+                    <Select disabled options={[{ value: 'PRIVATE', label: '对私' }, { value: 'PUBLIC', label: '对公' }]} />
                   </Form.Item>
                 </Col>
               </Row>
               <Row gutter={12}>
-                <Col span={8}>
-                  <Form.Item name="customerRebate" label="客户返点(%)" rules={[{ required: true }]}>
-                    <InputNumber style={{ width: '100%' }} min={0} precision={2} onChange={(v) => {
-                      const amount = Number(currentReq.amount);
-                      const remit = amount / (1 + (Number(v) || 0) / 100);
-                      form.setFieldsValue({ remitAmount: remit.toFixed(2) });
-                    }} />
+                <Col span={12}>
+                  <Form.Item name="costRebate" label="返点政策">
+                    <InputNumber style={{ width: '100%' }} min={0} precision={2} disabled />
                   </Form.Item>
                 </Col>
-                <Col span={8}>
-                  <Form.Item name="costRebate" label="成本返点(%)" rules={[{ required: true }]}>
-                    <InputNumber style={{ width: '100%' }} min={0} precision={2} />
-                  </Form.Item>
-                </Col>
-                <Col span={8}>
-                  <Form.Item name="remitAmount" label="实打金额" rules={[{ required: true }]}>
-                    <InputNumber style={{ width: '100%' }} min={0.01} precision={2} />
+                <Col span={12}>
+                  <Form.Item name="remitAmount" label="现金">
+                    <InputNumber style={{ width: '100%' }} min={0.01} precision={2} disabled />
                   </Form.Item>
                 </Col>
               </Row>
