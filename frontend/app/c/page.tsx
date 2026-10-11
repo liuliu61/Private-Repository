@@ -35,8 +35,8 @@ export default function CustomerPortalPage() {
   const watchAccount = Form.useWatch('promotionAccountId', form);
   const watchFund = Form.useWatch('fundType', form);
   const selectedAccount = accounts.find((a: any) => a.id === watchAccount);
-  const rebateRate = parseFloat(watchFund === 'PUBLIC' ? (selectedAccount?.customerRebatePublic ?? '0') : (selectedAccount?.customerRebatePrivate ?? '0')) || 0;
-  const calcArrived = calcCash != null && calcCash > 0 ? calcCash * (1 + rebateRate / 100) : 0;
+  const rebateRate = watchFund ? (parseFloat(watchFund === 'PUBLIC' ? (selectedAccount?.customerRebatePublic ?? '0') : (selectedAccount?.customerRebatePrivate ?? '0')) || 0) : null;
+  const calcArrived = rebateRate != null && calcCash != null && calcCash > 0 ? calcCash * (1 + rebateRate / 100) : 0;
 
   useEffect(() => {
     const t = localStorage.getItem('cToken');
@@ -267,17 +267,17 @@ async function loadWalletTx(t: string, walletId: string) {
           </Col>
           <Col span={11}>
             <Card title="现金换算到账币" size="small" style={{ background: '#fafafa', height: '100%' }}>
-              <div style={{ marginBottom: 8 }}>当前返点比例：<Tag color="blue">{rebateRate}%</Tag></div>
+              <div style={{ marginBottom: 8 }}>当前返点比例：{watchFund ? <Tag color="blue">{rebateRate}%</Tag> : <Tag>请先选择资金类型</Tag>}</div>
               <div style={{ marginBottom: 8 }}>
                 <div style={{ marginBottom: 4 }}>客户打款现金(元)</div>
-                <InputNumber style={{ width: '100%' }} value={calcCash} onChange={setCalcCash} min={0} precision={2} placeholder="输入现金金额" prefix="¥" />
+                <InputNumber style={{ width: '100%' }} value={calcCash} onChange={setCalcCash} disabled={!watchFund} min={0} precision={2} placeholder={watchFund ? '输入现金金额' : '请先选择资金类型'} prefix="¥" />
               </div>
               <div style={{ marginBottom: 12 }}>
                 <div style={{ marginBottom: 4 }}>到账广告币(元)</div>
-                <div style={{ fontSize: 22, fontWeight: 600, color: '#1677ff' }}>¥{calcArrived.toFixed(2)}</div>
+                <div style={{ fontSize: 22, fontWeight: 600, color: '#1677ff' }}>{watchFund ? `¥${calcArrived.toFixed(2)}` : '—'}</div>
                 <div style={{ fontSize: 12, color: '#999' }}>到账 = 现金 × (1 + 返点%)</div>
               </div>
-              <Button size="small" type="primary" disabled={calcArrived <= 0} onClick={() => form.setFieldValue('amount', Math.round(calcArrived * 100) / 100)}>填入到账金额</Button>
+              <Button size="small" type="primary" disabled={!watchFund || calcArrived <= 0} onClick={() => form.setFieldValue('amount', Math.round(calcArrived * 100) / 100)}>填入到账金额</Button>
             </Card>
           </Col>
         </Row>
