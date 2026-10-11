@@ -93,12 +93,28 @@ async function loadWalletTx(t: string, walletId: string) {
   }
 
   async function submitRequest(values: any) {
+    // 提交前预检钱包余额：预计扣款 = 到账金额 ÷ (1 + 客户返点%)
+    const account = accounts.find((a: any) => a.id === values.promotionAccountId);
+    const amt = Number(values.amount || 0);
+    if (account && amt > 0) {
+      const fund = values.fundType || 'PRIVATE';
+      const rate = Number(fund === 'PUBLIC' ? (account.customerRebatePublic || 0) : (account.customerRebatePrivate || 0)) || 0;
+      const deduction = amt / (1 + rate / 100);
+      const balance = fund === 'PUBLIC' ? totalPublic : totalPrivate;
+      if (balance < deduction) {
+        const tip = `钱包${fund === 'PUBLIC' ? '对公' : '对私'}余额不足（预计扣款 ¥${deduction.toFixed(2)}，当前余额 ¥${balance.toFixed(2)}），请联系销售充值钱包后再提交充值单`;
+        message.error(tip);
+        form.setFields([{ name: 'amount', errors: [tip] }]);
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       await fetchJson(token!, '/portal/c/recharge-requests', { method: 'POST', body: JSON.stringify(values) });
       message.success('充值申请已提交，等待代理商确认');
       setModalOpen(false);
       form.resetFields();
+      await loadAll(token!);
       const d = await fetchJson(token!, '/portal/c/recharge-requests?pageSize=50');
       setRequests(d.items || []);
     } catch (e) { message.error(e instanceof Error ? e.message : '提交失败'); }

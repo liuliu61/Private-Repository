@@ -239,6 +239,22 @@ export class PortalService {
     if (account.status !== AccountStatus.ACTIVE) throw new BadRequestException('推广账户已停用，不能发起充值');
     const cu = await this.prisma.customerUser.findUnique({ where: { customerId } });
     if (!cu) throw new BadRequestException('客户账号异常');
+    // 提交前校验钱包余额：预计扣款 = 到账金额 ÷ (1 + 客户返点%)
+    const wallet = await this.prisma.customerWallet.findFirst({
+      where: { customerId, status: AccountStatus.ACTIVE },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!wallet) throw new BadRequestException('客户未开通钱包，无法充值');
+    const rebateRate = fundType === 'PUBLIC'
+      ? (account.customerRebatePublic ?? new Prisma.Decimal(0))
+      : (account.customerRebatePrivate ?? new Prisma.Decimal(0));
+    const deduction = amount.div(new Prisma.Decimal(1).plus(rebateRate.div(100)));
+    const fundBalance = fundType === 'PUBLIC'
+      ? new Prisma.Decimal(wallet.cashBalancePublic ?? 0)
+      : new Prisma.Decimal(wallet.cashBalancePrivate ?? 0);
+    if (fundBalance.lt(deduction)) {
+      throw new BadRequestException(`钱包${fundType === 'PUBLIC' ? '对公' : '对私'}余额不足（预计扣款 ¥${moneyToString(deduction)}，当前余额 ¥${moneyToString(fundBalance)}），请联系销售充值钱包后再提交充值单`);
+    }
     const row = await this.prisma.rechargeRequest.create({
       data: {
         requestNo: this.generateNo('RQ'),
@@ -270,6 +286,33 @@ export class PortalService {
         skip: (page - 1) * pageSize,
         take: pageSize,
         include: { promotionAccount: { select: { accountName: true } }, port: { select: { name: true } } },
+      }),
+    ]);
+    return { total, page, pageSize, items: items.map((r) => this.rechargeRequestView(r)) };
+  }
+
+  async adminListRechargeRequests(query: { status?: string; customerId?: string; page?: number; pageSize?: number }) {
+    const page = Number(query.page) || 1;
+    const pageSize = Number(query.pageSize) || 15;
+    const where: Prisma.RechargeRequestWhereInput = {};
+    if (query.status && Object.values(RechargeRequestStatus).includes(query.status as RechargeRequestStatus)) {
+      where.status = query.status as RechargeRequestStatus;
+    }
+    if (query.customerId) where.customerId = query.customerId;
+    const [total, items] = await Promise.all([
+      this.prisma.rechargeRequest.count({ where }),
+      this.prisma.rechargeRequest.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          customer: { select: { id: true, name: true } },
+          customerUser: { select: { displayName: true, username: true } },
+          promotionAccount: { select: { id: true, accountName: true, customerRebatePublic: true, customerRebatePrivate: true } },
+          port: { select: { name: true } },
+          agentUser: { select: { displayName: true } },
+        },
       }),
     ]);
     return { total, page, pageSize, items: items.map((r) => this.rechargeRequestView(r)) };

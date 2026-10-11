@@ -149,6 +149,12 @@ export class PortalController {
   // ==================== 管理端（管理员维护门户账号） ====================
 
   @UseGuards(JwtAuthGuard)
+  @Get('admin/recharge-requests')
+  adminListRechargeRequests(@Query() query: Record<string, any>) {
+    return this.service.adminListRechargeRequests(query);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('admin/customer-users')
   adminListCustomerUsers(@Query() query: Record<string, any>) {
     return this.service.adminListCustomerUsers(query);
