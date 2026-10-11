@@ -184,9 +184,8 @@ async function loadWalletTx(t: string, walletId: string) {
                     <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>提交充值申请</Button>
                     <Table rowKey="id" size="small" dataSource={accounts} pagination={false} locale={{ emptyText: '暂无推广账户' }} columns={[
                       { title: '账户名称', dataIndex: 'accountName' },
-                      { title: '平台', dataIndex: 'platform' },
                       { title: '平台账号ID', dataIndex: 'platformAccountId' },
-                      { title: '端口', dataIndex: 'channelName' },
+                      { title: '平台', dataIndex: 'platform' },
                       { title: '状态', dataIndex: 'status', render: (v: string) => <Tag color={v === 'ACTIVE' ? 'green' : 'default'}>{v === 'ACTIVE' ? '正常' : '停用'}</Tag> },
                       { title: '操作', render: (_: any, r: any) => <Button type="link" size="small" onClick={() => loadAccountTx(token!, r.id)}>账户流水</Button> },
                     ]} />
