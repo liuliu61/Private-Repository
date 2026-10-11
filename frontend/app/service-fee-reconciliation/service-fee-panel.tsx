@@ -53,7 +53,7 @@ export default function ServiceFeePanel({ token, onError }: { token: string; onE
   return <Card title="服务费对账" extra={<Button onClick={() => void exportRows()}>导出 Excel</Button>}>
     <Form form={form} layout="inline" onFinish={submit} style={{ marginBottom: 16 }}>
       <Form.Item name="transactionNo" label="流水号"><Input allowClear placeholder="订单/流水号" /></Form.Item>
-      <Form.Item name="dates" label="日期"><DatePicker.RangePicker allowEmpty={[true, true]} /></Form.Item>
+      <Form.Item name="dates" label="日期"><DatePicker.RangePicker format="YYYY年MM月DD日" allowEmpty={[true, true]} /></Form.Item>
       <Form.Item name="paymentAccountKeyword" label="付款账户"><Input allowClear placeholder="名称或账户编码" /></Form.Item>
       <Button type="primary" htmlType="submit">查询</Button><Button onClick={() => { form.resetFields(); setFilters({}); void load(1, {}, tab); }}>重置</Button>
     </Form>

@@ -219,12 +219,12 @@ export default function RebatePanel({ token, customers, suppliers, onError }: Re
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="startDate" label="开始日期">
-                <DatePicker style={{ width: '100%' }} placeholder="选择开始日期" />
+                <DatePicker style={{ width: '100%' }} format="YYYY年MM月DD日" placeholder="选择开始日期" />
               </Form.Item>
             </Col>
             <Col span={12}>
               <Form.Item name="endDate" label="结束日期">
-                <DatePicker style={{ width: '100%' }} placeholder="选择结束日期" />
+                <DatePicker style={{ width: '100%' }} format="YYYY年MM月DD日" placeholder="选择结束日期" />
               </Form.Item>
             </Col>
           </Row>

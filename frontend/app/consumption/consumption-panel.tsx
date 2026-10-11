@@ -98,7 +98,7 @@ export default function ConsumptionPanel({ token, customers: propCustomers, onEr
       <Space direction="vertical" size="large" style={{ width: '100%' }}>
         <Space wrap>
           <Select style={{ width: 240 }} placeholder="按客户筛选" value={filterCustomer} onChange={setFilterCustomer} allowClear options={customers.map((c) => ({ value: c.id, label: `${c.name}（${c.customerCode}）` }))} />
-          <DatePicker.RangePicker onChange={(_, dateStrings) => setFilterDate(dateStrings[0] && dateStrings[1] ? [dateStrings[0], dateStrings[1]] : null)} />
+          <DatePicker.RangePicker format="YYYY年MM月DD日" onChange={(_, dateStrings) => setFilterDate(dateStrings[0] && dateStrings[1] ? [dateStrings[0], dateStrings[1]] : null)} />
         </Space>
 
         {overview && (
@@ -144,7 +144,7 @@ export default function ConsumptionPanel({ token, customers: propCustomers, onEr
             <Select placeholder="请选择客户" options={customers.map((c) => ({ value: c.id, label: `${c.name}（${c.customerCode}）` }))} />
           </Form.Item>
           <Form.Item name="consumptionDate" label="消耗日期" rules={[{ required: true, message: '请选择消耗日期' }]}>
-            <DatePicker style={{ width: '100%' }} />
+            <DatePicker style={{ width: '100%' }} format="YYYY年MM月DD日" />
           </Form.Item>
           <Row gutter={16}>
             <Col span={12}><Form.Item name="creditAmount" label="消耗(币)" rules={[{ required: true, message: '请输入消耗币数' }]}><InputNumber style={{ width: '100%' }} min={0} placeholder="账户币消耗" /></Form.Item></Col>

@@ -137,7 +137,7 @@ export default function CustomerContractsPage() {
     { title: '金额', key: 'amount', width: 120, render: (_: any, r: any) => <Typography.Text>¥{Number(r.amount).toLocaleString()}</Typography.Text> },
     { title: '有效期', key: 'period', width: 210, render: (_: any, r: any) => (
         <span className="text-sm" style={{ color: '#64748b' }}>
-          {r.effectiveDate ? String(r.effectiveDate).slice(0, 10) : '-'} ~ {r.expiryDate ? String(r.expiryDate).slice(0, 10) : '-'}
+          {r.effectiveDate ? dayjs(String(r.effectiveDate)).format('YYYY年MM月DD日') : '-'} ~ {r.expiryDate ? dayjs(String(r.expiryDate)).format('YYYY年MM月DD日') : '-'}
         </span>
       ) },
     { title: '剩余天数', key: 'days', width: 110, render: (_: any, r: any) => {
@@ -274,6 +274,7 @@ function ContractForm({ initial, customers, onSubmit, onClose }: any) {
       <label className="block text-sm font-medium mb-1.5" style={{ color: '#475569' }}>{label}</label>
       <DatePicker
         style={{ width: '100%' }}
+        format="YYYY年MM月DD日"
         value={form[key] ? dayjs(String(form[key]).slice(0, 10)) : null}
         onChange={(d) => setForm({ ...form, [key]: d ? d.format('YYYY-MM-DD') : '' })}
         placeholder="请选择日期"
