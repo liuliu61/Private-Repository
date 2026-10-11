@@ -351,16 +351,18 @@ async function loadWalletTx(t: string, walletId: string) {
               已选账户：{refundAccount?.accountName}（{refundAccount?.platformAccountId || '无ID'}）
             </div>
           )}
+          <Form.Item name="amount" label="退款金额（账户币）">
+            <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="选填；留空表示申请全部退款（全退）" prefix="¥" />
+          </Form.Item>
           <Form.Item name="fundType" label="退回资金类型" rules={[{ required: true, message: '请选择资金类型' }]}>
             <Radio.Group>
               <Radio value="PUBLIC">对公</Radio>
               <Radio value="PRIVATE">对私</Radio>
             </Radio.Group>
           </Form.Item>
-          <div style={{ marginBottom: 12, fontSize: 13, color: '#555' }}>
-            <Alert type="warning" showIcon style={{ marginBottom: 8 }} message="退款金额将由代理商确认时填写，您可选择下方“全退”申请全部退款。" />
+          <Form.Item label={<span style={{ color: '#8b8ea8' }}>快捷操作</span>}>
             <Button size="small" type="dashed" icon={<RollbackOutlined />} onClick={() => submitRefund({ promotionAccountId: refundForm.getFieldValue('promotionAccountId'), fundType: refundForm.getFieldValue('fundType') || 'PRIVATE', remark: refundForm.getFieldValue('remark') })}>全退</Button>
-          </div>
+          </Form.Item>
           <Form.Item name="remark" label="备注">
             <Input.TextArea rows={2} placeholder="选填" />
           </Form.Item>
