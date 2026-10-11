@@ -578,6 +578,7 @@ model Customer {
   customerUsers CustomerUser[]
   agentBindings AgentCustomer[]
   rechargeRequests RechargeRequest[]
+  refundRequests RefundRequest[]
   consumptionRecords ConsumptionRecord[]
   @@map("customers")
 }
@@ -924,6 +925,7 @@ model PromotionAccount {
   reconciliations Reconciliation[]
   financialAdjustments FinancialAdjustment[]
   rechargeRequests RechargeRequest[]
+  refundRequests RefundRequest[]
 
   @@index([organizationId, status])
   @@index([ownerType, ownerId, status])
@@ -2227,6 +2229,7 @@ model CustomerUser {
   updatedAt    DateTime              @updatedAt @map("updated_at")
   customer     Customer              @relation(fields: [customerId], references: [id])
   rechargeRequests RechargeRequest[] @relation("RechargeRequestCustomerUser")
+  refundRequests RefundRequest[] @relation("RefundRequestCustomerUser")
 
   @@map("customer_users")
 }
@@ -2243,6 +2246,8 @@ model AgentUser {
   updatedAt    DateTime              @updatedAt @map("updated_at")
   customerBindings AgentCustomer[]
   handledRequests   RechargeRequest[] @relation("RechargeRequestAgentUser")
+  refundRequests    RefundRequest[] @relation("RefundRequestAgentUser")
+  wallet            AgentWallet?
 
   @@map("agent_users")
 }
@@ -2294,4 +2299,115 @@ model RechargeRequest {
 enum FundType {
   PUBLIC
   PRIVATE
+}
+
+
+model RefundRequest {
+  id                 String              @id @default(uuid()) @db.VarChar(36)
+  requestNo          String              @unique @map("request_no") @db.VarChar(50)
+  customerId         String              @map("customer_id") @db.VarChar(36)
+  customerUserId     String              @map("customer_user_id") @db.VarChar(36)
+  promotionAccountId String              @map("promotion_account_id") @db.VarChar(36)
+  amount             Decimal             @map("amount") @db.Decimal(20, 2)
+  fundType           FundType            @default(PRIVATE) @map("fund_type")
+  cashAmount         Decimal?            @map("cash_amount") @db.Decimal(20, 2)
+  remark             String?             @db.VarChar(255)
+  status             RefundRequestStatus @default(PENDING)
+  agentUserId        String?             @map("agent_user_id") @db.VarChar(36)
+  confirmedAt        DateTime?           @map("confirmed_at")
+  rejectReason       String?             @map("reject_reason") @db.VarChar(255)
+  createdAt          DateTime            @default(now()) @map("created_at")
+  updatedAt          DateTime            @updatedAt @map("updated_at")
+  customer           Customer            @relation(fields: [customerId], references: [id])
+  customerUser       CustomerUser        @relation("RefundRequestCustomerUser", fields: [customerUserId], references: [id])
+  promotionAccount   PromotionAccount    @relation(fields: [promotionAccountId], references: [id])
+  agentUser          AgentUser?          @relation("RefundRequestAgentUser", fields: [agentUserId], references: [id])
+
+  @@index([customerId, status])
+  @@index([status, createdAt])
+  @@index([promotionAccountId])
+  @@map("refund_requests")
+}
+
+enum RefundRequestStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+model AgentWallet {
+  id          String                   @id @default(uuid()) @db.VarChar(36)
+  agentUserId String                   @unique @map("agent_user_id") @db.VarChar(36)
+  balance     Decimal                  @default(0) @map("balance") @db.Decimal(20, 2)
+  updatedAt   DateTime                 @updatedAt @map("updated_at")
+  agentUser   AgentUser                @relation(fields: [agentUserId], references: [id])
+  transactions AgentWalletTransaction[]
+
+  @@map("agent_wallets")
+}
+
+model AgentWalletTransaction {
+  id            String                     @id @default(uuid()) @db.VarChar(36)
+  transactionNo String                     @unique @map("transaction_no") @db.VarChar(50)
+  agentWalletId String                     @map("agent_wallet_id") @db.VarChar(36)
+  businessType  AgentWalletTransactionType @map("business_type")
+  businessNo    String                     @map("business_no") @db.VarChar(100)
+  changeAmount  Decimal                    @map("change_amount") @db.Decimal(20, 2)
+  balanceBefore Decimal                    @map("balance_before") @db.Decimal(20, 2)
+  balanceAfter  Decimal                    @map("balance_after") @db.Decimal(20, 2)
+  operatorId    String                     @map("operator_id") @db.VarChar(36)
+  remark        String?                    @db.VarChar(255)
+  createdAt     DateTime                   @default(now()) @map("created_at")
+  wallet        AgentWallet                @relation(fields: [agentWalletId], references: [id])
+
+  @@index([agentWalletId, createdAt])
+  @@index([businessType, createdAt])
+  @@map("agent_wallet_transactions")
+}
+
+enum AgentWalletTransactionType {
+  CHARGE_CONFIRM
+  AGENT_PAYOUT
+  REFUND_BACK
+}
+
+model OperationLog {
+  id           String          @id @default(uuid()) @db.VarChar(36)
+  operatorId   String?         @map("operator_id") @db.VarChar(36)
+  operatorName String          @map("operator_name") @db.VarChar(100)
+  actionType   OperationLogType @map("action_type")
+  targetType   String?         @map("target_type") @db.VarChar(50)
+  targetNo     String?         @map("target_no") @db.VarChar(50)
+  detail       String?         @db.VarChar(500)
+  createdAt    DateTime        @default(now()) @map("created_at")
+
+  @@index([actionType, createdAt])
+  @@index([createdAt])
+  @@map("operation_logs")
+}
+
+enum OperationLogType {
+  LOGIN
+  LOGOUT
+  CONFIRM_RECHARGE
+  REJECT_RECHARGE
+  APPROVE_REFUND
+  REJECT_REFUND
+  AGENT_PAYOUT
+  OTHER
+}
+
+
+model RechargeAccountConfig {
+  id          String             @id @default(uuid()) @db.VarChar(36)
+  configType  FundType           @map("config_type")
+  accountName String?            @map("account_name") @db.VarChar(100)
+  bankName    String?            @map("bank_name") @db.VarChar(100)
+  accountNo   String?            @map("account_no") @db.VarChar(50)
+  remark      String?            @db.VarChar(200)
+  updatedBy   String?            @map("updated_by") @db.VarChar(36)
+  updatedAt   DateTime           @updatedAt @map("updated_at")
+
+  @@unique([configType], name: "uk_type")
+  @@map("recharge_account_configs")
 }

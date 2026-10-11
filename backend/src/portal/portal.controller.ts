@@ -149,6 +149,71 @@ export class PortalController {
   // ==================== 管理端（管理员维护门户账号） ====================
 
   @UseGuards(JwtAuthGuard)
+
+  @UseGuards(JwtAuthGuard)
+  @Post('c/refund-requests')
+  async cCreateRefundRequest(@Req() req: AuthenticatedRequest, @Body() dto: { promotionAccountId: string; amount?: string; fundType?: string; remark?: string }) {
+    return this.service.cCreateRefundRequest(req.user!, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('c/refund-requests')
+  async cListRefundRequests(@Req() req: AuthenticatedRequest, @Query() query: { page?: number; pageSize?: number }) {
+    return this.service.cListRefundRequests(req.user!, query);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('b/refund-requests')
+  async bListRefundRequests(@Req() req: AuthenticatedRequest, @Query() query: { status?: string; page?: number; pageSize?: number }) {
+    return this.service.bListRefundRequests(req.user!, query);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('b/refund-requests/:id/approve')
+  async bApproveRefund(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.service.bApproveRefund(req.user!.agentUserId!, id);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('b/refund-requests/:id/reject')
+  async bRejectRefund(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: { reason?: string }) {
+    return this.service.bRejectRefund(req.user!.agentUserId!, id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('admin/port-wallet-stats')
+  async adminListPortWalletStats() {
+    return this.service.adminListPortWalletStats();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('admin/agent-wallets')
+  async adminListAgentWallets() {
+    return this.service.adminListAgentWallets();
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('admin/agent-payout')
+  async adminAgentPayout(@Req() req: AuthenticatedRequest, @Body() dto: { agentUserId: string; amount: string; remark?: string }) {
+    return this.service.adminAgentPayout(req.user, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('admin/refund-requests')
+  async adminListRefundRequests(@Query() query: { status?: string; page?: number; pageSize?: number }) {
+    return this.service.adminListRefundRequests(query);
+  }
+
+  @Get('admin/agent-wallet-transactions')
+  async adminListAgentWalletTransactions(@Query() query: { page?: number; pageSize?: number }) {
+    return this.service.adminListAgentWalletTransactions(query);
+  }
+
+  @Get('admin/operation-logs')
+  async adminListOperationLogs(@Query() query: { actionType?: string; start?: string; end?: string; page?: number; pageSize?: number }) {
+    return this.service.adminListOperationLogs(query);
+  }
+
   @Get('admin/recharge-requests')
   adminListRechargeRequests(@Query() query: Record<string, any>) {
     return this.service.adminListRechargeRequests(query);

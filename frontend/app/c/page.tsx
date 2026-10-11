@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react';
 import useAutoRefresh from '../utils/useAutoRefresh';
 import {
-  Button, Card, Col, Descriptions, Form, Input, InputNumber, List, message, Modal, Row, Select,
+  Alert, Button, Card, Col, Descriptions, Form, Input, InputNumber, List, message, Modal, Row, Select,
   Radio, Space, Statistic, Table, Tabs, Tag, Typography,
 } from 'antd';
 import {
   AccountBookOutlined, BellOutlined, CreditCardOutlined,
-  FileDoneOutlined, LockOutlined, LogoutOutlined, PayCircleOutlined, PlusOutlined, ReloadOutlined, UserOutlined, WalletOutlined,
+  FileDoneOutlined, LockOutlined, LogoutOutlined, PayCircleOutlined, PlusOutlined, ReloadOutlined, RollbackOutlined, UserOutlined, WalletOutlined,
 } from '@ant-design/icons';
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
@@ -31,6 +31,13 @@ export default function CustomerPortalPage() {
   const [txModalOpen, setTxModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [calcCash, setCalcCash] = useState<number | null>(null);
+  const [refunds, setRefunds] = useState<any[]>([]);
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
+  const [refundForm] = Form.useForm();
+  const refundAccountId = Form.useWatch('promotionAccountId', refundForm);
+  const refundAccount = accounts.find((a: any) => a.id === refundAccountId);
+  const refundFund = Form.useWatch('fundType', refundForm) || 'PRIVATE';
   const [form] = Form.useForm();
   const watchAccount = Form.useWatch('promotionAccountId', form);
   const watchFund = Form.useWatch('fundType', form);
@@ -54,18 +61,20 @@ export default function CustomerPortalPage() {
   async function loadAll(t: string, silent?: boolean) {
     if (!silent) setLoading(true);
     try {
-      const [meData, walletData, accountData, requestData, invoiceData] = await Promise.all([
+      const [meData, walletData, accountData, requestData, invoiceData, refundData] = await Promise.all([
         fetchJson(t, '/portal/c/me'),
         fetchJson(t, '/portal/c/wallets'),
         fetchJson(t, '/portal/c/promotion-accounts'),
         fetchJson(t, '/portal/c/recharge-requests?pageSize=50'),
         fetchJson(t, '/portal/c/invoices?pageSize=50'),
+        fetchJson(t, '/portal/c/refund-requests?pageSize=50'),
       ]);
       setMe(meData);
       setWallets(walletData);
       setAccounts(accountData);
       setRequests(requestData.items || []);
       setInvoices(invoiceData.items || []);
+      setRefunds(refundData.items || []);
       if (walletData.length > 0 && !activeWallet) {
         setActiveWallet(walletData[0].id);
         loadWalletTx(t, walletData[0].id);
@@ -75,7 +84,21 @@ export default function CustomerPortalPage() {
   }
 
   
-async function loadRechargeAccounts() {
+async function submitRefund(values: any) {
+    const account = accounts.find((a: any) => a.id === values.promotionAccountId);
+    setRefundSubmitting(true);
+    try {
+      await fetchJson(token!, '/portal/c/refund-requests', { method: 'POST', body: JSON.stringify(values) });
+      message.success('退款申请已提交，等待代理商处理');
+      setRefundOpen(false);
+      refundForm.resetFields();
+      const d = await fetchJson(token!, '/portal/c/refund-requests?pageSize=50');
+      setRefunds(d.items || []);
+    } catch (e) { message.error(e instanceof Error ? e.message : '提交失败'); }
+    finally { setRefundSubmitting(false); }
+  }
+
+  async function loadRechargeAccounts() {
   try {
     const d = await fetchJson(token!, '/portal/c/recharge-accounts');
     setRechargeAccounts(d || { public: null, private: null });
@@ -181,7 +204,10 @@ async function loadWalletTx(t: string, walletId: string) {
                 key: 'accounts', label: <span><AccountBookOutlined /> 推广账户</span>,
                 children: (
                   <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>提交充值申请</Button>
+                    <Space>
+                      <Button type="primary" icon={<PlusOutlined />} onClick={() => setModalOpen(true)}>提交充值申请</Button>
+                      <Button icon={<RollbackOutlined />} onClick={() => { refundForm.resetFields(); setRefundOpen(true); }}>退款申请</Button>
+                    </Space>
                     <Table rowKey="id" size="small" dataSource={accounts} pagination={false} locale={{ emptyText: '暂无推广账户' }} columns={[
                       { title: '账户名称', dataIndex: 'accountName' },
                       { title: '平台账号ID', dataIndex: 'platformAccountId' },
@@ -190,6 +216,22 @@ async function loadWalletTx(t: string, walletId: string) {
                       { title: '操作', render: (_: any, r: any) => <Button type="link" size="small" onClick={() => loadAccountTx(token!, r.id)}>账户流水</Button> },
                     ]} />
                   </Space>
+                ),
+              },
+              {
+                key: 'refunds', label: <span><RollbackOutlined /> 退款申请</span>,
+                children: (
+                  <Table rowKey="id" size="small" dataSource={refunds} pagination={{ pageSize: 10 }} locale={{ emptyText: '暂无退款申请' }} columns={[
+                    { title: '退款单号', dataIndex: 'requestNo' },
+                    { title: '推广账户', dataIndex: 'promotionAccountName' },
+                    { title: '退款金额(账户币)', dataIndex: 'amount', render: (v: string) => <b>¥{v}</b> },
+                    { title: '资金类型', dataIndex: 'fundType', render: (v: string) => <Tag color={v === 'PUBLIC' ? 'blue' : 'green'}>{v === 'PUBLIC' ? '对公' : '对私'}</Tag> },
+                    { title: '退回现金', dataIndex: 'cashAmount', render: (v: string) => v ? `¥${v}` : '—' },
+                    { title: '状态', dataIndex: 'statusLabel', render: (v: string, r: any) => <Tag color={r.status === 'PENDING' ? 'orange' : r.status === 'CONFIRMED' ? 'green' : 'red'}>{v}</Tag> },
+                    { title: '处理人', dataIndex: 'agentName', render: (v: string) => v || '—' },
+                    { title: '驳回原因', dataIndex: 'rejectReason', render: (v: string) => v || '—' },
+                    { title: '申请时间', dataIndex: 'createdAt', render: (v: string) => new Date(v).toLocaleString('zh-CN') },
+                  ]} />
                 ),
               },
               {
@@ -296,6 +338,41 @@ async function loadWalletTx(t: string, walletId: string) {
             </Card>
           </Col>
         </Row>
+      </Modal>
+
+      <Modal title="提交退款申请" open={refundOpen} onCancel={() => setRefundOpen(false)} footer={null} destroyOnClose width={640}>
+        <Alert type="info" showIcon style={{ marginBottom: 16 }} message="退款金额为账户币（到账币）。退款成功后，将按客户返点比例换算成现金退回您的钱包，并同步扣减推广账户余额。" />
+        <Form form={refundForm} layout="vertical" onFinish={submitRefund} requiredMark={false} initialValues={{ fundType: 'PRIVATE' }}>
+          <Form.Item name="promotionAccountId" label="推广账户" rules={[{ required: true, message: '请选择推广账户' }]}>
+            <Select placeholder="请选择推广账户" options={accounts.filter((a: any) => a.status === 'ACTIVE').map((a: any) => ({ value: a.id, label: `${a.accountName}（${a.platformAccountId || '无ID'}）` }))} />
+          </Form.Item>
+          {refundAccountId && (
+            <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fafafa', borderRadius: 8, fontSize: 13 }}>
+              已选账户：{refundAccount?.accountName}（{refundAccount?.platformAccountId || '无ID'}）　当前余额：<b>¥{refundAccount?.currentBalance ?? '0.00'}</b>（账户币）
+            </div>
+          )}
+          <Form.Item name="amount" label="退款金额（账户币）" rules={[{ required: true, message: '请输入退款金额' }]}>
+            <InputNumber style={{ width: '100%' }} min={0.01} precision={2} placeholder="默认退全部余额，可自定义" prefix="¥" />
+          </Form.Item>
+          <Form.Item label={<span style={{ color: '#8b8ea8' }}>快捷操作</span>}>
+            <Button size="small" type="dashed" onClick={() => refundForm.setFieldValue('amount', Number(refundAccount?.currentBalance || 0))}>退全部余额（¥{refundAccount?.currentBalance ?? '0.00'}）</Button>
+          </Form.Item>
+          <Form.Item name="fundType" label="退回资金类型" rules={[{ required: true, message: '请选择资金类型' }]}>
+            <Radio.Group>
+              <Radio value="PUBLIC">对公</Radio>
+              <Radio value="PRIVATE">对私</Radio>
+            </Radio.Group>
+          </Form.Item>
+          {refundFund && refundAccount && (
+            <div style={{ marginBottom: 12, fontSize: 13, color: '#555' }}>
+              预计退回现金：<b style={{ color: '#1677ff' }}>¥{((Number(refundForm.getFieldValue('amount') || 0) / (1 + (Number(refundFund === 'PUBLIC' ? (refundAccount.customerRebatePublic || 0) : (refundAccount.customerRebatePrivate || 0)) || 0) / 100))).toFixed(2)}</b>（按{refundFund === 'PUBLIC' ? '对公' : '对私'}返点 {Number(refundFund === 'PUBLIC' ? (refundAccount.customerRebatePublic || 0) : (refundAccount.customerRebatePrivate || 0)) || 0}% 换算）
+            </div>
+          )}
+          <Form.Item name="remark" label="备注">
+            <Input.TextArea rows={2} placeholder="选填" />
+          </Form.Item>
+          <Button type="primary" htmlType="submit" block loading={refundSubmitting}>提交退款申请</Button>
+        </Form>
       </Modal>
 
       <Modal title={`账户流水：${accounts.find((a: any) => a.id === accountTxAccount)?.accountName || ''}`} open={txModalOpen} onCancel={() => setTxModalOpen(false)} footer={null} width={760}>

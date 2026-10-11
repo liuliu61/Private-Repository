@@ -3,12 +3,12 @@
 import { useEffect, useState } from 'react';
 import useAutoRefresh from '../utils/useAutoRefresh';
 import {
-  Button, Card, Col, Descriptions, Drawer, Form, Input, InputNumber, List, message, Modal, Row,
+  Alert, Button, Card, Col, Descriptions, Drawer, Form, Input, InputNumber, List, message, Modal, Row,
   Select, Space, Statistic, Table, Tabs, Tag, Typography,
 } from 'antd';
 import {
   AccountBookOutlined, BellOutlined, CheckCircleOutlined, CloseCircleOutlined, CreditCardOutlined,
-  FileDoneOutlined, LockOutlined, LogoutOutlined, ReloadOutlined, TeamOutlined, UserOutlined, WalletOutlined,
+  FileDoneOutlined, LockOutlined, LogoutOutlined, ReloadOutlined, RollbackOutlined, TeamOutlined, UserOutlined, WalletOutlined,
 } from '@ant-design/icons';
 
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || '/api';
@@ -29,6 +29,14 @@ export default function AgentPortalPage() {
   const [customerDetail, setCustomerDetail] = useState<any>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [refunds, setRefunds] = useState<any[]>([]);
+  const [refundStatus, setRefundStatus] = useState<string>('PENDING');
+  const [refundConfirmOpen, setRefundConfirmOpen] = useState(false);
+  const [refundRejectOpen, setRefundRejectOpen] = useState(false);
+  const [currentRefund, setCurrentRefund] = useState<any>(null);
+  const [refundSubmitting, setRefundSubmitting] = useState(false);
+  const [refundForm] = Form.useForm();
+  const [rejectRefundForm] = Form.useForm();
   const [form] = Form.useForm();
   const [rejectForm] = Form.useForm();
 
@@ -48,13 +56,14 @@ export default function AgentPortalPage() {
   async function loadAll(t: string, silent?: boolean) {
     if (!silent) setLoading(true);
     try {
-      const [meData, customerData, reqData, txData, invData, chData] = await Promise.all([
+      const [meData, customerData, reqData, txData, invData, chData, refundData] = await Promise.all([
         fetchJson(t, '/portal/b/me'),
         fetchJson(t, '/portal/b/customers?pageSize=50'),
         fetchJson(t, '/portal/b/recharge-requests?status=PENDING&pageSize=50'),
         fetchJson(t, '/portal/b/transactions?pageSize=50'),
         fetchJson(t, '/portal/b/invoices?pageSize=50'),
         fetchJson(t, '/portal/b/channels'),
+        fetchJson(t, '/portal/b/refund-requests?status=PENDING&pageSize=50'),
       ]);
       setMe(meData);
       setCustomers(customerData.items || []);
@@ -62,6 +71,7 @@ export default function AgentPortalPage() {
       setTransactions(txData.items || []);
       setInvoices(invData.items || []);
       setChannels(chData || []);
+      setRefunds(refundData.items || []);
     } catch (e) { message.error(e instanceof Error ? e.message : '加载失败'); }
     finally { setLoading(false); }
   }
@@ -71,6 +81,41 @@ export default function AgentPortalPage() {
       const d = await fetchJson(t, `/portal/b/recharge-requests?status=${status}&pageSize=50`);
       setRequests(d.items || []);
     } catch (e) { message.error(e instanceof Error ? e.message : '加载失败'); }
+  }
+
+  async function loadRefunds(t: string, status: string) {
+    try {
+      const d = await fetchJson(t, `/portal/b/refund-requests?status=${status}&pageSize=50`);
+      setRefunds(d.items || []);
+    } catch (e) { message.error(e instanceof Error ? e.message : '加载失败'); }
+  }
+
+  async function approveRefund() {
+    if (!currentRefund) return;
+    setRefundSubmitting(true);
+    try {
+      const r = await fetchJson(token!, `/portal/b/refund-requests/${currentRefund.id}/approve`, { method: 'POST', body: JSON.stringify({}) });
+      message.success(`退款已通过，退回现金 ¥${r.cashAmount}`);
+      setRefundConfirmOpen(false);
+      const d = await fetchJson(token!, `/portal/b/refund-requests?status=${refundStatus}&pageSize=50`);
+      setRefunds(d.items || []);
+      loadAll(token!, true);
+    } catch (e) { message.error(e instanceof Error ? e.message : '操作失败'); }
+    finally { setRefundSubmitting(false); }
+  }
+
+  async function rejectRefund(values: any) {
+    if (!currentRefund) return;
+    setRefundSubmitting(true);
+    try {
+      await fetchJson(token!, `/portal/b/refund-requests/${currentRefund.id}/reject`, { method: 'POST', body: JSON.stringify({ reason: values.reason }) });
+      message.success(`已驳回退款：${currentRefund.requestNo}`);
+      setRefundRejectOpen(false);
+      rejectRefundForm.resetFields();
+      const d = await fetchJson(token!, `/portal/b/refund-requests?status=${refundStatus}&pageSize=50`);
+      setRefunds(d.items || []);
+    } catch (e) { message.error(e instanceof Error ? e.message : '操作失败'); }
+    finally { setRefundSubmitting(false); }
   }
 
   async function openConfirm(req: any) {
@@ -196,6 +241,39 @@ export default function AgentPortalPage() {
                 ),
               },
               {
+                key: 'refunds', label: <span><RollbackOutlined /> 退款申请</span>,
+                children: (
+                  <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+                    <Space>
+                      {[{ key: 'PENDING', label: '待处理' }, { key: 'CONFIRMED', label: '退款成功' }, { key: 'REJECTED', label: '已驳回' }, { key: 'ALL', label: '全部' }].map((o) => (
+                        <Button key={o.key} size="small" type={refundStatus === o.key ? 'primary' : 'default'} onClick={() => { setRefundStatus(o.key); loadRefunds(token!, o.key); }}>{o.label}</Button>
+                      ))}
+                    </Space>
+                    <Table rowKey="id" size="small" loading={loading} dataSource={refunds} pagination={{ pageSize: 10 }} locale={{ emptyText: '暂无退款申请' }} columns={[
+                      { title: '退款单号', dataIndex: 'requestNo' },
+                      { title: '客户', dataIndex: 'customerName' },
+                      { title: '提交人', dataIndex: 'submitterName' },
+                      { title: '推广账户', dataIndex: 'promotionAccountName', render: (v: string, r: any) => <span>{v}{r.platformAccountId ? `（${r.platformAccountId}）` : ''}</span> },
+                      { title: '退款金额(账户币)', dataIndex: 'amount', render: (v: string) => <b>¥{v}</b> },
+                      { title: '资金类型', dataIndex: 'fundType', render: (v: string) => <Tag color={v === 'PUBLIC' ? 'blue' : 'green'}>{v === 'PUBLIC' ? '对公' : '对私'}</Tag> },
+                      { title: '备注', dataIndex: 'remark', render: (v: string) => v || '—' },
+                      { title: '状态', dataIndex: 'statusLabel', render: (v: string, r: any) => <Tag color={r.status === 'PENDING' ? 'orange' : r.status === 'CONFIRMED' ? 'green' : 'red'}>{v}</Tag> },
+                      { title: '申请时间', dataIndex: 'createdAt', render: (v: string) => new Date(v).toLocaleString('zh-CN') },
+                      {
+                        title: '操作', render: (_: any, r: any) => r.status === 'PENDING' ? (
+                          <Space>
+                            <Button type="primary" size="small" icon={<CheckCircleOutlined />} onClick={() => { setCurrentRefund(r); setRefundConfirmOpen(true); }}>通过退款</Button>
+                            <Button danger size="small" icon={<CloseCircleOutlined />} onClick={() => { setCurrentRefund(r); setRefundRejectOpen(true); rejectRefundForm.resetFields(); }}>驳回</Button>
+                          </Space>
+                        ) : (
+                          <span style={{ color: '#8b8ea8', fontSize: 12 }}>{r.statusLabel}{r.cashAmount ? ` · 退现金 ¥${r.cashAmount}` : ''}{r.rejectReason ? ` · ${r.rejectReason}` : ''}</span>
+                        ),
+                      },
+                    ]} />
+                  </Space>
+                ),
+              },
+              {
                 key: 'customers', label: <span><TeamOutlined /> 名下客户</span>,
                 children: (
                   <Table rowKey="id" size="small" dataSource={customers} pagination={{ pageSize: 10 }} locale={{ emptyText: '暂无绑定客户' }} columns={[
@@ -241,6 +319,37 @@ export default function AgentPortalPage() {
           />
         </Card>
       </div>
+
+      <Modal title={`通过退款：${currentRefund?.requestNo || ''}`} open={refundConfirmOpen} onCancel={() => setRefundConfirmOpen(false)} footer={null} destroyOnClose width={560}>
+        {currentRefund && (
+          <Descriptions column={2} size="small" bordered style={{ marginBottom: 16 }}>
+            <Descriptions.Item label="客户">{currentRefund.customerName}</Descriptions.Item>
+            <Descriptions.Item label="提交人">{currentRefund.submitterName || '—'}</Descriptions.Item>
+            <Descriptions.Item label="推广账户" span={2}>{currentRefund.promotionAccountName}{currentRefund.platformAccountId ? `（${currentRefund.platformAccountId}）` : ''}</Descriptions.Item>
+            <Descriptions.Item label="退款金额(账户币)"><b>¥{currentRefund.amount}</b></Descriptions.Item>
+            <Descriptions.Item label="资金类型"><Tag color={currentRefund.fundType === 'PUBLIC' ? 'blue' : 'green'}>{currentRefund.fundType === 'PUBLIC' ? '对公' : '对私'}</Tag></Descriptions.Item>
+            <Descriptions.Item label="申请时间" span={2}>{new Date(currentRefund.createdAt).toLocaleString('zh-CN')}</Descriptions.Item>
+            {currentRefund.remark && <Descriptions.Item label="备注" span={2}>{currentRefund.remark}</Descriptions.Item>}
+          </Descriptions>
+        )}
+        <Alert type="warning" showIcon style={{ marginBottom: 16 }} message="通过后将按客户返点比例换算现金退回客户钱包，并同步扣减推广账户余额。" />
+        <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+          <Button onClick={() => setRefundConfirmOpen(false)}>取消</Button>
+          <Button type="primary" loading={refundSubmitting} onClick={approveRefund}>确认通过退款</Button>
+        </Space>
+      </Modal>
+
+      <Modal title={`驳回退款：${currentRefund?.requestNo || ''}`} open={refundRejectOpen} onCancel={() => setRefundRejectOpen(false)} footer={null} destroyOnClose width={480}>
+        <Form form={rejectRefundForm} layout="vertical" onFinish={rejectRefund}>
+          <Form.Item name="reason" label="驳回原因" rules={[{ required: true, message: '请填写驳回原因' }]}>
+            <Input.TextArea rows={3} placeholder="请填写驳回原因" />
+          </Form.Item>
+          <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
+            <Button onClick={() => setRefundRejectOpen(false)}>取消</Button>
+            <Button type="primary" danger htmlType="submit" loading={refundSubmitting}>确认驳回</Button>
+          </Space>
+        </Form>
+      </Modal>
 
       <Modal title={`确认充值成功：${currentReq?.requestNo || ''}`} open={confirmOpen} onCancel={() => setConfirmOpen(false)} footer={null} width={620}>
         {currentReq && (

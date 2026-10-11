@@ -9,6 +9,9 @@ import {
   PromotionTransactionBusinessType,
   RechargeRequestStatus,
   CustomerWalletTransactionType,
+  RefundRequestStatus,
+  AgentWalletTransactionType,
+  OperationLogType,
   InvoiceTaskStatus,
 } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
@@ -37,6 +40,26 @@ const REQUEST_STATUS_LABEL: Record<string, string> = {
   REJECTED: '已驳回',
 };
 
+const AgentWalletTransactionTypeLabel: Record<string, string> = {
+  CHARGE_CONFIRM: '充值确认扣款', AGENT_PAYOUT: '代理商打款', REFUND_BACK: '退款冲减',
+};
+const REFUND_STATUS_LABEL: Record<string, string> = {
+  PENDING: '待处理',
+  CONFIRMED: '退款成功',
+  REJECTED: '已驳回',
+};
+
+const OPERATION_LOG_LABEL: Record<string, string> = {
+  LOGIN: '登录',
+  LOGOUT: '退出登录',
+  CONFIRM_RECHARGE: '确认充值',
+  REJECT_RECHARGE: '驳回充值',
+  APPROVE_REFUND: '通过退款',
+  REJECT_REFUND: '驳回退款',
+  AGENT_PAYOUT: '代理商打款',
+  OTHER: '其他',
+};
+
 @Injectable()
 export class PortalService {
   constructor(private readonly prisma: PrismaService, private readonly jwt: JwtService) {}
@@ -57,6 +80,7 @@ export class PortalService {
       portal: 'C',
       customerId: cu.customerId,
     });
+    await this.logOperation(username, OperationLogType.LOGIN, '客户门户', null, `客户登录：${cu.displayName || cu.customer?.name || username}`);
     return {
       accessToken,
       user: {
@@ -80,6 +104,7 @@ export class PortalService {
       portal: 'B',
       agentUserId: au.id,
     });
+    await this.logOperation(username, OperationLogType.LOGIN, '代理商门户', null, `代理商登录：${au.displayName || username}`);
     return { accessToken, user: { id: au.id, username, displayName: au.displayName, phone: au.phone } };
   }
 
@@ -575,6 +600,9 @@ export class PortalService {
       });
       await tx.promotionAccount.update({ where: { id: account.id }, data: { currentBalance: balanceAfter } });
 
+      // 代理商钱包：确认充值扣现金（欠代理商打款增加）
+      await this.agentWalletTxn(tx, agentUserId, walletDeduction.negated(), AgentWalletTransactionType.CHARGE_CONFIRM, req.requestNo, operatorId, `确认充值扣减代理商欠款：${req.requestNo}，客户现金 ¥${moneyToString(walletDeduction)}`);
+
       // 更新申请状态
       await tx.rechargeRequest.update({
         where: { id: requestId },
@@ -588,9 +616,11 @@ export class PortalService {
           remitAmount,
         },
       });
-      return { transactionNo, balanceAfter, walletBalanceAfter, requestNo: req.requestNo };
+      return { transactionNo, balanceAfter, walletBalanceAfter, requestNo: req.requestNo, walletDeduction, fundType };
     });
 
+    const agent = await this.prisma.agentUser.findUnique({ where: { id: agentUserId }, select: { username: true, displayName: true } });
+    await this.logOperation(agent?.displayName || agent?.username || '代理商', OperationLogType.CONFIRM_RECHARGE, '充值申请', result.requestNo, `确认充值：${account.accountName} ¥${moneyToString(amount)}，客户扣现金 ¥${moneyToString(result.walletDeduction)}（${result.fundType === 'PUBLIC' ? '对公' : '对私'}）`);
     return {
       success: true,
       requestNo: result.requestNo,
@@ -642,6 +672,8 @@ export class PortalService {
 
 
   async bRejectRecharge(agentUserId: string, requestId: string, dto: { reason: string }) {
+    const agent = await this.prisma.agentUser.findUnique({ where: { id: agentUserId }, select: { username: true, displayName: true } });
+    await this.logOperation(agent?.displayName || agent?.username || '代理商', OperationLogType.REJECT_RECHARGE, '充值申请', requestId, `驳回充值（${dto.reason?.trim() || '无理由'}）`);
     const req = await this.prisma.rechargeRequest.findUnique({ where: { id: requestId } });
     if (!req) throw new NotFoundException('充值申请不存在');
     if (req.status !== RechargeRequestStatus.PENDING) throw new BadRequestException('该申请已处理，不能驳回');
@@ -985,6 +1017,453 @@ export class PortalService {
       confirmedAt: r.confirmedAt,
       rejectReason: r.rejectReason,
       createdAt: r.createdAt,
+    };
+  }
+
+
+  // ==================== 退款申请 ====================
+
+  private refundRequestView(r: any) {
+    return {
+      id: r.id,
+      requestNo: r.requestNo,
+      customerId: r.customerId,
+      customerName: r.customer?.name || null,
+      submitterName: r.customerUser?.displayName || r.customerUser?.username || null,
+      promotionAccountId: r.promotionAccountId,
+      promotionAccountName: r.promotionAccount?.accountName || null,
+      platformAccountId: r.promotionAccount?.platformAccountId || null,
+      amount: moneyToString(r.amount),
+      fundType: r.fundType || 'PRIVATE',
+      cashAmount: r.cashAmount ? moneyToString(r.cashAmount) : null,
+      remark: r.remark,
+      status: r.status,
+      statusLabel: REFUND_STATUS_LABEL[r.status] || r.status,
+      agentName: r.agentUser?.displayName || null,
+      confirmedAt: r.confirmedAt,
+      rejectReason: r.rejectReason,
+      createdAt: r.createdAt,
+    };
+  }
+
+  /** 操作日志落库 */
+  private async logOperation(operatorName: string, actionType: OperationLogType, targetType?: string | null, targetNo?: string | null, detail?: string | null) {
+    await this.prisma.operationLog.create({
+      data: { operatorName, actionType, targetType: targetType || null, targetNo: targetNo || null, detail: detail || null },
+    });
+  }
+
+  /** 代理商钱包记账（tx 内）：balance += changeAmount */
+  private async agentWalletTxn(
+    tx: Prisma.TransactionClient,
+    agentUserId: string,
+    changeAmount: Prisma.Decimal,
+    businessType: AgentWalletTransactionType,
+    businessNo: string,
+    operatorId: string,
+    remark?: string,
+  ) {
+    const before = await tx.agentWallet.findUnique({ where: { agentUserId }, select: { id: true, balance: true } });
+    const balanceBefore = before ? new Prisma.Decimal(before.balance) : new Prisma.Decimal(0);
+    const balanceAfter = balanceBefore.plus(changeAmount);
+    const wallet = before
+      ? await tx.agentWallet.update({ where: { agentUserId }, data: { balance: balanceAfter } })
+      : await tx.agentWallet.create({ data: { agentUserId, balance: balanceAfter } });
+    await tx.agentWalletTransaction.create({
+      data: {
+        transactionNo: this.generateNo('AW'),
+        agentWalletId: wallet.id,
+        businessType,
+        businessNo,
+        changeAmount,
+        balanceBefore,
+        balanceAfter,
+        operatorId,
+        remark: remark || null,
+      },
+    });
+    return { balanceAfter };
+  }
+
+  /** C 端发起退款申请：退推广账户余额（账户币），默认全部余额，可自定义 */
+  async cCreateRefundRequest(payload: PortalPayload, dto: { promotionAccountId: string; amount?: string; fundType?: string; remark?: string }) {
+    this.assertPortal(payload, 'C');
+    const customerId = payload.customerId!;
+    const account = await this.prisma.promotionAccount.findUnique({ where: { id: dto.promotionAccountId } });
+    if (!account || account.customerId !== customerId) throw new BadRequestException('推广账户不存在或不属于当前客户');
+    if (account.status !== AccountStatus.ACTIVE) throw new BadRequestException('推广账户已停用，不能发起退款');
+    const cu = await this.prisma.customerUser.findUnique({ where: { customerId } });
+    if (!cu) throw new BadRequestException('客户账号异常');
+    const balance = new Prisma.Decimal(account.currentBalance ?? 0);
+    const amount = dto.amount ? toMoney(dto.amount, '退款金额') : balance;
+    if (amount.lte(0)) throw new BadRequestException('退款金额必须大于 0');
+    if (amount.gt(balance)) throw new BadRequestException(`退款金额不能超过账户余额（当前余额：${moneyToString(balance)}）`);
+    const fundType = dto.fundType === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE';
+    const row = await this.prisma.refundRequest.create({
+      data: {
+        requestNo: this.generateNo('RF'),
+        customerId,
+        customerUserId: cu.id,
+        promotionAccountId: account.id,
+        amount,
+        fundType,
+        remark: dto.remark || null,
+        status: RefundRequestStatus.PENDING,
+      },
+    });
+    await this.logOperation(cu.username || cu.displayName || '客户', OperationLogType.OTHER, '退款申请', row.requestNo, `客户发起退款申请：${account.accountName} ¥${moneyToString(amount)}`);
+    return this.refundRequestView(row);
+  }
+
+  /** C 端退款列表 */
+  async cListRefundRequests(payload: PortalPayload, query: { page?: number; pageSize?: number }) {
+    this.assertPortal(payload, 'C');
+    const customerId = payload.customerId!;
+    const page = Number(query.page) || 1;
+    const pageSize = Number(query.pageSize) || 15;
+    const [total, items] = await Promise.all([
+      this.prisma.refundRequest.count({ where: { customerId } }),
+      this.prisma.refundRequest.findMany({
+        where: { customerId },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          customer: { select: { id: true, name: true } },
+          customerUser: { select: { displayName: true, username: true } },
+          promotionAccount: { select: { id: true, accountName: true, platformAccountId: true } },
+          agentUser: { select: { id: true, displayName: true } },
+        },
+      }),
+    ]);
+    return { total, page, pageSize, items: items.map((r) => this.refundRequestView(r)) };
+  }
+
+  /** B 端退款申请列表 */
+  async bListRefundRequests(payload: PortalPayload, query: { status?: string; page?: number; pageSize?: number }) {
+    this.assertPortal(payload, 'B');
+    const agentUserId = payload.agentUserId!;
+    const bindings = await this.prisma.agentCustomer.findMany({ where: { agentUserId }, select: { customerId: true } });
+    if (bindings.length === 0) return { total: 0, page: 1, pageSize: 15, items: [] };
+    const customerIds = bindings.map((b: any) => b.customerId);
+    const page = Number(query.page) || 1;
+    const pageSize = Number(query.pageSize) || 15;
+    const where: Prisma.RefundRequestWhereInput = { customerId: { in: customerIds } };
+    if (query.status && Object.values(RefundRequestStatus).includes(query.status as RefundRequestStatus)) {
+      where.status = query.status as RefundRequestStatus;
+    }
+    const [total, items] = await Promise.all([
+      this.prisma.refundRequest.count({ where }),
+      this.prisma.refundRequest.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          customer: { select: { id: true, name: true } },
+          customerUser: { select: { displayName: true, username: true } },
+          promotionAccount: { select: { id: true, accountName: true, platformAccountId: true, customerRebatePublic: true, customerRebatePrivate: true } },
+          agentUser: { select: { id: true, displayName: true } },
+        },
+      }),
+    ]);
+    return { total, page, pageSize, items: items.map((r) => this.refundRequestView(r)) };
+  }
+
+  /** B 端通过退款：账户币扣减、现金退回客户钱包（对公/对私）、代理商欠款冲减 */
+  async bApproveRefund(agentUserId: string, requestId: string) {
+    const req = await this.prisma.refundRequest.findUnique({
+      where: { id: requestId },
+      include: { promotionAccount: true, customer: { select: { id: true, name: true } }, customerUser: { select: { id: true, username: true, displayName: true } } },
+    });
+    if (!req) throw new NotFoundException('退款申请不存在');
+    if (req.status !== RefundRequestStatus.PENDING) throw new BadRequestException('该退款申请已处理，不能重复操作');
+    await this.assertAgentCustomer(agentUserId, req.customerId);
+    const agent = await this.prisma.agentUser.findUnique({ where: { id: agentUserId } });
+    const agentName = agent?.displayName || agent?.username || '代理商';
+
+    const account = req.promotionAccount;
+    if (account.status !== AccountStatus.ACTIVE) throw new BadRequestException('推广账户已停用，不能退款');
+    const amount = new Prisma.Decimal(req.amount);
+    const fundType = req.fundType || 'PRIVATE';
+    const rebateRate = fundType === 'PUBLIC'
+      ? (account.customerRebatePublic ?? new Prisma.Decimal(0))
+      : (account.customerRebatePrivate ?? new Prisma.Decimal(0));
+    // 现金 = 退款账户币 ÷ (1 + 客户返点%)
+    const cashAmount = amount.div(new Prisma.Decimal(1).plus(rebateRate.div(100)));
+
+    const wallet = await this.prisma.customerWallet.findFirst({
+      where: { customerId: req.customerId, status: AccountStatus.ACTIVE },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!wallet) throw new BadRequestException('客户未开通钱包，无法退款');
+
+    const operatorId = await this.getSystemOperatorId();
+    const transactionNo = this.generateNo('PA');
+
+    await this.prisma.$transaction(async (tx) => {
+      // 锁定推广账户
+      const locked = await tx.$queryRaw(Prisma.sql`SELECT id FROM promotion_accounts WHERE id = ${account.id} FOR UPDATE`);
+      if (!locked || (locked as any[]).length === 0) throw new NotFoundException('推广账户不存在');
+      const current = await tx.promotionAccount.findUnique({ where: { id: account.id } });
+      const balanceBefore = new Prisma.Decimal(current!.currentBalance ?? 0);
+      if (balanceBefore.lt(amount)) throw new BadRequestException(`推广账户余额不足，当前余额：${moneyToString(balanceBefore)}`);
+      const balanceAfter = balanceBefore.sub(amount);
+
+      // 推广账户流水（账户币减少）
+      await tx.promotionTransaction.create({
+        data: {
+          transactionNo,
+          promotionAccountId: account.id,
+          unit: account.unit,
+          businessType: PromotionTransactionBusinessType.REFUND,
+          businessNo: req.requestNo,
+          changeAmount: amount.negated(),
+          balanceBefore,
+          balanceAfter,
+          operatorId,
+          remark: `退款申请通过：${req.requestNo}`,
+          remitAmount: cashAmount,
+        },
+      });
+      await tx.promotionAccount.update({ where: { id: account.id }, data: { currentBalance: balanceAfter } });
+
+      // 客户钱包现金退回（对公/对私）
+      const walletLocked = await tx.$queryRaw(Prisma.sql`SELECT id FROM customer_wallets WHERE id = ${wallet.id} FOR UPDATE`);
+      if (!walletLocked || (walletLocked as any[]).length === 0) throw new NotFoundException('客户钱包不存在');
+      const walletCurrent: any = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
+      const cashBefore = new Prisma.Decimal(walletCurrent.cashBalance ?? 0);
+      const cashAfter = cashBefore.plus(cashAmount);
+      const fundBefore = fundType === 'PUBLIC'
+        ? new Prisma.Decimal(walletCurrent.cashBalancePublic ?? 0)
+        : new Prisma.Decimal(walletCurrent.cashBalancePrivate ?? 0);
+      const fundAfter = fundBefore.plus(cashAmount);
+      await tx.customerWalletTransaction.create({
+        data: {
+          transactionNo: this.generateNo('WT'),
+          walletId: wallet.id,
+          unit: wallet.unit,
+          businessType: CustomerWalletTransactionType.PROMOTION_ACCOUNT_REFUND,
+          businessNo: transactionNo,
+          changeAmount: cashAmount,
+          balanceBefore: cashBefore,
+          balanceAfter: cashAfter,
+          fundType,
+          operatorId,
+          remark: `推广账户退款退回现金（${fundType === 'PUBLIC' ? '对公' : '对私'}）：${account.accountName}，退款单 ${req.requestNo}`,
+        },
+      });
+      if (fundType === 'PUBLIC') {
+        await tx.$executeRaw(Prisma.sql`UPDATE customer_wallets SET cash_balance = ${cashAfter}, cash_balance_public = ${fundAfter} WHERE id = ${wallet.id}`);
+      } else {
+        await tx.$executeRaw(Prisma.sql`UPDATE customer_wallets SET cash_balance = ${cashAfter}, cash_balance_private = ${fundAfter} WHERE id = ${wallet.id}`);
+      }
+
+      // 代理商钱包：退款冲减欠款（+现金）
+      await this.agentWalletTxn(tx, agentUserId, cashAmount, AgentWalletTransactionType.REFUND_BACK, req.requestNo, operatorId, `退款冲减代理商欠款：${req.requestNo}`);
+
+      // 更新退款申请
+      await tx.refundRequest.update({
+        where: { id: requestId },
+        data: { status: RefundRequestStatus.CONFIRMED, agentUserId, confirmedAt: new Date(), cashAmount },
+      });
+    });
+
+    await this.logOperation(agentName, OperationLogType.APPROVE_REFUND, '退款申请', req.requestNo, `通过退款：${account.accountName} ¥${moneyToString(amount)}，退现金 ¥${moneyToString(cashAmount)}（${fundType === 'PUBLIC' ? '对公' : '对私'}）`);
+    return { success: true, requestNo: req.requestNo, cashAmount: moneyToString(cashAmount) };
+  }
+
+  /** B 端驳回退款 */
+  async bRejectRefund(agentUserId: string, requestId: string, dto: { reason?: string }) {
+    const req = await this.prisma.refundRequest.findUnique({ where: { id: requestId }, include: { promotionAccount: { select: { id: true, accountName: true } } } });
+    if (!req) throw new NotFoundException('退款申请不存在');
+    if (req.status !== RefundRequestStatus.PENDING) throw new BadRequestException('该退款申请已处理，不能重复操作');
+    await this.assertAgentCustomer(agentUserId, req.customerId);
+    const agent = await this.prisma.agentUser.findUnique({ where: { id: agentUserId } });
+    await this.prisma.refundRequest.update({
+      where: { id: requestId },
+      data: { status: RefundRequestStatus.REJECTED, agentUserId, rejectReason: dto.reason?.trim() || null },
+    });
+    await this.logOperation(agent?.displayName || agent?.username || '代理商', OperationLogType.REJECT_REFUND, '退款申请', req.requestNo, `驳回退款：${req.promotionAccount?.accountName || ''}（${dto.reason?.trim() || '无理由'}）`);
+    return { success: true };
+  }
+
+  // ==================== 管理端：端口钱包 / 代理商钱包 / 日志 ====================
+
+  /** 端口钱包统计：端口汇总 + 推广账户明细 */
+  async adminListPortWalletStats() {
+    const rows = await this.prisma.$queryRaw<any[]>`
+      SELECT pa.id as promotionAccountId, pa.account_name as accountName, pa.platform as platform,
+             pa.platform_account_id as platformAccountId, pa.channel_name as channelName,
+             pa.current_balance as currentBalance, pa.status as status,
+             c.name as customerName,
+             COALESCE(rr.total_charge, 0) as totalCharge,
+             COALESCE(rf.total_refund, 0) as totalRefund
+      FROM promotion_accounts pa
+      LEFT JOIN customers c ON c.id = pa.customer_id
+      LEFT JOIN (
+        SELECT promotion_account_id, SUM(amount) as total_charge FROM recharge_requests
+        WHERE status = 'CONFIRMED' GROUP BY promotion_account_id
+      ) rr ON rr.promotion_account_id = pa.id
+      LEFT JOIN (
+        SELECT promotion_account_id, SUM(amount) as total_refund FROM refund_requests
+        WHERE status = 'CONFIRMED' GROUP BY promotion_account_id
+      ) rf ON rf.promotion_account_id = pa.id
+      WHERE pa.customer_id IS NOT NULL
+      ORDER BY pa.channel_name, pa.account_name
+    `;
+    const items = (rows || []).map((r: any) => ({
+      promotionAccountId: r.promotionAccountId,
+      accountName: r.accountName,
+      platform: r.platform || '—',
+      platformAccountId: r.platformAccountId || '—',
+      channelName: r.channelName || '未分端口',
+      customerName: r.customerName || '—',
+      currentBalance: moneyToString(r.currentBalance),
+      totalCharge: moneyToString(r.totalCharge),
+      totalRefund: moneyToString(r.totalRefund),
+    }));
+    // 端口汇总
+    const byChannel: Record<string, any> = {};
+    for (const it of items) {
+      const k = it.channelName;
+      if (!byChannel[k]) byChannel[k] = { channelName: k, totalCharge: new Prisma.Decimal(0), totalRefund: new Prisma.Decimal(0), currentBalance: new Prisma.Decimal(0) };
+      byChannel[k].totalCharge = byChannel[k].totalCharge.plus(it.totalCharge);
+      byChannel[k].totalRefund = byChannel[k].totalRefund.plus(it.totalRefund);
+      byChannel[k].currentBalance = byChannel[k].currentBalance.plus(it.currentBalance);
+    }
+    const channels = Object.values(byChannel).map((c: any) => ({
+      channelName: c.channelName,
+      totalCharge: moneyToString(c.totalCharge),
+      totalRefund: moneyToString(c.totalRefund),
+      currentBalance: moneyToString(c.currentBalance),
+      accounts: items.filter((i: any) => i.channelName === c.channelName),
+    }));
+    return { channels, items };
+  }
+
+  /** 代理商钱包列表 */
+  async adminListAgentWallets() {
+    const rows = await this.prisma.agentWallet.findMany({
+      include: { agentUser: { select: { id: true, username: true, displayName: true } } },
+      orderBy: { updatedAt: 'desc' },
+    });
+    return rows.map((w: any) => ({
+      agentUserId: w.agentUserId,
+      username: w.agentUser?.username,
+      displayName: w.agentUser?.displayName,
+      balance: moneyToString(w.balance),
+      updatedAt: w.updatedAt,
+    }));
+  }
+
+  /** 管理端：代理商打款录入（余额加回） */
+  async adminAgentPayout(adminPayload: any, dto: { agentUserId: string; amount: string; remark?: string }) {
+    if (!adminPayload.roles?.includes('SUPER_ADMIN') && !adminPayload.permissions?.includes('FINANCE_MANAGE')) {
+      throw new ForbiddenException('无权限操作代理商打款');
+    }
+    const au = await this.prisma.agentUser.findUnique({ where: { id: dto.agentUserId } });
+    if (!au) throw new NotFoundException('代理商不存在');
+    const amount = toMoney(dto.amount, '打款金额');
+    if (amount.lte(0)) throw new BadRequestException('打款金额必须大于 0');
+    const operatorId = await this.getSystemOperatorId();
+    const operatorName = adminPayload.username || '系统管理员';
+    await this.prisma.$transaction(async (tx) => {
+      await this.agentWalletTxn(tx, au.id, amount, AgentWalletTransactionType.AGENT_PAYOUT, this.generateNo('PO'), operatorId, dto.remark?.trim() || `给代理商打款：${au.displayName}`);
+    });
+    await this.logOperation(operatorName, OperationLogType.AGENT_PAYOUT, '代理商打款', null, `给代理商 ${au.displayName} 打款 ¥${moneyToString(amount)}${dto.remark?.trim() ? '（' + dto.remark.trim() + '）' : ''}`);
+    return { success: true };
+  }
+
+  /** 管理端：退款记录（全部客户） */
+  async adminListRefundRequests(query: { status?: string; page?: number; pageSize?: number }) {
+    const page = Number(query.page) || 1;
+    const pageSize = Number(query.pageSize) || 20;
+    const where: Prisma.RefundRequestWhereInput = {};
+    if (query.status && Object.values(RefundRequestStatus).includes(query.status as RefundRequestStatus)) {
+      where.status = query.status as RefundRequestStatus;
+    }
+    const [total, items] = await Promise.all([
+      this.prisma.refundRequest.count({ where }),
+      this.prisma.refundRequest.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          customer: { select: { id: true, name: true } },
+          customerUser: { select: { displayName: true, username: true } },
+          promotionAccount: { select: { id: true, accountName: true, platformAccountId: true } },
+          agentUser: { select: { id: true, displayName: true } },
+        },
+      }),
+    ]);
+    return { total, page, pageSize, items: items.map((r) => this.refundRequestView(r)) };
+  }
+
+  /** 代理商钱包流水 */
+  async adminListAgentWalletTransactions(query: { page?: number; pageSize?: number }) {
+    const page = Number(query.page) || 1;
+    const pageSize = Number(query.pageSize) || 20;
+    const [total, items] = await Promise.all([
+      this.prisma.agentWalletTransaction.count(),
+      this.prisma.agentWalletTransaction.findMany({
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: { wallet: { include: { agentUser: { select: { id: true, username: true, displayName: true } } } } },
+      }),
+    ]);
+    return {
+      total, page, pageSize,
+      items: items.map((tx) => ({
+        id: tx.id,
+        transactionNo: tx.transactionNo,
+        agentName: tx.wallet?.agentUser?.displayName || tx.wallet?.agentUser?.username || '',
+        businessType: tx.businessType,
+        businessTypeLabel: AgentWalletTransactionTypeLabel[tx.businessType] || tx.businessType,
+        businessNo: tx.businessNo,
+        changeAmount: Number(tx.changeAmount).toFixed(2),
+        balanceBefore: Number(tx.balanceBefore).toFixed(2),
+        balanceAfter: Number(tx.balanceAfter).toFixed(2),
+        operatorId: tx.operatorId,
+        remark: tx.remark,
+        createdAt: tx.createdAt,
+      })),
+    };
+  }
+
+  /** 操作日志查询 */
+  async adminListOperationLogs(query: { actionType?: string; start?: string; end?: string; page?: number; pageSize?: number }) {
+    const page = Number(query.page) || 1;
+    const pageSize = Number(query.pageSize) || 20;
+    const where: Prisma.OperationLogWhereInput = {};
+    if (query.actionType && Object.values(OperationLogType).includes(query.actionType as OperationLogType)) {
+      where.actionType = query.actionType as OperationLogType;
+    }
+    if (query.start || query.end) {
+      where.createdAt = {};
+      if (query.start) where.createdAt.gte = new Date(query.start);
+      if (query.end) where.createdAt.lte = new Date(query.end);
+    }
+    const [total, items] = await Promise.all([
+      this.prisma.operationLog.count({ where }),
+      this.prisma.operationLog.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
+    ]);
+    return {
+      total,
+      page,
+      pageSize,
+      items: items.map((l: any) => ({
+        id: l.id,
+        operatorName: l.operatorName,
+        actionType: l.actionType,
+        actionLabel: OPERATION_LOG_LABEL[l.actionType] || l.actionType,
+        targetType: l.targetType,
+        targetNo: l.targetNo,
+        detail: l.detail,
+        createdAt: l.createdAt,
+      })),
     };
   }
 
