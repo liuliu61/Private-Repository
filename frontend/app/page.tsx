@@ -126,11 +126,15 @@ export default function HomePage() {
   const refreshMain = useCallback(async (silent = false) => {
     if (!token) return;
     try {
-      const [d, a, t, c, s, r] = await Promise.all([apiRequest<Dashboard>('/dashboard', token), apiRequest<Account[]>('/accounts', token), apiRequest<{ items: Transaction[] }>('/transactions/all?page=1&pageSize=20', token), apiRequest<Customer[]>('/customers', token), apiRequest<Supplier[]>('/suppliers', token), apiRequest<{ items: ReceiveRecord[] }>('/receive-records?page=1&pageSize=50', token)]);
-      setDashboard(d); setAccounts(a); setTransactions(t.items); setCustomers(c); setSuppliers(s); setReceiveRecords(r.items || []);
+      // 第一步：先渲染核心卡片与流水
+      const [d, t] = await Promise.all([apiRequest<Dashboard>('/dashboard', token), apiRequest<{ items: Transaction[] }>('/transactions/all?page=1&pageSize=20', token)]);
+      setDashboard(d); setTransactions(t.items);
+      // 第二步：其余列表数据（不阻塞首屏）
+      const [a, c, s, r] = await Promise.all([apiRequest<Account[]>('/accounts', token), apiRequest<Customer[]>('/customers', token), apiRequest<Supplier[]>('/suppliers', token), apiRequest<{ items: ReceiveRecord[] }>('/receive-records?page=1&pageSize=50', token)]);
+      setAccounts(a); setCustomers(c); setSuppliers(s); setReceiveRecords(r.items || []);
     } catch (error) { if (!silent) message.error((error as Error).message); }
   }, [token, message]);
-  useEffect(() => { if (!token) return; refreshMain(); }, [refreshMain]);
+  useEffect(() => { if (!token) return; refreshMain().finally(() => setLoading(false)); }, [refreshMain]);
   useAutoRefresh(() => { refreshMain(true); }, [token]);
   // 合同到期提醒也随轮询刷新
   useAutoRefresh(() => { if (!token) return; apiRequest<any[]>('/customer-contracts/expiring?days=30', token).then((data) => setExpiringContracts(data || [])).catch(() => {}); }, [token]);
