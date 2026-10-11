@@ -84,7 +84,7 @@ export class CustomerWalletService {
     this.assertPermission(context, 'FINANCE_WALLET_ADJUST');
     const wallet = await this.getWallet(walletId, context);
     this.assertActive(wallet.status);
-    const updated = await this.prisma.customerWallet.update({ where: { id: walletId }, data: { walletName: dto.walletName.trim() } });
+    const updated = await this.prisma.customerWallet.update({ where: { id: walletId }, data: { walletName: dto.walletName.trim() }, include: { customer: { select: { id: true, name: true, customerCode: true } } } });
     return this.walletView(updated, updated.customer);
   }
 

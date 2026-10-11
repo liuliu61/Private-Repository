@@ -161,9 +161,15 @@ export class CustomerContractService {
     if (!customer) throw new BadRequestException('客户不存在');
     const contractNo = generateBusinessNo('HT');
     const { attachments, ...data } = dto;
+    const dateFields = {
+      signDate: data.signDate ? new Date(data.signDate as string) : undefined,
+      effectiveDate: data.effectiveDate ? new Date(data.effectiveDate as string) : undefined,
+      expiryDate: data.expiryDate ? new Date(data.expiryDate as string) : undefined,
+    };
     return this.prisma.customerContract.create({
       data: {
         ...data,
+        ...dateFields,
         contractNo,
         createdBy: userId,
         attachments: attachments?.length
@@ -181,6 +187,9 @@ export class CustomerContractService {
       throw new BadRequestException('合同已审批，不能修改，请发起变更');
     }
     const data: any = { ...dto };
+    if (data.signDate) data.signDate = new Date(data.signDate);
+    if (data.effectiveDate) data.effectiveDate = new Date(data.effectiveDate);
+    if (data.expiryDate) data.expiryDate = new Date(data.expiryDate);
     return this.prisma.customerContract.update({ where: { id }, data });
   }
 

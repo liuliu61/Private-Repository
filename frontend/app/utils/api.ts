@@ -65,7 +65,7 @@ export async function apiRequest<T = any>(
  */
 export function getToken(): string {
   if (typeof window === 'undefined') return '';
-  return localStorage.getItem('token') || '';
+  return localStorage.getItem('accessToken') || localStorage.getItem('token') || '';
 }
 
 /**

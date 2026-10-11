@@ -1,7 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { BusinessIdParamDto, CreateCustomerWalletDto, CustomerWalletListQueryDto, CustomerWalletTransactionQueryDto, WalletAdvanceUpdateDto, WalletAdvanceRepayDto, WalletAdvanceWaiveDto, WalletAdjustmentDto, WalletCreditUpdateDto, WalletOpeningBalanceDto } from './business.dto';
+import { BusinessIdParamDto, CreateCustomerWalletDto, CustomerWalletListQueryDto, CustomerWalletTransactionQueryDto, WalletAdvanceUpdateDto, WalletAdvanceRepayDto, WalletAdvanceWaiveDto, WalletAdjustmentDto, WalletCreditUpdateDto, WalletOpeningBalanceDto, UpdateWalletNameDto } from './business.dto';
 import { CustomerWalletService } from './customer-wallet.service';
 
 interface AuthenticatedRequest extends Request { user: { sub: string; username: string; roles: string[]; permissions: string[] }; }

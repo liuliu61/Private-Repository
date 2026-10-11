@@ -256,8 +256,8 @@ export class BusinessService {
     };
     const profitOf = (row: { changeAmount: Prisma.Decimal; customerRebate: Prisma.Decimal | null; costRebate: Prisma.Decimal | null }) => {
       const amount = toMoney(row.changeAmount, '充值金额');
-      const customerRate = toMoney(row.customerRebate ?? 0, '客户返点').div(100);
-      const costRate = toMoney(row.costRebate ?? 0, '成本返点').div(100);
+      const customerRate = toMoney(row.customerRebate ?? new Prisma.Decimal(0), '客户返点').div(100);
+      const costRate = toMoney(row.costRebate ?? new Prisma.Decimal(0), '成本返点').div(100);
       const customerPaid = amount.div(Prisma.Decimal.add(1, customerRate)).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
       const costPaid = amount.div(Prisma.Decimal.add(1, costRate)).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
       return customerPaid.sub(costPaid);
@@ -282,8 +282,8 @@ export class BusinessService {
       customerName: row.promotionAccount?.customer?.name || '',
       amount: moneyToString(row.changeAmount),
       remitAmount: moneyToString(row.remitAmount ?? 0),
-      customerRebate: moneyToString(row.customerRebate ?? 0),
-      costRebate: moneyToString(row.costRebate ?? 0),
+      customerRebate: moneyToString(row.customerRebate ?? new Prisma.Decimal(0)),
+      costRebate: moneyToString(row.costRebate ?? new Prisma.Decimal(0)),
       profit: moneyToString(profitOf(row)),
       occurredAt: row.occurredAt,
     }));

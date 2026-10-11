@@ -6,6 +6,7 @@ import { CustomerContractService } from './customer-contract.service';
 import { CreateCustomerContractDto, UpdateCustomerContractDto, ApproveContractDto } from './customer-contract.dto';
 import { ExportService } from '../common/export.service';
 
+@UseGuards(JwtAuthGuard)
 @Controller('customer-contracts')
 export class CustomerContractController {
   constructor(private readonly contractService: CustomerContractService, private readonly exportService: ExportService) {}
@@ -48,7 +49,7 @@ export class CustomerContractController {
 
   @Post()
   create(@Body() dto: CreateCustomerContractDto, @Req() req: any) {
-    return this.contractService.create(dto, req.user?.userId || req.user?.id);
+    return this.contractService.create(dto, req.user?.userId || req.user?.id || req.user?.sub);
   }
 
   @Put(':id')
@@ -63,12 +64,12 @@ export class CustomerContractController {
 
   @Post(':id/approve')
   approve(@Param('id') id: string, @Body() dto: ApproveContractDto, @Req() req: any) {
-    return this.contractService.approve(id, req.user?.userId || req.user?.id, dto);
+    return this.contractService.approve(id, req.user?.userId || req.user?.id || req.user?.sub, dto);
   }
 
   @Post(':id/reject')
   reject(@Param('id') id: string, @Body() body: { reason: string }, @Req() req: any) {
-    return this.contractService.reject(id, req.user?.userId || req.user?.id, body.reason);
+    return this.contractService.reject(id, req.user?.userId || req.user?.id || req.user?.sub, body.reason);
   }
 
   @Post(':id/terminate')
@@ -83,7 +84,7 @@ export class CustomerContractController {
     @UploadedFile() file: any,
     @Req() req: any,
   ) {
-    return this.contractService.uploadAttachment(id, file, req.user?.userId || req.user?.id);
+    return this.contractService.uploadAttachment(id, file, req.user?.userId || req.user?.id || req.user?.sub);
   }
 
   @Delete(':id/attachments/:attachmentId')

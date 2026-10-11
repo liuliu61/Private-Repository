@@ -3,25 +3,18 @@ import { useState, useEffect } from 'react';
 import useAutoRefresh from '../utils/useAutoRefresh';
 import { apiRequest, getToken } from '../utils/api';
 import { downloadExcel } from '../utils/export';
-import { Upload, Button, message } from 'antd';
-import { UploadOutlined, DeleteOutlined, DownloadOutlined } from '@ant-design/icons';
+import { Upload, Button, message, Table, Modal, Select, Input, InputNumber, DatePicker, Tag, Space, Card, Typography, Popconfirm, Divider, Empty } from 'antd';
+import { UploadOutlined, DeleteOutlined, DownloadOutlined, PlusOutlined, ReloadOutlined, FileExcelOutlined, SearchOutlined } from '@ant-design/icons';
+import dayjs from 'dayjs';
 import { getUserInfo, getPermissionActions } from '../utils/permissions';
 
 const statusMap: any = {
-  DRAFT: { label: '草稿', color: 'gray' },
-  PENDING_APPROVAL: { label: '待审批', color: 'orange' },
-  ACTIVE: { label: '生效中', color: 'green' },
-  EXPIRING: { label: '即将到期', color: 'yellow' },
-  EXPIRED: { label: '已到期', color: 'gray' },
-  TERMINATED: { label: '已终止', color: 'red' },
-};
-
-const statusColorMap: any = {
-  gray: '#6b7280',
-  orange: '#f97316',
-  green: '#10b981',
-  yellow: '#eab308',
-  red: '#ef4444',
+  DRAFT: { label: '草稿', color: 'default' },
+  PENDING_APPROVAL: { label: '待审批', color: 'warning' },
+  ACTIVE: { label: '生效中', color: 'success' },
+  EXPIRING: { label: '即将到期', color: 'gold' },
+  EXPIRED: { label: '已到期', color: 'default' },
+  TERMINATED: { label: '已终止', color: 'error' },
 };
 
 function formatSize(bytes?: number) {
@@ -63,7 +56,7 @@ export default function CustomerContractsPage() {
       const params = new URLSearchParams();
       if (filter.status) params.set('status', filter.status);
       if (filter.keyword) params.set('keyword', filter.keyword);
-      const res = await apiRequest(`customer-contracts?page=1&pageSize=100&${params}`, getToken());
+      const res = await apiRequest(`/customer-contracts?page=1&pageSize=100&${params}`, getToken());
       setContracts(res.items || []);
     } catch (e) { console.error(e); }
     setLoading(false);
@@ -71,167 +64,182 @@ export default function CustomerContractsPage() {
 
   const loadCustomers = async () => {
     try {
-      const res = await apiRequest('customers?page=1&pageSize=100', getToken());
-      setCustomers(res.items || []);
+      const res = await apiRequest('/customers?page=1&pageSize=100', getToken());
+      setCustomers((Array.isArray(res) ? res : (res as any)?.items) || []);
     } catch (e) { console.error(e); }
   };
 
   const save = async (data: any) => {
     try {
       if (editing) {
-        await apiRequest(`customer-contracts/${editing.id}`, getToken(), { method: 'PUT', body: JSON.stringify(data) });
+        await apiRequest(`/customer-contracts/${editing.id}`, getToken(), { method: 'PUT', body: JSON.stringify(data) });
         message.success('保存成功');
         setShowModal(false);
         loadContracts();
       } else {
-        const created = await apiRequest('customer-contracts', getToken(), { method: 'POST', body: JSON.stringify(data) });
+        const created = await apiRequest('/customer-contracts', getToken(), { method: 'POST', body: JSON.stringify(data) });
         message.success('合同创建成功，可继续上传附件');
-        // 切换到编辑模式，保留弹窗以便上传附件
         setEditing(created);
         loadContracts();
       }
-    } catch (e: any) { alert(e.message || '保存失败'); }
+    } catch (e: any) { message.error(e.message || '保存失败'); }
   };
 
   const submitApproval = async (id: string) => {
     if (!confirm('确定提交审批？')) return;
     try {
-      await apiRequest(`customer-contracts/${id}/submit`, getToken(), { method: 'POST' });
+      await apiRequest(`/customer-contracts/${id}/submit`, getToken(), { method: 'POST' });
+      message.success('已提交审批');
       loadContracts();
-    } catch (e: any) { alert(e.message || '操作失败'); }
+    } catch (e: any) { message.error(e.message || '操作失败'); }
   };
 
   const approve = async (id: string) => {
-    if (!confirm('确定审批通过？')) return;
     try {
-      await apiRequest(`customer-contracts/${id}/approve`, getToken(), { method: 'POST', body: JSON.stringify({}) });
+      await apiRequest(`/customer-contracts/${id}/approve`, getToken(), { method: 'POST', body: JSON.stringify({}) });
+      message.success('审批通过');
       loadContracts();
-    } catch (e: any) { alert(e.message || '操作失败'); }
+    } catch (e: any) { message.error(e.message || '操作失败'); }
   };
 
   const reject = async (id: string) => {
     const reason = prompt('请输入驳回原因');
     if (!reason) return;
     try {
-      await apiRequest(`customer-contracts/${id}/reject`, getToken(), { method: 'POST', body: JSON.stringify({ reason }) });
+      await apiRequest(`/customer-contracts/${id}/reject`, getToken(), { method: 'POST', body: JSON.stringify({ reason }) });
+      message.success('已驳回');
       loadContracts();
-    } catch (e: any) { alert(e.message || '操作失败'); }
+    } catch (e: any) { message.error(e.message || '操作失败'); }
   };
 
   const terminate = async (id: string) => {
     const reason = prompt('请输入终止原因');
     if (!reason) return;
     try {
-      await apiRequest(`customer-contracts/${id}/terminate`, getToken(), { method: 'POST', body: JSON.stringify({ reason }) });
+      await apiRequest(`/customer-contracts/${id}/terminate`, getToken(), { method: 'POST', body: JSON.stringify({ reason }) });
+      message.success('合同已终止');
       loadContracts();
-    } catch (e: any) { alert(e.message || '操作失败'); }
+    } catch (e: any) { message.error(e.message || '操作失败'); }
   };
 
   const remove = async (id: string) => {
-    if (!confirm('确定删除该合同？')) return;
     try {
-      await apiRequest(`customer-contracts/${id}`, getToken(), { method: 'DELETE' });
+      await apiRequest(`/customer-contracts/${id}`, getToken(), { method: 'DELETE' });
+      message.success('合同已删除');
       loadContracts();
-    } catch (e: any) { alert(e.message || '删除失败'); }
+    } catch (e: any) { message.error(e.message || '删除失败'); }
   };
+
+  const columns = [
+    { title: '合同编号', dataIndex: 'contractNo', key: 'contractNo', width: 170 },
+    { title: '合同名称', dataIndex: 'name', key: 'name', width: 180, render: (v: string, r: any) => <Typography.Text strong>{v}</Typography.Text> },
+    { title: '客户', key: 'customer', width: 120, render: (_: any, r: any) => r.customer?.name || '-' },
+    { title: '金额', key: 'amount', width: 120, render: (_: any, r: any) => <Typography.Text>¥{Number(r.amount).toLocaleString()}</Typography.Text> },
+    { title: '有效期', key: 'period', width: 210, render: (_: any, r: any) => (
+        <span className="text-sm" style={{ color: '#64748b' }}>
+          {r.effectiveDate ? String(r.effectiveDate).slice(0, 10) : '-'} ~ {r.expiryDate ? String(r.expiryDate).slice(0, 10) : '-'}
+        </span>
+      ) },
+    { title: '剩余天数', key: 'days', width: 110, render: (_: any, r: any) => {
+        const days = daysUntil(r.expiryDate);
+        if (days === null || r.status === 'EXPIRED' || r.status === 'TERMINATED') return <span style={{ color: '#94a3b8' }}>-</span>;
+        const urgent = days <= 7;
+        return <Tag color={urgent ? 'red' : days <= 30 ? 'orange' : 'green'}>{days > 0 ? `剩余 ${days} 天` : '已过期'}</Tag>;
+      } },
+    { title: '状态', key: 'status', width: 100, render: (_: any, r: any) => {
+        const s = statusMap[r.status] || { label: r.status, color: 'default' };
+        return <Tag color={s.color}>{s.label}</Tag>;
+      } },
+    { title: '操作', key: 'action', width: 220, render: (_: any, r: any) => (
+        <Space size={4} wrap>
+          {r.status === 'DRAFT' && (
+            <>
+              <Button size="small" onClick={() => { setEditing(r); setShowModal(true); }}>编辑</Button>
+              <Button size="small" type="primary" ghost onClick={() => submitApproval(r.id)}>提交审批</Button>
+              {canDelete && (
+                <Popconfirm title="确定删除该合同？" onConfirm={() => remove(r.id)}>
+                  <Button size="small" danger>删除</Button>
+                </Popconfirm>
+              )}
+            </>
+          )}
+          {r.status === 'PENDING_APPROVAL' && (
+            <>
+              {canApprove && <Button size="small" type="primary" onClick={() => approve(r.id)}>通过</Button>}
+              {canApprove && <Button size="small" danger onClick={() => reject(r.id)}>驳回</Button>}
+            </>
+          )}
+          {(r.status === 'ACTIVE' || r.status === 'EXPIRING') && canApprove && (
+            <Button size="small" danger onClick={() => terminate(r.id)}>终止</Button>
+          )}
+        </Space>
+      ) },
+  ];
 
   return (
     <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">客户合同管理</h1>
-        <button className="bg-blue-500 text-white px-4 py-2 rounded-lg" onClick={() => { setEditing(null); setShowModal(true); }}>
-          + 新增合同
-        </button>
-        <button className="bg-green-500 text-white px-4 py-2 rounded-lg" onClick={async () => { try { await downloadExcel('/customer-contracts/export', getToken(), '客户合同.xlsx'); } catch (e: any) { message.error(e.message); } }}>
-          导出Excel
-        </button>
+      <div className="flex justify-between items-center mb-5">
+        <div>
+          <Typography.Title level={3} style={{ margin: 0 }}>客户合同管理</Typography.Title>
+          <Typography.Text type="secondary">维护客户合同、审批与到期跟踪</Typography.Text>
+        </div>
+        <Space>
+          <Button icon={<ReloadOutlined />} onClick={() => { loadContracts(); loadCustomers(); }}>刷新</Button>
+          <Button icon={<FileExcelOutlined />} onClick={async () => { try { await downloadExcel('/customer-contracts/export', getToken(), '客户合同.xlsx'); } catch (e: any) { message.error(e.message); } }}>导出Excel</Button>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => { setEditing(null); setShowModal(true); }}>新增合同</Button>
+        </Space>
       </div>
 
-      <div className="bg-white/60 backdrop-blur rounded-2xl p-6">
-        <div className="flex gap-4 mb-4">
-          <input className="border rounded-lg px-3 py-2" placeholder="搜索合同名称" value={filter.keyword} onChange={(e) => setFilter({ ...filter, keyword: e.target.value })} onKeyDown={(e) => e.key === 'Enter' && loadContracts()} />
-          <select className="border rounded-lg px-3 py-2" value={filter.status} onChange={(e) => setFilter({ ...filter, status: e.target.value })}>
-            <option value="">全部状态</option>
-            {Object.entries(statusMap).map(([k, v]: any) => <option key={k} value={k}>{v.label}</option>)}
-          </select>
-          <button className="bg-gray-500 text-white px-4 py-2 rounded-lg" onClick={loadContracts}>搜索</button>
+      <Card
+        className="!bg-white/70 backdrop-blur rounded-2xl"
+        styles={{ body: { padding: 16 } }}
+      >
+        <div className="flex flex-wrap gap-3 mb-4">
+          <Input.Search
+            placeholder="搜索合同名称"
+            allowClear
+            style={{ width: 260 }}
+            prefix={<SearchOutlined style={{ color: '#94a3b8' }} />}
+            value={filter.keyword}
+            onChange={(e) => setFilter({ ...filter, keyword: e.target.value })}
+            onSearch={loadContracts}
+          />
+          <Select
+            style={{ width: 140 }}
+            value={filter.status}
+            onChange={(v) => { setFilter({ ...filter, status: v }); setTimeout(loadContracts, 0); }}
+            options={[{ value: '', label: '全部状态' }, ...Object.entries(statusMap).map(([k, v]: any) => ({ value: k, label: v.label }))]}
+          />
+          <Button onClick={loadContracts}>查询</Button>
         </div>
 
-        <table className="w-full">
-          <thead>
-            <tr className="border-b">
-              <th className="text-left py-3 px-4">合同编号</th>
-              <th className="text-left py-3 px-4">合同名称</th>
-              <th className="text-left py-3 px-4">客户</th>
-              <th className="text-left py-3 px-4">金额</th>
-              <th className="text-left py-3 px-4">有效期</th>
-              <th className="text-left py-3 px-4">剩余天数</th>
-              <th className="text-left py-3 px-4">状态</th>
-              <th className="text-left py-3 px-4">操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            {contracts.map((c) => {
-              const days = daysUntil(c.expiryDate);
-              const urgent = (c.status === 'EXPIRING' && days !== null && days <= 7);
-              return (
-                <tr key={c.id} className={`border-b hover:bg-white/50 ${urgent ? 'bg-red-50' : ''}`}>
-                  <td className="py-3 px-4 text-sm">{c.contractNo}</td>
-                  <td className="py-3 px-4">{c.name}</td>
-                  <td className="py-3 px-4">{c.customer?.name}</td>
-                  <td className="py-3 px-4">¥{Number(c.amount).toLocaleString()}</td>
-                  <td className="py-3 px-4 text-sm">{c.effectiveDate?.slice(0, 10)} ~ {c.expiryDate?.slice(0, 10)}</td>
-                  <td className="py-3 px-4 text-sm">
-                    {days !== null && c.status !== 'EXPIRED' && c.status !== 'TERMINATED' ? (
-                      <span style={{ color: urgent ? '#ef4444' : '#374151', fontWeight: urgent ? 600 : 400 }}>
-                        {days > 0 ? `剩余 ${days} 天` : '已过期'}
-                      </span>
-                    ) : (
-                      <span className="text-gray-400">-</span>
-                    )}
-                  </td>
-                  <td className="py-3 px-4">
-                    <span
-                      className="px-2 py-1 rounded text-xs text-white"
-                      style={{ backgroundColor: statusColorMap[statusMap[c.status]?.color] || '#6b7280' }}
-                    >
-                      {statusMap[c.status]?.label || c.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-4">
-                    {c.status === 'DRAFT' && (
-                      <>
-                        <button className="text-blue-500 mr-2" onClick={() => { setEditing(c); setShowModal(true); }}>编辑</button>
-                        <button className="text-green-500 mr-2" onClick={() => submitApproval(c.id)}>提交审批</button>
-                        {canDelete && <button className="text-red-500" onClick={() => remove(c.id)}>删除</button>}
-                      </>
-                    )}
-                    {c.status === 'PENDING_APPROVAL' && (
-                      <>
-                        {canApprove && <button className="text-green-500 mr-2" onClick={() => approve(c.id)}>通过</button>}
-                        {canApprove && <button className="text-red-500" onClick={() => reject(c.id)}>驳回</button>}
-                      </>
-                    )}
-                    {(c.status === 'ACTIVE' || c.status === 'EXPIRING') && canApprove && (
-                      <button className="text-red-500" onClick={() => terminate(c.id)}>终止</button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        {contracts.length === 0 && !loading && <div className="text-center py-8 text-gray-500">暂无合同</div>}
-      </div>
+        <Table
+          rowKey="id"
+          loading={loading}
+          dataSource={contracts}
+          columns={columns}
+          pagination={{ pageSize: 10, showTotal: (t: number) => `共 ${t} 条合同` }}
+          locale={{ emptyText: <Empty description="暂无合同" /> }}
+          rowClassName={(r: any) => {
+            const days = daysUntil(r.expiryDate);
+            const urgent = r.status === 'EXPIRING' && days !== null && days <= 7;
+            return urgent ? 'ant-table-row-urgent' : '';
+          }}
+          scroll={{ x: 1200 }}
+        />
+      </Card>
 
-      {showModal && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-lg font-bold mb-4">{editing ? '编辑合同' : '新增合同'}</h3>
-            <ContractForm initial={editing} customers={customers} onSubmit={save} onClose={() => setShowModal(false)} />
-          </div>
-        </div>
-      )}
+      <Modal
+        open={showModal}
+        title={editing ? '编辑合同' : '新增合同'}
+        footer={null}
+        width={680}
+        onCancel={() => setShowModal(false)}
+        destroyOnClose
+        styles={{ body: { paddingTop: 8 } }}
+      >
+        <ContractForm initial={editing} customers={customers} onSubmit={save} onClose={() => setShowModal(false)} />
+      </Modal>
     </div>
   );
 }
@@ -246,7 +254,6 @@ function ContractForm({ initial, customers, onSubmit, onClose }: any) {
   const [uploading, setUploading] = useState(false);
   const contractId = initial?.id;
 
-  // 当切换编辑对象时重置附件列表
   useEffect(() => {
     setAttachments(initial?.attachments || []);
   }, [initial?.id]);
@@ -254,7 +261,7 @@ function ContractForm({ initial, customers, onSubmit, onClose }: any) {
   const handleDeleteAttachment = async (attachmentId: string) => {
     if (!confirm('确定删除该附件？')) return;
     try {
-      await apiRequest(`customer-contracts/${contractId}/attachments/${attachmentId}`, getToken(), { method: 'DELETE' });
+      await apiRequest(`/customer-contracts/${contractId}/attachments/${attachmentId}`, getToken(), { method: 'DELETE' });
       setAttachments((prev) => prev.filter((a) => a.id !== attachmentId));
       message.success('附件已删除');
     } catch (e: any) {
@@ -262,54 +269,71 @@ function ContractForm({ initial, customers, onSubmit, onClose }: any) {
     }
   };
 
+  const renderDate = (key: 'signDate' | 'effectiveDate' | 'expiryDate', label: string) => (
+    <div>
+      <label className="block text-sm font-medium mb-1.5" style={{ color: '#475569' }}>{label}</label>
+      <DatePicker
+        style={{ width: '100%' }}
+        value={form[key] ? dayjs(String(form[key]).slice(0, 10)) : null}
+        onChange={(d) => setForm({ ...form, [key]: d ? d.format('YYYY-MM-DD') : '' })}
+        placeholder="请选择日期"
+        allowClear
+      />
+    </div>
+  );
+
   return (
     <form onSubmit={(e) => { e.preventDefault(); onSubmit(form); }}>
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3">
         <div>
-          <label className="block text-sm font-medium mb-1">客户 *</label>
-          <select className="w-full border rounded-lg px-3 py-2" value={form.customerId} onChange={(e) => setForm({ ...form, customerId: e.target.value })} required disabled={!!initial}>
-            <option value="">请选择客户</option>
-            {customers.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
+          <label className="block text-sm font-medium mb-1.5" style={{ color: '#475569' }}>客户 *</label>
+          <Select
+            style={{ width: '100%' }}
+            placeholder="请选择客户"
+            value={form.customerId || undefined}
+            onChange={(v) => setForm({ ...form, customerId: v })}
+            disabled={!!initial}
+            options={customers.map((c: any) => ({ value: c.id, label: c.name }))}
+            showSearch
+            optionFilterProp="label"
+          />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">合同名称 *</label>
-          <input className="w-full border rounded-lg px-3 py-2" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
+          <label className="block text-sm font-medium mb-1.5" style={{ color: '#475569' }}>合同名称 *</label>
+          <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="请输入合同名称" required />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">甲方</label>
-          <input className="w-full border rounded-lg px-3 py-2" value={form.partyA || ''} onChange={(e) => setForm({ ...form, partyA: e.target.value })} />
+          <label className="block text-sm font-medium mb-1.5" style={{ color: '#475569' }}>甲方</label>
+          <Input value={form.partyA || ''} onChange={(e) => setForm({ ...form, partyA: e.target.value })} placeholder="甲方" />
         </div>
         <div>
-          <label className="block text-sm font-medium mb-1">乙方</label>
-          <input className="w-full border rounded-lg px-3 py-2" value={form.partyB || ''} onChange={(e) => setForm({ ...form, partyB: e.target.value })} />
+          <label className="block text-sm font-medium mb-1.5" style={{ color: '#475569' }}>乙方</label>
+          <Input value={form.partyB || ''} onChange={(e) => setForm({ ...form, partyB: e.target.value })} placeholder="乙方" />
         </div>
+        {renderDate('signDate', '签约日期')}
         <div>
-          <label className="block text-sm font-medium mb-1">签约日期</label>
-          <input type="date" className="w-full border rounded-lg px-3 py-2" value={form.signDate?.slice(0, 10) || ''} onChange={(e) => setForm({ ...form, signDate: e.target.value })} />
+          <label className="block text-sm font-medium mb-1.5" style={{ color: '#475569' }}>合同金额</label>
+          <InputNumber
+            style={{ width: '100%' }}
+            min={0}
+            precision={2}
+            value={form.amount}
+            onChange={(v) => setForm({ ...form, amount: v || 0 })}
+            placeholder="合同金额"
+            prefix="¥"
+          />
         </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">合同金额</label>
-          <input type="number" className="w-full border rounded-lg px-3 py-2" value={form.amount} onChange={(e) => setForm({ ...form, amount: Number(e.target.value) })} />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">生效日期</label>
-          <input type="date" className="w-full border rounded-lg px-3 py-2" value={form.effectiveDate?.slice(0, 10) || ''} onChange={(e) => setForm({ ...form, effectiveDate: e.target.value })} />
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">到期日期</label>
-          <input type="date" className="w-full border rounded-lg px-3 py-2" value={form.expiryDate?.slice(0, 10) || ''} onChange={(e) => setForm({ ...form, expiryDate: e.target.value })} />
-        </div>
+        {renderDate('effectiveDate', '生效日期')}
+        {renderDate('expiryDate', '到期日期')}
         <div className="col-span-2">
-          <label className="block text-sm font-medium mb-1">备注</label>
-          <textarea className="w-full border rounded-lg px-3 py-2" rows={3} value={form.remark || ''} onChange={(e) => setForm({ ...form, remark: e.target.value })} />
+          <label className="block text-sm font-medium mb-1.5" style={{ color: '#475569' }}>备注</label>
+          <Input.TextArea rows={3} value={form.remark || ''} onChange={(e) => setForm({ ...form, remark: e.target.value })} placeholder="备注说明" />
         </div>
       </div>
 
-      {/* 附件上传区域 —— 仅编辑已有合同时显示 */}
       {contractId ? (
-        <div className="mt-6 border-t pt-4">
-          <label className="block text-sm font-medium mb-2">合同附件</label>
+        <div className="mt-5 border-t pt-4">
+          <label className="block text-sm font-medium mb-2" style={{ color: '#475569' }}>合同附件</label>
           <Upload
             name="file"
             multiple
@@ -358,27 +382,24 @@ function ContractForm({ initial, customers, onSubmit, onClose }: any) {
                     </a>
                     <span className="text-gray-400 text-xs">{formatSize(att.fileSize)}</span>
                   </div>
-                  <button
-                    type="button"
-                    className="text-red-500 text-sm flex items-center gap-1"
-                    onClick={() => handleDeleteAttachment(att.id)}
-                  >
-                    <DeleteOutlined /> 删除
-                  </button>
+                  <Popconfirm title="确定删除该附件？" onConfirm={() => handleDeleteAttachment(att.id)}>
+                    <Button type="text" size="small" danger icon={<DeleteOutlined />}>删除</Button>
+                  </Popconfirm>
                 </div>
               ))}
             </div>
           )}
         </div>
       ) : (
-        <div className="mt-6 border-t pt-4 text-sm text-gray-400">
+        <div className="mt-5 border-t pt-4 text-sm" style={{ color: '#94a3b8' }}>
           保存合同后可上传附件
         </div>
       )}
 
-      <div className="mt-6 flex justify-end gap-2">
-        <button type="button" className="px-4 py-2 border rounded-lg" onClick={onClose}>关闭</button>
-        <button type="submit" className="px-4 py-2 bg-blue-500 text-white rounded-lg">保存</button>
+      <Divider style={{ margin: '16px 0 12px' }} />
+      <div className="flex justify-end gap-2">
+        <Button onClick={onClose}>取消</Button>
+        <Button type="primary" htmlType="submit">保存</Button>
       </div>
     </form>
   );
