@@ -224,10 +224,10 @@ async function loadWalletTx(t: string, walletId: string) {
                   <Table rowKey="id" size="small" dataSource={refunds} pagination={{ pageSize: 10 }} locale={{ emptyText: '暂无退款申请' }} columns={[
                     { title: '退款单号', dataIndex: 'requestNo' },
                     { title: '推广账户', dataIndex: 'promotionAccountName' },
-                    { title: '退款金额(账户币)', dataIndex: 'amount', render: (v: string) => <b>¥{v}</b> },
+                    { title: '退款金额(账户币)', dataIndex: 'amount', render: (v: string, r: any) => <b>{r.amountLabel === '全退' ? '全退' : `¥${v}`}</b> },
                     { title: '资金类型', dataIndex: 'fundType', render: (v: string) => <Tag color={v === 'PUBLIC' ? 'blue' : 'green'}>{v === 'PUBLIC' ? '对公' : '对私'}</Tag> },
                     { title: '退回现金', dataIndex: 'cashAmount', render: (v: string) => v ? `¥${v}` : '—' },
-                    { title: '状态', dataIndex: 'statusLabel', render: (v: string, r: any) => <Tag color={r.status === 'PENDING' ? 'orange' : r.status === 'CONFIRMED' ? 'green' : 'red'}>{v}</Tag> },
+                    { title: '状态', dataIndex: 'statusLabel', render: (v: string, r: any) => <Tag color={r.status === 'PENDING' ? 'orange' : r.status === 'CONFIRMED' ? 'red' : 'default'}>{v}</Tag> },
                     { title: '处理人', dataIndex: 'agentName', render: (v: string) => v || '—' },
                     { title: '驳回原因', dataIndex: 'rejectReason', render: (v: string) => v || '—' },
                     { title: '申请时间', dataIndex: 'createdAt', render: (v: string) => new Date(v).toLocaleString('zh-CN') },
@@ -348,26 +348,19 @@ async function loadWalletTx(t: string, walletId: string) {
           </Form.Item>
           {refundAccountId && (
             <div style={{ marginBottom: 12, padding: '8px 12px', background: '#fafafa', borderRadius: 8, fontSize: 13 }}>
-              已选账户：{refundAccount?.accountName}（{refundAccount?.platformAccountId || '无ID'}）　当前余额：<b>¥{refundAccount?.currentBalance ?? '0.00'}</b>（账户币）
+              已选账户：{refundAccount?.accountName}（{refundAccount?.platformAccountId || '无ID'}）
             </div>
           )}
-          <Form.Item name="amount" label="退款金额（账户币）" rules={[{ required: true, message: '请输入退款金额' }]}>
-            <InputNumber style={{ width: '100%' }} min={0.01} precision={2} placeholder="默认退全部余额，可自定义" prefix="¥" />
-          </Form.Item>
-          <Form.Item label={<span style={{ color: '#8b8ea8' }}>快捷操作</span>}>
-            <Button size="small" type="dashed" onClick={() => refundForm.setFieldValue('amount', Number(refundAccount?.currentBalance || 0))}>退全部余额（¥{refundAccount?.currentBalance ?? '0.00'}）</Button>
-          </Form.Item>
           <Form.Item name="fundType" label="退回资金类型" rules={[{ required: true, message: '请选择资金类型' }]}>
             <Radio.Group>
               <Radio value="PUBLIC">对公</Radio>
               <Radio value="PRIVATE">对私</Radio>
             </Radio.Group>
           </Form.Item>
-          {refundFund && refundAccount && (
-            <div style={{ marginBottom: 12, fontSize: 13, color: '#555' }}>
-              预计退回现金：<b style={{ color: '#1677ff' }}>¥{((Number(refundForm.getFieldValue('amount') || 0) / (1 + (Number(refundFund === 'PUBLIC' ? (refundAccount.customerRebatePublic || 0) : (refundAccount.customerRebatePrivate || 0)) || 0) / 100))).toFixed(2)}</b>（按{refundFund === 'PUBLIC' ? '对公' : '对私'}返点 {Number(refundFund === 'PUBLIC' ? (refundAccount.customerRebatePublic || 0) : (refundAccount.customerRebatePrivate || 0)) || 0}% 换算）
-            </div>
-          )}
+          <div style={{ marginBottom: 12, fontSize: 13, color: '#555' }}>
+            <Alert type="warning" showIcon style={{ marginBottom: 8 }} message="退款金额将由代理商确认时填写，您可选择下方“全退”申请全部退款。" />
+            <Button size="small" type="dashed" icon={<RollbackOutlined />} onClick={() => submitRefund({ promotionAccountId: refundForm.getFieldValue('promotionAccountId'), fundType: refundForm.getFieldValue('fundType') || 'PRIVATE', remark: refundForm.getFieldValue('remark') })}>全退</Button>
+          </div>
           <Form.Item name="remark" label="备注">
             <Input.TextArea rows={2} placeholder="选填" />
           </Form.Item>

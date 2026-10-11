@@ -170,8 +170,8 @@ export class PortalController {
 
   @UseGuards(JwtAuthGuard)
   @Post('b/refund-requests/:id/approve')
-  async bApproveRefund(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    return this.service.bApproveRefund(req.user!.agentUserId!, id);
+  async bApproveRefund(@Req() req: AuthenticatedRequest, @Param('id') id: string, @Body() dto: { amount?: string | number }) {
+    return this.service.bApproveRefund(req.user!.agentUserId!, id, dto);
   }
 
   @UseGuards(JwtAuthGuard)

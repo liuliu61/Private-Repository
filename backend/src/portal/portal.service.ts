@@ -546,8 +546,11 @@ export class PortalService {
       const walletLocked = await tx.$queryRaw(Prisma.sql`SELECT id FROM customer_wallets WHERE id = ${wallet.id} FOR UPDATE`);
       if (!walletLocked || (walletLocked as any[]).length === 0) throw new NotFoundException('客户钱包不存在');
       const walletCurrent: any = await tx.customerWallet.findUnique({ where: { id: wallet.id } });
-      // 钱包扣款按客户现金成本（实打金额）扣除：申请金额 ÷ (1 + 客户返点%)；未传时兜底按申请全额
-      const walletDeduction = remitAmount ?? amount;
+      // 钱包扣款按客户现金成本（实打金额）扣除：申请金额 ÷ (1 + 客户返点%)；未传时按现金换算兜底
+      const rebateForDeduction = dto.customerRebate
+        ? new Prisma.Decimal(Number(dto.customerRebate))
+        : (req.fundType === 'PUBLIC' ? (account.customerRebatePublic ?? new Prisma.Decimal(0)) : (account.customerRebatePrivate ?? new Prisma.Decimal(0)));
+      const walletDeduction = remitAmount ?? amount.div(new Prisma.Decimal(1).plus(rebateForDeduction.div(100)));
       const fundType = req.fundType || 'PRIVATE';
       const fundBefore = fundType === 'PUBLIC'
         ? new Prisma.Decimal(walletCurrent.cashBalancePublic ?? 0)
@@ -1034,6 +1037,8 @@ export class PortalService {
       promotionAccountName: r.promotionAccount?.accountName || null,
       platformAccountId: r.promotionAccount?.platformAccountId || null,
       amount: moneyToString(r.amount),
+      amountLabel: r.amount && Number(r.amount) > 0 ? moneyToString(r.amount) : '全退',
+      promotionAccountBalance: r.promotionAccount?.currentBalance != null ? moneyToString(r.promotionAccount.currentBalance) : null,
       fundType: r.fundType || 'PRIVATE',
       cashAmount: r.cashAmount ? moneyToString(r.cashAmount) : null,
       remark: r.remark,
@@ -1094,10 +1099,9 @@ export class PortalService {
     if (account.status !== AccountStatus.ACTIVE) throw new BadRequestException('推广账户已停用，不能发起退款');
     const cu = await this.prisma.customerUser.findUnique({ where: { customerId } });
     if (!cu) throw new BadRequestException('客户账号异常');
-    const balance = new Prisma.Decimal(account.currentBalance ?? 0);
-    const amount = dto.amount ? toMoney(dto.amount, '退款金额') : balance;
-    if (amount.lte(0)) throw new BadRequestException('退款金额必须大于 0');
-    if (amount.gt(balance)) throw new BadRequestException(`退款金额不能超过账户余额（当前余额：${moneyToString(balance)}）`);
+    const amount = dto.amount ? toMoney(dto.amount, '退款金额') : new Prisma.Decimal(0);
+    if (amount.lt(0)) throw new BadRequestException('退款金额不能为负数');
+    const isFullRefund = amount.eq(0);
     const fundType = dto.fundType === 'PUBLIC' ? 'PUBLIC' : 'PRIVATE';
     const row = await this.prisma.refundRequest.create({
       data: {
@@ -1111,7 +1115,7 @@ export class PortalService {
         status: RefundRequestStatus.PENDING,
       },
     });
-    await this.logOperation(cu.username || cu.displayName || '客户', OperationLogType.OTHER, '退款申请', row.requestNo, `客户发起退款申请：${account.accountName} ¥${moneyToString(amount)}`);
+    await this.logOperation(cu.username || cu.displayName || '客户', OperationLogType.OTHER, '退款申请', row.requestNo, `客户发起退款申请：${account.accountName}${isFullRefund ? '（全退）' : ` ¥${moneyToString(amount)}`}`);
     return this.refundRequestView(row);
   }
 
@@ -1162,7 +1166,7 @@ export class PortalService {
         include: {
           customer: { select: { id: true, name: true } },
           customerUser: { select: { displayName: true, username: true } },
-          promotionAccount: { select: { id: true, accountName: true, platformAccountId: true, customerRebatePublic: true, customerRebatePrivate: true } },
+          promotionAccount: { select: { id: true, accountName: true, platformAccountId: true, customerRebatePublic: true, customerRebatePrivate: true, currentBalance: true } },
           agentUser: { select: { id: true, displayName: true } },
         },
       }),
@@ -1171,7 +1175,7 @@ export class PortalService {
   }
 
   /** B 端通过退款：账户币扣减、现金退回客户钱包（对公/对私）、代理商欠款冲减 */
-  async bApproveRefund(agentUserId: string, requestId: string) {
+  async bApproveRefund(agentUserId: string, requestId: string, dto: { amount?: string | number }) {
     const req = await this.prisma.refundRequest.findUnique({
       where: { id: requestId },
       include: { promotionAccount: true, customer: { select: { id: true, name: true } }, customerUser: { select: { id: true, username: true, displayName: true } } },
@@ -1184,7 +1188,11 @@ export class PortalService {
 
     const account = req.promotionAccount;
     if (account.status !== AccountStatus.ACTIVE) throw new BadRequestException('推广账户已停用，不能退款');
-    const amount = new Prisma.Decimal(req.amount);
+    const accountBalance = new Prisma.Decimal(account.currentBalance ?? 0);
+    if (!dto.amount && (!req.amount || Number(req.amount) <= 0)) throw new BadRequestException('请填写实际退款账户币');
+    const amount = dto.amount ? toMoney(dto.amount, '实际退款金额') : new Prisma.Decimal(req.amount);
+    if (amount.lte(0)) throw new BadRequestException('退款金额必须大于 0');
+    if (amount.gt(accountBalance)) throw new BadRequestException(`退款金额不能超过账户余额（当前余额：${moneyToString(accountBalance)}）`);
     const fundType = req.fundType || 'PRIVATE';
     const rebateRate = fundType === 'PUBLIC'
       ? (account.customerRebatePublic ?? new Prisma.Decimal(0))

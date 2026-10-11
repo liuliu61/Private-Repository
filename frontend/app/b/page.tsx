@@ -94,7 +94,10 @@ export default function AgentPortalPage() {
     if (!currentRefund) return;
     setRefundSubmitting(true);
     try {
-      const r = await fetchJson(token!, `/portal/b/refund-requests/${currentRefund.id}/approve`, { method: 'POST', body: JSON.stringify({}) });
+      const act = (document.getElementById('refund-actual-amount') as HTMLInputElement)?.value;
+      const actual = Number(act);
+      if (!actual || actual <= 0) { message.error('请填写实际退款账户币'); setRefundSubmitting(false); return; }
+      const r = await fetchJson(token!, `/portal/b/refund-requests/${currentRefund.id}/approve`, { method: 'POST', body: JSON.stringify({ amount: actual }) });
       message.success(`退款已通过，退回现金 ¥${r.cashAmount}`);
       setRefundConfirmOpen(false);
       const d = await fetchJson(token!, `/portal/b/refund-requests?status=${refundStatus}&pageSize=50`);
@@ -254,10 +257,10 @@ export default function AgentPortalPage() {
                       { title: '客户', dataIndex: 'customerName' },
                       { title: '提交人', dataIndex: 'submitterName' },
                       { title: '推广账户', dataIndex: 'promotionAccountName', render: (v: string, r: any) => <span>{v}{r.platformAccountId ? `（${r.platformAccountId}）` : ''}</span> },
-                      { title: '退款金额(账户币)', dataIndex: 'amount', render: (v: string) => <b>¥{v}</b> },
+                      { title: '退款金额(账户币)', dataIndex: 'amount', render: (v: string, r: any) => <b>{r.amountLabel === '全退' ? '全退' : `¥${v}`}</b> },
                       { title: '资金类型', dataIndex: 'fundType', render: (v: string) => <Tag color={v === 'PUBLIC' ? 'blue' : 'green'}>{v === 'PUBLIC' ? '对公' : '对私'}</Tag> },
                       { title: '备注', dataIndex: 'remark', render: (v: string) => v || '—' },
-                      { title: '状态', dataIndex: 'statusLabel', render: (v: string, r: any) => <Tag color={r.status === 'PENDING' ? 'orange' : r.status === 'CONFIRMED' ? 'green' : 'red'}>{v}</Tag> },
+                      { title: '状态', dataIndex: 'statusLabel', render: (v: string, r: any) => <Tag color={r.status === 'PENDING' ? 'orange' : r.status === 'CONFIRMED' ? 'red' : 'default'}>{v}</Tag> },
                       { title: '申请时间', dataIndex: 'createdAt', render: (v: string) => new Date(v).toLocaleString('zh-CN') },
                       {
                         title: '操作', render: (_: any, r: any) => r.status === 'PENDING' ? (
@@ -326,13 +329,26 @@ export default function AgentPortalPage() {
             <Descriptions.Item label="客户">{currentRefund.customerName}</Descriptions.Item>
             <Descriptions.Item label="提交人">{currentRefund.submitterName || '—'}</Descriptions.Item>
             <Descriptions.Item label="推广账户" span={2}>{currentRefund.promotionAccountName}{currentRefund.platformAccountId ? `（${currentRefund.platformAccountId}）` : ''}</Descriptions.Item>
-            <Descriptions.Item label="退款金额(账户币)"><b>¥{currentRefund.amount}</b></Descriptions.Item>
+            <Descriptions.Item label="申请退款"><b>{currentRefund.amountLabel === '全退' ? '全退' : `¥${currentRefund.amount}`}</b></Descriptions.Item>
+            <Descriptions.Item label="账户当前余额"><b style={{ color: '#1677ff' }}>¥{currentRefund.promotionAccountBalance ?? '0.00'}</b></Descriptions.Item>
             <Descriptions.Item label="资金类型"><Tag color={currentRefund.fundType === 'PUBLIC' ? 'blue' : 'green'}>{currentRefund.fundType === 'PUBLIC' ? '对公' : '对私'}</Tag></Descriptions.Item>
             <Descriptions.Item label="申请时间" span={2}>{new Date(currentRefund.createdAt).toLocaleString('zh-CN')}</Descriptions.Item>
             {currentRefund.remark && <Descriptions.Item label="备注" span={2}>{currentRefund.remark}</Descriptions.Item>}
           </Descriptions>
         )}
         <Alert type="warning" showIcon style={{ marginBottom: 16 }} message="通过后将按客户返点比例换算现金退回客户钱包，并同步扣减推广账户余额。" />
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ marginBottom: 6, fontSize: 13, color: '#555' }}>实际退款账户币（必填）</div>
+          <Space.Compact style={{ width: '100%' }}>
+            <InputNumber id="refund-actual-amount" style={{ width: '100%' }} min={0.01} precision={2} placeholder="请输入实际退款账户币" prefix="¥" defaultValue={currentRefund?.amountLabel === '全退' ? undefined : Number(currentRefund?.amount)} />
+            <Button type="dashed" onClick={() => {
+              const inp = document.getElementById('refund-actual-amount') as HTMLInputElement;
+              const ev = new Event('input', { bubbles: true });
+              inp.value = String(currentRefund?.promotionAccountBalance ?? '0');
+              inp.dispatchEvent(ev);
+            }}>全退</Button>
+          </Space.Compact>
+        </div>
         <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
           <Button onClick={() => setRefundConfirmOpen(false)}>取消</Button>
           <Button type="primary" loading={refundSubmitting} onClick={approveRefund}>确认通过退款</Button>
