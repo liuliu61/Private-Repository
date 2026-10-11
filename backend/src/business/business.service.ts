@@ -1,5 +1,5 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { AccountStatus, AccountType, AccountUnit, OrganizationStatus, Prisma, PurchaseOrderStatus, RebateRuleStatus, ReconciliationStatus, SettlementStatus, SupplierPlatform, TransactionBusinessType } from '@prisma/client';
+import { AccountStatus, AccountType, AccountUnit, OrganizationStatus, Prisma, PurchaseOrderStatus, RebateRuleStatus, ReconciliationStatus, RechargeRequestStatus, SettlementStatus, SupplierPlatform, PromotionTransactionBusinessType, TransactionBusinessType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { AccessContext, AccessScopeService } from '../common/access-scope.service';
 import { toMoney } from '../cashflow/utils/money.util';
@@ -243,14 +243,58 @@ export class BusinessService {
 
   async dashboard(context: AccessContext) {
     const ids = await this.scope.getOrganizationIds(context);
-    const accountWhere = { organizationId: ids ? { in: ids } : undefined };
-    const [accounts, pendingRebates, pendingOrders, pendingSettlements] = await Promise.all([
-      this.prisma.account.findMany({ where: accountWhere, select: { currentBalance: true } }),
-      this.prisma.rebateRecord.count({ where: { status: 'PENDING_CONFIRMATION', customer: { agentId: ids ? { in: ids } : undefined } } }),
-      this.prisma.purchaseOrder.count({ where: { organizationId: ids ? { in: ids } : undefined, status: { in: [PurchaseOrderStatus.DRAFT, PurchaseOrderStatus.PENDING_CONFIRMATION, PurchaseOrderStatus.PENDING_REVIEW] } } }),
-      this.prisma.settlement.count({ where: { organizationId: ids ? { in: ids } : undefined, status: SettlementStatus.DRAFT } }),
+    const orgWhere = ids ? { in: ids } : undefined;
+    const customerWhere = ids ? { agentId: { in: ids } } : undefined;
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const monthStart = new Date(todayStart);
+    monthStart.setDate(monthStart.getDate() - 30);
+    const rechargeWhere = {
+      businessType: PromotionTransactionBusinessType.CUSTOMER_CREDIT,
+      occurredAt: { gte: todayStart },
+      promotionAccount: { organizationId: orgWhere },
+    };
+    const profitOf = (row: { changeAmount: Prisma.Decimal; customerRebate: Prisma.Decimal | null; costRebate: Prisma.Decimal | null }) => {
+      const amount = toMoney(row.changeAmount, '充值金额');
+      const customerRate = toMoney(row.customerRebate ?? 0, '客户返点').div(100);
+      const costRate = toMoney(row.costRebate ?? 0, '成本返点').div(100);
+      const customerPaid = amount.div(Prisma.Decimal.add(1, customerRate)).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+      const costPaid = amount.div(Prisma.Decimal.add(1, costRate)).toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
+      return customerPaid.sub(costPaid);
+    };
+    const [todayRechargeAgg, todayRows, walletAgg, pendingRecharges, recentRows] = await Promise.all([
+      this.prisma.promotionTransaction.aggregate({ where: rechargeWhere, _sum: { changeAmount: true } }),
+      this.prisma.promotionTransaction.findMany({ where: rechargeWhere, select: { changeAmount: true, customerRebate: true, costRebate: true } }),
+      this.prisma.customerWallet.aggregate({ where: { customer: customerWhere }, _sum: { cashBalance: true } }),
+      this.prisma.rechargeRequest.count({ where: { status: RechargeRequestStatus.PENDING, customer: customerWhere } }),
+      this.prisma.promotionTransaction.findMany({
+        where: { businessType: PromotionTransactionBusinessType.CUSTOMER_CREDIT, occurredAt: { gte: monthStart }, promotionAccount: { organizationId: orgWhere } },
+        orderBy: { occurredAt: 'desc' },
+        take: 200,
+        include: { promotionAccount: { select: { accountName: true, customer: { select: { name: true } } } } },
+      }),
     ]);
-    return { accountBalance: moneyToString(accounts.reduce((sum, item) => sum.add(item.currentBalance), zero())), accountCount: accounts.length, pendingRebates, pendingOrders, pendingSettlements };
+    const todayProfit = todayRows.reduce((sum, row) => sum.add(profitOf(row)), zero());
+    const rechargeOverview = recentRows.map((row) => ({
+      id: row.id,
+      transactionNo: row.transactionNo,
+      accountName: row.promotionAccount?.accountName || '',
+      customerName: row.promotionAccount?.customer?.name || '',
+      amount: moneyToString(row.changeAmount),
+      remitAmount: moneyToString(row.remitAmount ?? 0),
+      customerRebate: moneyToString(row.customerRebate ?? 0),
+      costRebate: moneyToString(row.costRebate ?? 0),
+      profit: moneyToString(profitOf(row)),
+      occurredAt: row.occurredAt,
+    }));
+    return {
+      accountBalance: moneyToString(todayRechargeAgg._sum.changeAmount ?? zero()),
+      accountCount: moneyToString(walletAgg._sum.cashBalance ?? zero()),
+      pendingRebates: moneyToString(todayProfit),
+      pendingOrders: pendingRecharges,
+      pendingSettlements: 0,
+      rechargeOverview,
+    };
   }
 
   async auditLogs(query: ListQueryDto, context: AccessContext) {
