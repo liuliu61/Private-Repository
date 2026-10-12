@@ -4,11 +4,26 @@ import { randomUUID } from 'node:crypto';
 import { AccessContext, AccessScopeService } from '../common/access-scope.service';
 import { moneyToString, toMoney } from '../cashflow/utils/money.util';
 import { PrismaService } from '../prisma/prisma.service';
-import { CompleteInvoiceTaskDto, CreateCustomerInvoiceProfileDto, InvoiceTaskQueryDto, InvoiceTaskRejectDto, InvoiceTaskReviewDto, UpdateCustomerInvoiceProfileDto, UpdateInvoiceTaskDto } from './business.dto';
+import { CompleteInvoiceTaskDto, CreateCustomerInvoiceProfileDto, CreateInvoiceTaskDto, InvoiceTaskQueryDto, InvoiceTaskRejectDto, InvoiceTaskReviewDto, UpdateCustomerInvoiceProfileDto, UpdateInvoiceTaskDto } from './business.dto';
 
 @Injectable()
 export class PublicInvoiceTaskService {
   constructor(private readonly prisma: PrismaService, private readonly scope: AccessScopeService) {}
+
+  async createTask(dto: CreateInvoiceTaskDto, context: AccessContext) {
+    this.assertManage(context);
+    const customer = await this.assertCustomer(dto.customerId, context);
+    const amount = toMoney(dto.invoiceAmount, '需开票金额');
+    if (amount.lte(0)) throw new BadRequestException('需开票金额必须大于0');
+    const publicAmount = dto.publicAmount ? toMoney(dto.publicAmount, '对公入账金额') : amount;
+    if (publicAmount.lte(0)) throw new BadRequestException('对公入账金额必须大于0');
+    if (amount.gt(publicAmount)) throw new BadRequestException('需开票金额不能超过对公入账金额');
+    const profile = await this.resolveProfile(dto.customerId, dto.invoiceProfileId, context);
+    const snapshot = profile ? { titleName: profile.titleName, taxpayerCode: profile.taxpayerCode, address: profile.address, phone: profile.phone, bankName: profile.bankName, bankAccount: profile.bankAccount, invoiceContent: profile.defaultInvoiceContent } : {};
+    const task = await this.prisma.invoiceTask.create({ data: { taskNo: this.generateInvoiceTaskNo(), organizationId: customer.agentId!, customerId: customer.id, publicAmount, invoiceAmount: amount, invoiceProfileId: dto.invoiceProfileId || null, ...snapshot, remark: dto.remark?.trim() || null, createdBy: context.sub }, include: this.include() });
+    await this.audit(this.prisma, context, customer.agentId!, task.id, 'INVOICE_TASK_CREATE', null, { invoiceAmount: moneyToString(amount), publicAmount: moneyToString(publicAmount), customerId: customer.id });
+    return this.view(task);
+  }
 
   async list(query: InvoiceTaskQueryDto, context: AccessContext) {
     this.assertView(context);
@@ -146,6 +161,8 @@ export class PublicInvoiceTaskService {
       return this.view(updated);
     });
   }
+
+  private generateInvoiceTaskNo() { return `IT${new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14)}${randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase()}`; }
 
   private include() { return { customer: { select: { id: true, name: true, customerCode: true } }, invoiceProfile: true, receiveRecordDetail: { include: { receiveRecord: { include: { bankTransaction: { select: { transactionNo: true, counterpartyName: true, counterpartyAccount: true } } } } } }, creator: { select: { id: true, displayName: true } }, reviewer: { select: { id: true, displayName: true } }, completer: { select: { id: true, displayName: true } }, invoiceDetails: { orderBy: { createdAt: 'asc' } } } as const; }
   private async findTask(id: string, context: AccessContext) { const task = await this.prisma.invoiceTask.findUnique({ where: { id }, include: this.include() }); if (!task) throw new NotFoundException('开票任务不存在'); await this.scope.assertOrganizationAccess(task.organizationId, context); return task; }

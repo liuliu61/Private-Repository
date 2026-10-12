@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { Request } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { BusinessIdParamDto, CompleteInvoiceTaskDto, CreateCustomerInvoiceProfileDto, InvoiceTaskQueryDto, InvoiceTaskRejectDto, InvoiceTaskReviewDto, UpdateCustomerInvoiceProfileDto, UpdateInvoiceTaskDto } from './business.dto';
+import { BusinessIdParamDto, CompleteInvoiceTaskDto, CreateCustomerInvoiceProfileDto, CreateInvoiceTaskDto, InvoiceTaskQueryDto, InvoiceTaskRejectDto, InvoiceTaskReviewDto, UpdateCustomerInvoiceProfileDto, UpdateInvoiceTaskDto } from './business.dto';
 import { PublicInvoiceTaskService } from './public-invoice-task.service';
 
 interface AuthenticatedRequest extends Request { user: { sub: string; username: string; roles: string[]; permissions: string[] }; }
@@ -11,6 +11,7 @@ interface AuthenticatedRequest extends Request { user: { sub: string; username: 
 export class PublicInvoiceTaskController {
   constructor(private readonly service: PublicInvoiceTaskService) {}
 
+  @Post('invoice-tasks') create(@Body() dto: CreateInvoiceTaskDto, @Req() request: AuthenticatedRequest) { return this.service.createTask(dto, request.user); }
   @Get('invoice-tasks') list(@Query() query: InvoiceTaskQueryDto, @Req() request: AuthenticatedRequest) { return this.service.list(query, request.user); }
   @Get('invoice-tasks/:id') get(@Param() params: BusinessIdParamDto, @Req() request: AuthenticatedRequest) { return this.service.get(params.id, request.user); }
   @Patch('invoice-tasks/:id') update(@Param() params: BusinessIdParamDto, @Body() dto: UpdateInvoiceTaskDto, @Req() request: AuthenticatedRequest) { return this.service.update(params.id, dto, request.user); }
