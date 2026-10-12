@@ -34,6 +34,7 @@ export default function CustomerPortalPage() {
   const [refunds, setRefunds] = useState<any[]>([]);
   const [refundOpen, setRefundOpen] = useState(false);
   const [refundSubmitting, setRefundSubmitting] = useState(false);
+  const [refundFull, setRefundFull] = useState(false);
   const [refundForm] = Form.useForm();
   const refundAccountId = Form.useWatch('promotionAccountId', refundForm);
   const refundAccount = accounts.find((a: any) => a.id === refundAccountId);
@@ -352,8 +353,9 @@ async function loadWalletTx(t: string, walletId: string) {
             </div>
           )}
           <Form.Item name="amount" label="退款金额（账户币）">
-            <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="选填；留空表示申请全部退款（全退）" prefix="¥" />
+            <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder={refundFull ? '已选择全退' : '选填；留空表示申请全部退款（全退）'} prefix="¥" disabled={refundFull} onClick={() => refundFull && setRefundFull(false)} onChange={() => refundFull && setRefundFull(false)} />
           </Form.Item>
+          {refundFull && <div style={{ marginBottom: 8, fontSize: 13, color: '#d4380d' }}>已选择全部退款，点击上方输入框可取消，随后点“提交退款申请”确认</div>}
           <Form.Item name="fundType" label="退回资金类型" rules={[{ required: true, message: '请选择资金类型' }]}>
             <Radio.Group>
               <Radio value="PUBLIC">对公</Radio>
@@ -361,7 +363,7 @@ async function loadWalletTx(t: string, walletId: string) {
             </Radio.Group>
           </Form.Item>
           <Form.Item label={<span style={{ color: '#8b8ea8' }}>快捷操作</span>}>
-            <Button size="small" type="dashed" icon={<RollbackOutlined />} onClick={() => submitRefund({ promotionAccountId: refundForm.getFieldValue('promotionAccountId'), fundType: refundForm.getFieldValue('fundType') || 'PRIVATE', remark: refundForm.getFieldValue('remark') })}>全退</Button>
+            <Button size="small" type="dashed" icon={<RollbackOutlined />} onClick={() => { refundForm.setFieldsValue({ amount: 0 }); setRefundFull(true); }}>全退</Button>
           </Form.Item>
           <Form.Item name="remark" label="备注">
             <Input.TextArea rows={2} placeholder="选填" />
