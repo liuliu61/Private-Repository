@@ -339,15 +339,7 @@ export default function AgentPortalPage() {
         <Alert type="warning" showIcon style={{ marginBottom: 16 }} message="通过后将按客户返点比例换算现金退回客户钱包，并同步扣减推广账户余额。" />
         <div style={{ marginBottom: 16 }}>
           <div style={{ marginBottom: 6, fontSize: 13, color: '#555' }}>实际退款账户币（必填）</div>
-          <Space.Compact style={{ width: '100%' }}>
-            <InputNumber id="refund-actual-amount" style={{ width: '100%' }} min={0.01} precision={2} placeholder="请输入实际退款账户币" prefix="¥" defaultValue={currentRefund?.amountLabel === '全退' ? undefined : Number(currentRefund?.amount)} />
-            <Button type="dashed" onClick={() => {
-              const inp = document.getElementById('refund-actual-amount') as HTMLInputElement;
-              const ev = new Event('input', { bubbles: true });
-              inp.value = String(currentRefund?.promotionAccountBalance ?? '0');
-              inp.dispatchEvent(ev);
-            }}>全退</Button>
-          </Space.Compact>
+          <InputNumber id="refund-actual-amount" style={{ width: '100%' }} min={0.01} precision={2} placeholder="请输入实际退款账户币" prefix="¥" defaultValue={currentRefund?.amountLabel === '全退' ? undefined : Number(currentRefund?.amount)} />
         </div>
         <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
           <Button onClick={() => setRefundConfirmOpen(false)}>取消</Button>
