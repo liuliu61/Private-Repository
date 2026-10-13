@@ -20,7 +20,7 @@ export class PublicInvoiceTaskService {
     if (amount.gt(publicAmount)) throw new BadRequestException('需开票金额不能超过对公入账金额');
     const profile = await this.resolveProfile(dto.customerId, dto.invoiceProfileId, context);
     const snapshot = profile ? { titleName: profile.titleName, taxpayerCode: profile.taxpayerCode, address: profile.address, phone: profile.phone, bankName: profile.bankName, bankAccount: profile.bankAccount, invoiceContent: profile.defaultInvoiceContent } : {};
-    const task = await this.prisma.invoiceTask.create({ data: { taskNo: this.generateInvoiceTaskNo(), organizationId: customer.agentId!, customerId: customer.id, publicAmount, invoiceAmount: amount, invoiceProfileId: dto.invoiceProfileId || null, ...snapshot, remark: dto.remark?.trim() || null, createdBy: context.sub }, include: this.include() });
+    const task = await this.prisma.invoiceTask.create({ data: { taskNo: this.generateInvoiceTaskNo(), organizationId: customer.agentId!, customerId: customer.id, publicAmount, invoiceAmount: amount, invoiceProfileId: dto.invoiceProfileId || null, payerAccount: dto.payerAccount?.trim() || null, ...snapshot, remark: dto.remark?.trim() || null, createdBy: context.sub }, include: this.include() });
     await this.audit(this.prisma, context, customer.agentId!, task.id, 'INVOICE_TASK_CREATE', null, { invoiceAmount: moneyToString(amount), publicAmount: moneyToString(publicAmount), customerId: customer.id });
     return this.view(task);
   }
@@ -120,7 +120,7 @@ export class PublicInvoiceTaskService {
     this.assertReview(context);
     return this.prisma.$transaction(async (tx) => {
       const task = await this.lockTask(tx, id, context);
-      if (task.status !== InvoiceTaskStatus.REVIEWING) throw new ConflictException('只有审核中的开票任务可以审核通过');
+      if (task.status !== InvoiceTaskStatus.PENDING && task.status !== InvoiceTaskStatus.REVIEWING) throw new ConflictException('只有待开票或审核中的开票任务可以审核通过');
       const updated = await tx.invoiceTask.update({ where: { id }, data: { status: InvoiceTaskStatus.APPROVED, reviewedBy: context.sub, reviewedAt: new Date(), approvalRemark: dto.approvalRemark?.trim() || null }, include: this.include() });
       await this.audit(tx, context, updated.organizationId, id, 'INVOICE_TASK_APPROVE', { status: task.status }, { status: updated.status, approvalRemark: updated.approvalRemark });
       return this.view(updated);
@@ -131,7 +131,7 @@ export class PublicInvoiceTaskService {
     this.assertReview(context);
     return this.prisma.$transaction(async (tx) => {
       const task = await this.lockTask(tx, id, context);
-      if (task.status !== InvoiceTaskStatus.REVIEWING) throw new ConflictException('只有审核中的开票任务可以驳回');
+      if (task.status !== InvoiceTaskStatus.PENDING && task.status !== InvoiceTaskStatus.REVIEWING) throw new ConflictException('只有待开票或审核中的开票任务可以驳回');
       const updated = await tx.invoiceTask.update({ where: { id }, data: { status: InvoiceTaskStatus.REJECTED, reviewedBy: context.sub, reviewedAt: new Date(), rejectReason: dto.rejectReason.trim() }, include: this.include() });
       await this.audit(tx, context, updated.organizationId, id, 'INVOICE_TASK_REJECT', { status: task.status }, { status: updated.status, rejectReason: updated.rejectReason });
       return this.view(updated);

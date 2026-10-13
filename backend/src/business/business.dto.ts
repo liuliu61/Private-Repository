@@ -573,6 +573,7 @@ export class CreateCustomerInvoiceProfileDto {
 export class UpdateCustomerInvoiceProfileDto extends CreateCustomerInvoiceProfileDto {}
 
 export class CreateInvoiceTaskDto {
+  @IsOptional() @IsString() @MaxLength(120) payerAccount?: string;
   @IsUUID('4', { message: '客户ID格式不正确' }) customerId!: string;
   @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(positiveMoney, { message: '需开票金额格式不正确' }) invoiceAmount!: string;
   @IsOptional() @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(positiveMoney, { message: '对公入账金额格式不正确' }) publicAmount?: string;
