@@ -445,6 +445,7 @@ model Account {
   legacyBalanceSide AccountNormalBalance? @map("normal_balance")
   currency        String               @default("CNY") @db.Char(3)
   accountCategory String?              @map("account_category") @db.VarChar(20)
+  bankCardNo     String?               @map("bank_card_no") @db.VarChar(64)
   openingBalance  Decimal              @default(0) @map("opening_balance") @db.Decimal(20, 2)
   currentBalance  Decimal              @default(0) @map("current_balance") @db.Decimal(20, 2)
   status          AccountStatus        @default(ACTIVE)

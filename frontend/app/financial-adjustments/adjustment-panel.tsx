@@ -17,6 +17,7 @@ export default function FinancialAdjustmentPanel({ token, accounts, promotionAcc
   const [rows, setRows] = useState<Adjustment[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string>();
   const [form] = Form.useForm();
   const accountType = Form.useWatch('accountType', form) || 'CNY';
 
@@ -37,7 +38,8 @@ export default function FinancialAdjustmentPanel({ token, accounts, promotionAcc
     catch (error) { onError(error instanceof Error ? error.message : '调整单操作失败'); }
   }
   const targetOptions = accountType === 'CNY' ? accounts.map((item) => ({ value: item.id, label: `${item.name}（${item.currency}）` })) : promotionAccounts.map((item) => ({ value: item.id, label: `${item.accountName}（${item.unit}）` }));
-  return <Card title="财务调整" extra={<Space><Button icon={<DownloadOutlined />} onClick={() => exportCsv(`财务调整_${new Date().toISOString().slice(0, 10)}`, [
+  const filteredRows = rows.filter((r) => !statusFilter || r.status === statusFilter);
+  return <Card title="财务调整" extra={<Space><Select allowClear placeholder="状态" style={{ width: 130 }} value={statusFilter} onChange={setStatusFilter} options={Object.entries(statusName).map(([value, label]) => ({ value, label }))} /><Button icon={<DownloadOutlined />} onClick={() => exportCsv(`财务调整_${new Date().toISOString().slice(0, 10)}`, [
     { key: 'adjustmentNo', title: '调整编号' },
     { key: 'accountType', title: '账户类型' },
     { key: 'targetName', title: '目标账户' },
@@ -46,8 +48,8 @@ export default function FinancialAdjustmentPanel({ token, accounts, promotionAcc
     { key: 'statusLabel', title: '状态' },
     { key: 'reason', title: '原因' },
     { key: 'createdAt', title: '创建时间' },
-  ], rows.map((r) => ({ ...r, targetName: r.accountType === 'CNY' ? r.account?.name || '-' : r.promotionAccount?.accountName || '-', typeLabel: typeName[r.type] || r.type, statusLabel: statusName[r.status] || r.status })))}>导出</Button><Button type="primary" onClick={() => setOpen(true)}>创建调整单</Button></Space>} loading={loading}>
-    <Table rowKey="id" dataSource={rows} pagination={false} columns={[
+  ], filteredRows.map((r) => ({ ...r, targetName: r.accountType === 'CNY' ? r.account?.name || '-' : r.promotionAccount?.accountName || '-', typeLabel: typeName[r.type] || r.type, statusLabel: statusName[r.status] || r.status })))}>导出</Button><Button type="primary" onClick={() => setOpen(true)}>创建调整单</Button></Space>} loading={loading}>
+    <Table rowKey="id" dataSource={filteredRows} pagination={false} columns={[
       { title: '调整编号', dataIndex: 'adjustmentNo' },
       { title: '账户', render: (_: unknown, row: Adjustment) => row.account?.name || row.promotionAccount?.accountName || '-' },
       { title: '账户单位', dataIndex: 'accountType' },

@@ -18,6 +18,7 @@ export default function ReceiveRefundsPage() {
   const [loading, setLoading] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
+  const [statusFilter, setStatusFilter] = useState<string>();
 
   useEffect(() => {
     loadRefunds();
@@ -25,6 +26,8 @@ export default function ReceiveRefundsPage() {
     loadCustomers();
   }, []);
   useAutoRefresh(() => { loadRefunds(); loadReceiveRecords(); loadCustomers(); }, []);
+
+  const filteredRefunds = refunds.filter((r) => !statusFilter || r.status === statusFilter);
 
   const loadRefunds = async () => {
     setLoading(true);
@@ -95,6 +98,10 @@ export default function ReceiveRefundsPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">收款单退款</h1>
         <div className="flex gap-3 items-center">
+          <select className="bg-white border border-gray-300 rounded-lg px-3 py-2 text-sm" value={statusFilter || ''} onChange={(e) => setStatusFilter(e.target.value || undefined)}>
+            <option value="">全部状态</option>
+            {Object.entries(statusMap).map(([k, v]: any) => <option key={k} value={k}>{v.label}</option>)}
+          </select>
           <button className="bg-gray-500 text-white px-4 py-2 rounded-lg" onClick={() => exportCsv(`收款单退款_${new Date().toISOString().slice(0, 10)}`, [
             { key: 'refundNo', title: '退款单号' },
             { key: 'customerName', title: '客户' },
@@ -102,7 +109,7 @@ export default function ReceiveRefundsPage() {
             { key: 'amount', title: '退款金额' },
             { key: 'deductWallet', title: '扣减钱包' },
             { key: 'statusLabel', title: '状态' },
-          ], refunds.map((r) => ({ ...r, customerName: r.customer?.name || '-', receiveNo: r.receiveRecord?.receiveNo || '-', deductWallet: r.deductWallet ? '是' : '否', statusLabel: statusMap[r.status]?.label || r.status })))}>
+          ], filteredRefunds.map((r) => ({ ...r, customerName: r.customer?.name || '-', receiveNo: r.receiveRecord?.receiveNo || '-', deductWallet: r.deductWallet ? '是' : '否', statusLabel: statusMap[r.status]?.label || r.status })))}>
             导出
           </button>
           <button className="bg-blue-500 text-white px-4 py-2 rounded-lg" onClick={() => { setSelectedRecord(null); setShowModal(true); }}>
@@ -125,7 +132,7 @@ export default function ReceiveRefundsPage() {
             </tr>
           </thead>
           <tbody>
-            {refunds.map((r) => (
+            {filteredRefunds.map((r) => (
               <tr key={r.id} className="border-b hover:bg-white/50">
                 <td className="py-3 px-4 text-sm">{r.refundNo}</td>
                 <td className="py-3 px-4">{r.customer?.name}</td>

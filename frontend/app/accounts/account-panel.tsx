@@ -11,7 +11,7 @@ import { exportCsv } from '../utils/export';
 
 interface AccountRow {
   id: string; name: string; accountCode: string; accountType: string;
-  accountCategory?: string | null; status: string; currentBalance: string;
+  accountCategory?: string | null; bankCardNo?: string | null; status: string; currentBalance: string;
   openingBalance: string; createdAt: string;
 }
 
@@ -64,6 +64,7 @@ export default function AccountPanel({ token, onError }: {
       accountCode: record.accountCode,
       accountType: record.accountType,
       accountCategory: record.accountCategory || 'PRIVATE',
+      bankCardNo: record.bankCardNo || undefined,
       status: record.status,
       openingBalance: record.openingBalance,
     });
@@ -77,6 +78,7 @@ export default function AccountPanel({ token, onError }: {
           method: 'POST', body: JSON.stringify({
             name: values.name,
             accountCategory: values.accountCategory,
+            bankCardNo: values.bankCardNo,
             status: values.status,
           }),
         });
@@ -108,6 +110,7 @@ export default function AccountPanel({ token, onError }: {
 
   const columns = [
     { title: '账户名称', dataIndex: 'name', width: 220, render: (v: string, r: AccountRow) => <Space><span>{v}</span><Tag color={r.accountCategory === 'PUBLIC' ? 'blue' : 'purple'}>{r.accountCategory === 'PUBLIC' ? '对公' : '对私'}</Tag></Space> },
+    { title: '银行卡账号', dataIndex: 'bankCardNo', width: 200, render: (v: string | null) => v ? <span style={{ fontFamily: 'monospace' }}>{v}</span> : '-' },
     { title: '账户编码', dataIndex: 'accountCode', width: 160, render: (v: string) => v || '-' },
     { title: '账户类型', dataIndex: 'accountType', width: 120, render: (v: string) => accountTypeLabel[v] || v },
     { title: '期初余额', dataIndex: 'openingBalance', width: 130, render: (v: string) => <b>¥{v}</b> },
@@ -141,6 +144,7 @@ export default function AccountPanel({ token, onError }: {
           <Button icon={<DownloadOutlined />} onClick={() => exportCsv(`收款账户_${new Date().toISOString().slice(0, 10)}`, [
             { key: 'name', title: '账户名称' },
             { key: 'accountCode', title: '账户编码' },
+            { key: 'bankCardNo', title: '银行卡账号' },
             { key: 'accountTypeLabel', title: '账户类型' },
             { key: 'accountCategoryLabel', title: '账户分类' },
             { key: 'openingBalance', title: '期初余额' },
@@ -170,6 +174,9 @@ export default function AccountPanel({ token, onError }: {
               <Input placeholder="例如：HY-BANK-001" />
             </Form.Item>
           )}
+          <Form.Item name="bankCardNo" label="银行卡账号" tooltip="银行卡/对公账户填写银行卡号，其他账户类型可留空">
+            <Input maxLength={64} placeholder="例如：6222 0202 1234 5678" />
+          </Form.Item>
           <Space size={16} style={{ display: 'flex' }}>
             <Form.Item name="accountType" label="账户类型" style={{ flex: 1 }} rules={[{ required: true, message: '请选择账户类型' }]}>
               <Select options={Object.entries(accountTypeLabel).map(([value, label]) => ({ value, label }))} />

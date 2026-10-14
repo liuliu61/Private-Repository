@@ -20,6 +20,7 @@ export class CreateAccountDto {
   @IsString() @IsNotEmpty() @MaxLength(50) accountCode!: string;
   @IsEnum(AccountType) accountType!: AccountType;
   @IsOptional() @IsIn(['PUBLIC', 'PRIVATE']) accountCategory?: string;
+  @IsOptional() @IsString() @MaxLength(64) bankCardNo?: string;
   @IsOptional() @IsUUID('4') organizationId?: string;
   @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(money) openingBalance?: string;
 }
@@ -91,6 +92,7 @@ export class BatchUpdatePromotionAccountsDto {
 export class UpdateAccountDto {
   @IsOptional() @IsString() @MaxLength(100) name?: string;
   @IsOptional() @IsIn(['PUBLIC', 'PRIVATE']) accountCategory?: string;
+  @IsOptional() @IsString() @MaxLength(64) bankCardNo?: string;
   @IsOptional() @IsIn(['ACTIVE', 'DISABLED', 'CANCELLED']) status?: string;
 }
 

@@ -43,7 +43,7 @@ export class BusinessService {
     if (!this.scope.isSuperAdmin(context) && !context.roles.includes('FINANCE')) throw new ForbiddenException('没有创建资金账户的权限');
     if (dto.organizationId) await this.scope.assertOrganizationAccess(dto.organizationId, context);
     const openingBalance = money(dto.openingBalance);
-    return this.prisma.account.create({ data: { name: dto.name, accountCode: dto.accountCode, accountType: dto.accountType, accountCategory: dto.accountCategory ?? 'PRIVATE', organizationId: dto.organizationId, openingBalance, currentBalance: openingBalance, legacyBalanceSide: null } }).then((row) => ({ ...row, openingBalance: moneyToString(row.openingBalance), currentBalance: moneyToString(row.currentBalance) }));
+    return this.prisma.account.create({ data: { name: dto.name, accountCode: dto.accountCode, accountType: dto.accountType, accountCategory: dto.accountCategory ?? 'PRIVATE', bankCardNo: dto.bankCardNo ?? null, organizationId: dto.organizationId, openingBalance, currentBalance: openingBalance, legacyBalanceSide: null } }).then((row) => ({ ...row, openingBalance: moneyToString(row.openingBalance), currentBalance: moneyToString(row.currentBalance) }));
   }
 
   async updateAccount(id: string, dto: UpdateAccountDto, context: AccessContext) {
@@ -53,6 +53,7 @@ export class BusinessService {
     const data: any = {};
     if (dto.name !== undefined) data.name = dto.name;
     if (dto.accountCategory !== undefined) data.accountCategory = dto.accountCategory;
+    if (dto.bankCardNo !== undefined) data.bankCardNo = dto.bankCardNo;
     if (dto.status !== undefined) data.status = dto.status as any;
     if (Object.keys(data).length === 0) return { ...account, openingBalance: moneyToString(account.openingBalance), currentBalance: moneyToString(account.currentBalance) };
     const row = await this.prisma.account.update({ where: { id }, data });
