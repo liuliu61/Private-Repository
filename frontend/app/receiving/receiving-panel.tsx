@@ -263,7 +263,7 @@ export default function ReceivingPanel({ token, customers, perm, onError }: { to
   const natureOptions = [{ value: 'PUBLIC', label: '对公账户' }, { value: 'PRIVATE', label: '对私账户' }];
   const accountOptions = accounts.map((a) => ({ value: a.id, label: `${a.name}（${a.accountCode}）` }));
 
-  return <Card title="收款管理" loading={loading}>
+  return <Card title="客户打款记录" loading={loading}>
     <Form form={receiveFilterForm} layout="inline" onFinish={(values) => void filterReceive(values)} style={{ marginBottom: 16, rowGap: 12 }}>
       <Form.Item name="receiveNo"><Input placeholder="请输入回款单号" style={{ width: 200 }} /></Form.Item>
       <Form.Item name="payerName"><Input placeholder="请输入打款人" style={{ width: 180 }} /></Form.Item>

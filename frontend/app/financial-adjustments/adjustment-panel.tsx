@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../utils/api';
 import { Button, Card, Form, Input, Modal, Select, Space, Table, Tag } from 'antd';
+import { DownloadOutlined } from '@ant-design/icons';
+import { exportCsv } from '../utils/export';
 
 type Account = { id: string; name: string; accountCode: string; currency: string; currentBalance: string };
 type PromotionAccount = { id: string; accountName: string; unit: string; currentBalance: string };
@@ -35,7 +37,16 @@ export default function FinancialAdjustmentPanel({ token, accounts, promotionAcc
     catch (error) { onError(error instanceof Error ? error.message : '调整单操作失败'); }
   }
   const targetOptions = accountType === 'CNY' ? accounts.map((item) => ({ value: item.id, label: `${item.name}（${item.currency}）` })) : promotionAccounts.map((item) => ({ value: item.id, label: `${item.accountName}（${item.unit}）` }));
-  return <Card title="财务调整" extra={<Button type="primary" onClick={() => setOpen(true)}>创建调整单</Button>} loading={loading}>
+  return <Card title="财务调整" extra={<Space><Button icon={<DownloadOutlined />} onClick={() => exportCsv(`财务调整_${new Date().toISOString().slice(0, 10)}`, [
+    { key: 'adjustmentNo', title: '调整编号' },
+    { key: 'accountType', title: '账户类型' },
+    { key: 'targetName', title: '目标账户' },
+    { key: 'typeLabel', title: '调整类型' },
+    { key: 'amount', title: '调整金额' },
+    { key: 'statusLabel', title: '状态' },
+    { key: 'reason', title: '原因' },
+    { key: 'createdAt', title: '创建时间' },
+  ], rows.map((r) => ({ ...r, targetName: r.accountType === 'CNY' ? r.account?.name || '-' : r.promotionAccount?.accountName || '-', typeLabel: typeName[r.type] || r.type, statusLabel: statusName[r.status] || r.status })))}>导出</Button><Button type="primary" onClick={() => setOpen(true)}>创建调整单</Button></Space>} loading={loading}>
     <Table rowKey="id" dataSource={rows} pagination={false} columns={[
       { title: '调整编号', dataIndex: 'adjustmentNo' },
       { title: '账户', render: (_: unknown, row: Adjustment) => row.account?.name || row.promotionAccount?.accountName || '-' },

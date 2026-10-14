@@ -5,7 +5,8 @@ import {
   Card, Table, Button, Tag, Space, Modal, Form, Input, InputNumber,
   Select, DatePicker, message, Popconfirm, Descriptions, Row, Col, Divider, List, Typography
 } from 'antd';
-import { PlusOutlined, EyeOutlined, EditOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, EyeOutlined, EditOutlined, ReloadOutlined, DownloadOutlined } from '@ant-design/icons';
+import { exportCsv } from '../utils/export';
 import { paymentPostingApi, PAYMENT_STATUS_MAP, OA_STATUS_MAP, EXPENSE_TYPE_MAP } from './api';
 
 const { RangePicker } = DatePicker;
@@ -140,6 +141,18 @@ export default function PaymentPostingPanel({ token, customers, accounts, receiv
         extra={
           <Space>
             <Button icon={<ReloadOutlined />} onClick={fetchData}>刷新</Button>
+            <Button icon={<DownloadOutlined />} onClick={() => exportCsv(`充值付款_${new Date().toISOString().slice(0, 10)}`, [
+              { key: 'applyNo', title: '申请单号' },
+              { key: 'customerName', title: '客户' },
+              { key: 'totalAmount', title: '申请金额' },
+              { key: 'serviceFeeAmount', title: '服务费' },
+              { key: 'actualPayAmount', title: '实付金额' },
+              { key: 'statusLabel', title: '状态' },
+              { key: 'oaStatusLabel', title: 'OA状态' },
+              { key: 'oaFlowNo', title: 'OA流程号' },
+              { key: 'creatorName', title: '创建人' },
+              { key: 'createdAt', title: '创建时间' },
+            ], data.map((r: any) => ({ ...r, customerName: r.customer?.name || '-', statusLabel: statusInfo(r.status).label, oaStatusLabel: r.oaStatus ? oaStatusInfo(r.oaStatus).label : '-', creatorName: r.creator?.displayName || '-' })))}>导出</Button>
             <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setCreateModalOpen(true); }}>新建补款</Button>
           </Space>
         }

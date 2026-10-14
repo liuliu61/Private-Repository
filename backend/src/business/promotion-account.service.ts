@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { AccessContext, AccessScopeService } from '../common/access-scope.service';
 import { moneyToString, toMoney } from '../cashflow/utils/money.util';
 import { PrismaService } from '../prisma/prisma.service';
-import { CreatePromotionAccountDto, RecordCustomerCreditDto } from './business.dto';
+import { BatchUpdatePromotionAccountsDto, CreatePromotionAccountDto, RecordCustomerCreditDto, UpdatePromotionAccountDto } from './business.dto';
 import { CustomerWalletService } from './customer-wallet.service';
 
 @Injectable()
@@ -26,7 +26,7 @@ export class PromotionAccountService {
     if (customer.status !== 'ACTIVE') throw new BadRequestException('客户已停用，不能创建推广账户');
     await this.assertOrganizationAccess(customer.agentId, context);
     if (!customer.agentId) throw new BadRequestException('客户未配置所属组织');
-    const row = await this.prisma.promotionAccount.create({ data: { organizationId: customer.agentId, ownerType: PromotionAccountOwnerType.CUSTOMER, ownerId: customerId, customerId, accountName: dto.accountName, platform: dto.platform, platformAccountId: dto.platformAccountId, accountCategory: dto.accountCategory, channelName: dto.channelName, customerRebatePublic: dto.customerRebatePublic ? new Prisma.Decimal(Number(dto.customerRebatePublic)) : undefined, customerRebatePrivate: dto.customerRebatePrivate ? new Prisma.Decimal(Number(dto.customerRebatePrivate)) : undefined, unit: PromotionAccountUnit.ACCOUNT_CREDIT, currentBalance: new Prisma.Decimal(0), status: AccountStatus.ACTIVE } });
+    const row = await this.prisma.promotionAccount.create({ data: { organizationId: customer.agentId, ownerType: PromotionAccountOwnerType.CUSTOMER, ownerId: customerId, customerId, accountName: dto.accountName, platform: dto.platform, platformAccountId: dto.platformAccountId, accountCategory: dto.accountCategory, channelName: dto.channelName, label: dto.label ? (dto.label as any) : undefined, channelId: dto.channelId, customerRebatePublic: dto.customerRebatePublic ? new Prisma.Decimal(Number(dto.customerRebatePublic)) : undefined, customerRebatePrivate: dto.customerRebatePrivate ? new Prisma.Decimal(Number(dto.customerRebatePrivate)) : undefined, unit: PromotionAccountUnit.ACCOUNT_CREDIT, currentBalance: new Prisma.Decimal(0), status: AccountStatus.ACTIVE } });
     return this.view(row);
   }
 
@@ -47,8 +47,44 @@ export class PromotionAccountService {
     const orgId = supplier.organizationId || (await this.scope.getOrganizationIds(context))?.[0];
     if (!orgId) throw new BadRequestException('无法确定所属组织');
     await this.scope.assertOrganizationAccess(orgId, context);
-    const row = await this.prisma.promotionAccount.create({ data: { organizationId: orgId, ownerType: PromotionAccountOwnerType.SUPPLIER, ownerId: supplierId, supplierId, accountName: dto.accountName, platform: dto.platform, platformAccountId: dto.platformAccountId, accountCategory: dto.accountCategory, channelName: dto.channelName, customerRebatePublic: dto.customerRebatePublic ? new Prisma.Decimal(Number(dto.customerRebatePublic)) : undefined, customerRebatePrivate: dto.customerRebatePrivate ? new Prisma.Decimal(Number(dto.customerRebatePrivate)) : undefined, unit: PromotionAccountUnit.ACCOUNT_CREDIT, currentBalance: new Prisma.Decimal(0), status: AccountStatus.ACTIVE } });
+    const row = await this.prisma.promotionAccount.create({ data: { organizationId: orgId, ownerType: PromotionAccountOwnerType.SUPPLIER, ownerId: supplierId, supplierId, accountName: dto.accountName, platform: dto.platform, platformAccountId: dto.platformAccountId, accountCategory: dto.accountCategory, channelName: dto.channelName, label: dto.label ? (dto.label as any) : undefined, channelId: dto.channelId, customerRebatePublic: dto.customerRebatePublic ? new Prisma.Decimal(Number(dto.customerRebatePublic)) : undefined, customerRebatePrivate: dto.customerRebatePrivate ? new Prisma.Decimal(Number(dto.customerRebatePrivate)) : undefined, unit: PromotionAccountUnit.ACCOUNT_CREDIT, currentBalance: new Prisma.Decimal(0), status: AccountStatus.ACTIVE } });
     return this.view(row);
+  }
+
+  async updateAccount(id: string, dto: UpdatePromotionAccountDto, context: AccessContext) {
+    this.assertPermission(context, 'PROMOTION_ACCOUNT_CREATE');
+    const account = await this.prisma.promotionAccount.findUnique({ where: { id } });
+    if (!account) throw new NotFoundException('推广账户不存在');
+    await this.assertOrganizationAccess(account.organizationId, context);
+    const data: any = {};
+    if (dto.accountName !== undefined) data.accountName = dto.accountName;
+    if (dto.platformAccountId !== undefined) data.platformAccountId = dto.platformAccountId;
+    if (dto.label !== undefined) data.label = dto.label as any;
+    if (dto.channelId !== undefined) data.channelId = dto.channelId;
+    if (dto.status !== undefined) data.status = dto.status as any;
+    if (dto.customerRebatePublic !== undefined) data.customerRebatePublic = new Prisma.Decimal(Number(dto.customerRebatePublic));
+    if (dto.customerRebatePrivate !== undefined) data.customerRebatePrivate = new Prisma.Decimal(Number(dto.customerRebatePrivate));
+    const row = await this.prisma.promotionAccount.update({ where: { id }, data, include: { channel: true } });
+    return this.view(row);
+  }
+
+  async batchUpdateAccounts(dto: BatchUpdatePromotionAccountsDto, context: AccessContext) {
+    this.assertPermission(context, 'PROMOTION_ACCOUNT_CREATE');
+    const ids = Array.from(new Set(dto.ids));
+    const accounts = await this.prisma.promotionAccount.findMany({ where: { id: { in: ids } }, select: { id: true, organizationId: true } });
+    if (accounts.length !== ids.length) throw new NotFoundException('部分推广账户不存在');
+    for (const acc of accounts) await this.assertOrganizationAccess(acc.organizationId, context);
+    const data: any = {};
+    if (dto.accountName !== undefined) data.accountName = dto.accountName;
+    if (dto.platformAccountId !== undefined) data.platformAccountId = dto.platformAccountId;
+    if (dto.label !== undefined) data.label = dto.label as any;
+    if (dto.channelId !== undefined) data.channelId = dto.channelId;
+    if (dto.status !== undefined) data.status = dto.status as any;
+    if (dto.customerRebatePublic !== undefined) data.customerRebatePublic = new Prisma.Decimal(Number(dto.customerRebatePublic));
+    if (dto.customerRebatePrivate !== undefined) data.customerRebatePrivate = new Prisma.Decimal(Number(dto.customerRebatePrivate));
+    if (Object.keys(data).length === 0) return { success: true, updated: 0 };
+    const result = await this.prisma.promotionAccount.updateMany({ where: { id: { in: ids } }, data });
+    return { success: true, updated: result.count };
   }
 
   async getAccountById(id: string, context: AccessContext) {

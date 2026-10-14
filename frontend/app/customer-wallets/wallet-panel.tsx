@@ -4,7 +4,9 @@ import { useEffect, useState } from 'react';
 import useAutoRefresh from '../utils/useAutoRefresh';
 import { apiRequest } from '../utils/api';
 import { Button, Card, Descriptions, Form, Input, Modal, Popconfirm, Select, Space, Table, Tag } from 'antd';
+import { DownloadOutlined } from '@ant-design/icons';
 import { generateWalletAdjustNo, generateWalletOpeningNo, generateCommonBusinessNo } from '../utils/businessNo';
+import { exportCsv } from '../utils/export';
 
 type Customer = { id: string; name: string; customerCode: string };
 type Wallet = { id: string; customerId: string; walletName: string; unit: string; cashBalance: string; cashBalancePublic: string; cashBalancePrivate: string; groupBalance: string; totalBalance: string; creditLimit: string; creditUsed: string; creditAvailable: string; advanceOutstanding: string; status: string; customer?: Customer };
@@ -147,7 +149,20 @@ export default function CustomerWalletPanel({ token, customers, onError }: { tok
       await refresh();
     } catch (error) { onError(error instanceof Error ? error.message : '取消授信失败'); }
   }
-  return <Card title="客户钱包" extra={<Space><Select allowClear value={selectedCustomer} onChange={setSelectedCustomer} placeholder="筛选客户" style={{ width: 180 }} options={customers.map((item) => ({ value: item.id, label: `${item.name}（${item.customerCode}）` }))} /><Button type="primary" onClick={() => setCreateOpen(true)}>创建钱包</Button></Space>} loading={loading}>
+  return <Card title="客户钱包" extra={<Space><Select allowClear value={selectedCustomer} onChange={setSelectedCustomer} placeholder="筛选客户" style={{ width: 180 }} options={customers.map((item) => ({ value: item.id, label: `${item.name}（${item.customerCode}）` }))} /><Button icon={<DownloadOutlined />} onClick={() => exportCsv(`客户钱包_${new Date().toISOString().slice(0, 10)}`, [
+    { key: 'customerName', title: '客户名称' },
+    { key: 'walletName', title: '钱包名称' },
+    { key: 'unit', title: '单位' },
+    { key: 'totalBalance', title: '总余额' },
+    { key: 'cashBalance', title: '现金余额' },
+    { key: 'cashBalancePublic', title: '对公余额' },
+    { key: 'cashBalancePrivate', title: '对私余额' },
+    { key: 'groupBalance', title: '集团余额' },
+    { key: 'advanceOutstanding', title: '垫款未还' },
+    { key: 'creditLimit', title: '授信额度' },
+    { key: 'creditAvailable', title: '授信余额' },
+    { key: 'statusLabel', title: '状态' },
+  ], rows.map((row) => ({ ...row, customerName: row.customer?.name || customers.find((item) => item.id === row.customerId)?.name || row.customerId, statusLabel: row.status === 'ACTIVE' ? '正常' : '停用' })))}>导出</Button><Button type="primary" onClick={() => setCreateOpen(true)}>创建钱包</Button></Space>} loading={loading}>
     <Table rowKey="id" dataSource={rows} scroll={{ x: 1200 }} pagination={{ current: 1, pageSize: 20, total, showSizeChanger: false }} columns={[
       { title: '客户名称', width: 140, render: (_: unknown, row: Wallet) => row.customer?.name || customers.find((item) => item.id === row.customerId)?.name || row.customerId },
       { title: '钱包名称', dataIndex: 'walletName', width: 140 },

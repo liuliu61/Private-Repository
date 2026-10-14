@@ -7,17 +7,20 @@ import {
   Card, Table, Button, Tag, Space, Modal, Form, Input, InputNumber, Select,
   message, Descriptions, Tabs, Statistic, Row, Col
 } from 'antd';
-import { PlusOutlined, ReloadOutlined, EyeOutlined, WalletOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, EyeOutlined, WalletOutlined, DownloadOutlined } from '@ant-design/icons';
+import { exportCsv } from '../utils/export';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 interface Customer { id: string; name: string; customerCode: string; }
 interface PromotionAccount {
   id: string; accountName: string; platform?: string; platformAccountId?: string;
-  accountCategory?: string; channelName?: string; unit: string; currentBalance: string;
+  accountCategory?: string; channelName?: string; channelId?: string; label?: string;
+  unit: string; currentBalance: string;
   customerRebatePublic?: string | null; customerRebatePrivate?: string | null;
   status: string; customerId: string; createdAt: string; customer?: Customer;
 }
+interface Channel { id: string; name: string; code?: string; platform?: string; defaultCostRebatePublic?: string | number; defaultCostRebatePrivate?: string | number; status?: string; isPinned?: boolean; }
 interface PromotionTransaction {
   id: string; transactionNo: string; businessType: string; businessNo: string;
   changeAmount: string; balanceBefore: string; balanceAfter: string;
@@ -37,8 +40,20 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
   const [rechargeModalOpen, setRechargeModalOpen] = useState(false);
   const [refundModalOpen, setRefundModalOpen] = useState(false);
   const [wallets, setWallets] = useState<any[]>([]);
-  const [channels, setChannels] = useState<any[]>([]);
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [portFilter, setPortFilter] = useState<string>();
+  const [statusFilter, setStatusFilter] = useState<string>();
+  const [labelFilter, setLabelFilter] = useState<string>();
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editRow, setEditRow] = useState<PromotionAccount | null>(null);
+  const [policyModalOpen, setPolicyModalOpen] = useState(false);
+  const [policyRow, setPolicyRow] = useState<PromotionAccount | null>(null);
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
   const [form] = Form.useForm();
+  const [editForm] = Form.useForm();
+  const [policyForm] = Form.useForm();
+  const [batchForm] = Form.useForm();
   const [rechargeForm] = Form.useForm();
   const [refundForm] = Form.useForm();
 
@@ -59,7 +74,7 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
       try {
         const response = await fetch(`${API_BASE}/channels/all`, { headers: { Authorization: `Bearer ${token}` } });
         const data = await response.json();
-        if (Array.isArray(data)) setChannels(data);
+        if (Array.isArray(data)) setChannels(data as Channel[]);
       } catch { /* 用默认端口 */ }
     }
     void loadChannels();
@@ -84,6 +99,68 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
       setCreateModalOpen(false); form.resetFields(); fetchData();
     } catch (e: any) { onError(e.message); }
   };
+
+  const openEdit = (record: PromotionAccount) => {
+    setEditRow(record);
+    editForm.setFieldsValue({
+      accountName: record.accountName,
+      platformAccountId: record.platformAccountId,
+      label: record.label || 'GROUP_BUY',
+      channelId: record.channelId || undefined,
+      customerRebatePublic: record.customerRebatePublic ?? undefined,
+      customerRebatePrivate: record.customerRebatePrivate ?? undefined,
+      status: record.status || 'ACTIVE',
+    });
+    setEditModalOpen(true);
+  };
+
+  const handleEdit = async (values: any) => {
+    if (!editRow) return;
+    try {
+      await apiRequest(`/promotion-accounts/${editRow.id}/update`, token, { method: 'POST', body: JSON.stringify(values) });
+      message.success('推广账户已更新');
+      setEditModalOpen(false); fetchData();
+    } catch (e: any) { onError(e.message); }
+  };
+
+  const openPolicy = (record: PromotionAccount) => {
+    setPolicyRow(record);
+    policyForm.setFieldsValue({
+      channelId: record.channelId || undefined,
+      customerRebatePublic: record.customerRebatePublic ?? undefined,
+      customerRebatePrivate: record.customerRebatePrivate ?? undefined,
+      status: record.status || 'ACTIVE',
+    });
+    setPolicyModalOpen(true);
+  };
+
+  const handlePolicy = async (values: any) => {
+    if (!policyRow) return;
+    try {
+      await apiRequest(`/promotion-accounts/${policyRow.id}/update`, token, { method: 'POST', body: JSON.stringify(values) });
+      message.success('政策已更新');
+      setPolicyModalOpen(false); fetchData();
+    } catch (e: any) { onError(e.message); }
+  };
+
+  const handleBatch = async (values: any) => {
+    if (selectedRowKeys.length === 0) return;
+    try {
+      const payload: any = { ids: selectedRowKeys.map(String) };
+      if (values.accountName !== undefined) payload.accountName = values.accountName;
+      if (values.platformAccountId !== undefined) payload.platformAccountId = values.platformAccountId;
+      if (values.label !== undefined) payload.label = values.label;
+      if (values.channelId !== undefined) payload.channelId = values.channelId || null;
+      if (values.status !== undefined) payload.status = values.status;
+      if (values.customerRebatePublic !== undefined) payload.customerRebatePublic = String(values.customerRebatePublic ?? '');
+      if (values.customerRebatePrivate !== undefined) payload.customerRebatePrivate = String(values.customerRebatePrivate ?? '');
+      const res = await apiRequest('/promotion-accounts/batch-update', token, { method: 'POST', body: JSON.stringify(payload) });
+      message.success(`批量更新成功（${res?.updated ?? selectedRowKeys.length} 个账户）`);
+      setBatchModalOpen(false); batchForm.resetFields(); setSelectedRowKeys([]); fetchData();
+    } catch (e: any) { onError(e.message); }
+  };
+
+  const portOptions = channels.map((c) => ({ value: c.id, label: c.name }));
 
   const openDetail = async (record: PromotionAccount) => {
     setCurrentAccount(record);
@@ -173,22 +250,40 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
     } catch (e: any) { onError(e.message); }
   };
 
+  const statusMeta: Record<string, { color: string; label: string }> = {
+    ACTIVE: { color: 'green', label: '启用' },
+    DISABLED: { color: 'orange', label: '封停' },
+    CANCELLED: { color: 'default', label: '注销' },
+  };
+  const labelMeta: Record<string, { color: string; label: string }> = {
+    GROUP_BUY: { color: 'blue', label: '团购' },
+    LEADS: { color: 'purple', label: '线索' },
+  };
+  const filtered = data.filter((r) => {
+    if (portFilter && r.channelId !== portFilter && (r.channelName || '') !== (channels.find(c => c.id === portFilter)?.name || '')) return false;
+    if (statusFilter && r.status !== statusFilter) return false;
+    if (labelFilter && (r.label || 'GROUP_BUY') !== labelFilter) return false;
+    return true;
+  });
   const columns = [
     { title: '账户名称', dataIndex: 'accountName', key: 'accountName', width: 180 },
     { title: '所属客户', dataIndex: ['customer', 'name'], key: 'customerName', width: 150, render: (v: string, r: PromotionAccount) => customers.find(c => c.id === r.customerId)?.name || '-' },
-    { title: '推广平台', dataIndex: 'platform', key: 'platform', width: 120, render: (v: string) => v ? <Tag color="blue">{v}</Tag> : '-' },
-    { title: '平台账号ID', dataIndex: 'platformAccountId', key: 'platformAccountId', width: 140, render: (v: string) => v || '-' },
-    { title: '币种/单位', dataIndex: 'unit', key: 'unit', width: 100, render: (v: string) => v === 'ACCOUNT_CREDIT' ? '账户币' : v },
+    { title: '标签', dataIndex: 'label', key: 'label', width: 90, render: (v: string) => { const m = labelMeta[v as keyof typeof labelMeta]; return v ? <Tag color={m?.color || 'default'}>{m?.label || v}</Tag> : <Tag>团购</Tag>; } },
+    { title: '推广平台', dataIndex: 'platform', key: 'platform', width: 110, render: (v: string) => v ? <Tag color="blue">{v}</Tag> : '-' },
+    { title: '平台账号ID', dataIndex: 'platformAccountId', key: 'platformAccountId', width: 130, render: (v: string) => v || '-' },
+    { title: '端口名称', key: 'portName', width: 120, render: (_: any, r: PromotionAccount) => r.channelId ? (channels.find(c => c.id === r.channelId)?.name || r.channelName || '-') : (r.channelName || '-') },
     { title: '累计充值金额', dataIndex: 'currentBalance', key: 'currentBalance', width: 130, render: (v: string) => <b style={{ color: '#1677ff' }}>{v}</b> },
-    { title: '状态', dataIndex: 'status', key: 'status', width: 80, render: (v: string) => <Tag color={v === 'ACTIVE' ? 'green' : 'default'}>{v === 'ACTIVE' ? '正常' : '停用'}</Tag> },
-    { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 170, render: (v: string) => new Date(v).toLocaleString('zh-CN') },
+    { title: '状态', dataIndex: 'status', key: 'status', width: 80, render: (v: string) => { const m = statusMeta[v as keyof typeof statusMeta]; return <Tag color={m?.color || 'default'}>{m?.label || v}</Tag>; } },
+    { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt', width: 160, render: (v: string) => new Date(v).toLocaleString('zh-CN') },
     {
-      title: '操作', key: 'action', width: 240, fixed: 'right' as const,
+      title: '操作', key: 'action', width: 280, fixed: 'right' as const,
       render: (_: any, record: PromotionAccount) => (
-        <Space>
+        <Space size={0} wrap>
           <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => openDetail(record)}>详情</Button>
           <Button type="link" size="small" icon={<WalletOutlined />} onClick={() => openRecharge(record)}>充值</Button>
           <Button type="link" size="small" danger onClick={() => openRefund(record)}>退款</Button>
+          <Button type="link" size="small" onClick={() => openEdit(record)}>编辑</Button>
+          <Button type="link" size="small" onClick={() => openPolicy(record)}>编辑政策</Button>
         </Space>
       ),
     },
@@ -224,7 +319,37 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
         {!selectedCustomer ? (
           <div style={{ textAlign: 'center', padding: '60px 0', color: '#999' }}>请先选择客户查看推广账户</div>
         ) : (
-          <Table rowKey="id" dataSource={data} columns={columns} loading={loading} scroll={{ x: 1200 }} pagination={{ pageSize: 10, showTotal: (t: number) => `共 ${t} 个推广账户` }} />
+          <div>
+            <Space style={{ marginBottom: 12 }} wrap>
+              <Select placeholder="端口筛选" style={{ width: 180 }} allowClear value={portFilter} onChange={setPortFilter}
+                options={channels.map((c) => ({ value: c.id, label: c.name }))} />
+              <Select placeholder="状态筛选" style={{ width: 130 }} allowClear value={statusFilter} onChange={setStatusFilter}
+                options={[{ value: 'ACTIVE', label: '启用' }, { value: 'DISABLED', label: '封停' }, { value: 'CANCELLED', label: '注销' }]} />
+              <Select placeholder="标签筛选" style={{ width: 130 }} allowClear value={labelFilter} onChange={setLabelFilter}
+                options={[{ value: 'GROUP_BUY', label: '团购' }, { value: 'LEADS', label: '线索' }]} />
+              <Button icon={<ReloadOutlined />} onClick={fetchData}>刷新</Button>
+              <Button icon={<DownloadOutlined />} onClick={() => exportCsv(`推广账户_${new Date().toISOString().slice(0, 10)}`, [
+                { key: 'accountName', title: '账户名称' },
+                { key: 'customerName', title: '所属客户' },
+                { key: 'labelLabel', title: '标签' },
+                { key: 'platform', title: '推广平台' },
+                { key: 'platformAccountId', title: '平台账号ID' },
+                { key: 'portName', title: '端口名称' },
+                { key: 'currentBalance', title: '累计充值金额' },
+                { key: 'statusLabel', title: '状态' },
+                { key: 'createdAt', title: '创建时间' },
+              ], filtered.map((r) => ({ ...r, labelLabel: labelMeta[r.label as keyof typeof labelMeta]?.label || '团购', statusLabel: statusMeta[r.status as keyof typeof statusMeta]?.label || r.status, customerName: customers.find(c => c.id === r.customerId)?.name || '-', portName: r.channelId ? (channels.find(c => c.id === r.channelId)?.name || r.channelName || '-') : (r.channelName || '-') })))}>导出</Button>
+              <Button type="primary" icon={<PlusOutlined />} disabled={!selectedCustomer} onClick={() => { form.resetFields(); setCreateModalOpen(true); }}>新增推广账户</Button>
+              <Button disabled={selectedRowKeys.length === 0} onClick={() => { batchForm.resetFields(); setBatchModalOpen(true); }}>
+                批量编辑{selectedRowKeys.length > 0 ? `（已选 ${selectedRowKeys.length}）` : ''}
+              </Button>
+            </Space>
+            <Table rowKey="id"
+              dataSource={filtered}
+              columns={columns} loading={loading} scroll={{ x: 1300 }}
+              rowSelection={{ selectedRowKeys, onChange: setSelectedRowKeys }}
+              pagination={{ pageSize: 10, showTotal: (t: number) => `共 ${t} 个推广账户` }} />
+          </div>
         )}
       </Card>
 
@@ -234,6 +359,25 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
           <Form.Item name="accountName" label="账户名称" rules={[{ required: true, message: '请输入账户名称' }, { max: 100, message: '最多100个字符' }]}>
             <Input placeholder="例如：巨量引擎-测试账户" />
           </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="label" label="标签" rules={[{ required: true, message: '请选择标签' }]} initialValue="GROUP_BUY">
+                <Select placeholder="请选择标签（必选）">
+                  <Select.Option value="GROUP_BUY">团购</Select.Option>
+                  <Select.Option value="LEADS">线索</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="status" label="账户状态" initialValue="ACTIVE">
+                <Select>
+                  <Select.Option value="ACTIVE">启用</Select.Option>
+                  <Select.Option value="DISABLED">封停</Select.Option>
+                  <Select.Option value="CANCELLED">注销</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="platform" label="推广平台">
@@ -267,11 +411,9 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
               </Form.Item>
             </Col>
             <Col span={12}>
-              <Form.Item name="channelName" label="端口">
+              <Form.Item name="channelId" label="端口（账户只能归属一个端口）">
                 <Select placeholder="请选择端口" allowClear showSearch optionFilterProp="label"
-                  options={channels.length > 0
-                    ? channels.map((c) => ({ value: c.name, label: c.name }))
-                    : [{ value: '全网对公', label: '全网对公' }, { value: '全网对私', label: '全网对私' }, { value: '星途', label: '星途' }, { value: '智星', label: '智星' }, { value: '至真', label: '至真' }, { value: '其他', label: '其他' }]}
+                  options={portOptions}
                 />
               </Form.Item>
             </Col>
@@ -291,6 +433,119 @@ export default function PromotionAccountPanel({ token, customers, onError }: {
           <Form.Item name="unit" label="账户单位" initialValue="ACCOUNT_CREDIT">
             <Select options={[{ value: 'ACCOUNT_CREDIT', label: '账户币' }]} />
           </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 编辑推广账户弹窗 */}
+      <Modal title={editRow ? `编辑推广账户 - ${editRow.accountName}` : '编辑推广账户'} open={editModalOpen} onCancel={() => setEditModalOpen(false)} onOk={() => editForm.submit()} width={520} okText="保存" cancelText="取消">
+        <Form form={editForm} layout="vertical" onFinish={handleEdit}>
+          <Form.Item name="accountName" label="账户名称" rules={[{ required: true, message: '请输入账户名称' }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="platformAccountId" label="平台账号ID">
+            <Input placeholder="请输入平台账号ID" />
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="label" label="标签" rules={[{ required: true, message: '请选择标签' }]}>
+                <Select>
+                  <Select.Option value="GROUP_BUY">团购</Select.Option>
+                  <Select.Option value="LEADS">线索</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="channelId" label="端口">
+                <Select placeholder="请选择端口" allowClear showSearch optionFilterProp="label" options={portOptions} />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="status" label="账户状态">
+                <Select>
+                  <Select.Option value="ACTIVE">启用</Select.Option>
+                  <Select.Option value="DISABLED">封停</Select.Option>
+                  <Select.Option value="CANCELLED">注销</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+        </Form>
+      </Modal>
+
+      {/* 编辑政策弹窗 */}
+      <Modal title={policyRow ? `编辑政策 - ${policyRow.accountName}` : '编辑政策'} open={policyModalOpen} onCancel={() => setPolicyModalOpen(false)} onOk={() => policyForm.submit()} width={520} okText="保存" cancelText="取消">
+        <Form form={policyForm} layout="vertical" onFinish={handlePolicy}>
+          <Form.Item name="channelId" label="端口归属">
+            <Select placeholder="请选择端口" allowClear showSearch optionFilterProp="label" options={portOptions} />
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="customerRebatePublic" label="客户返点(对公%)">
+                <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="对公客户返点" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="customerRebatePrivate" label="客户返点(对私%)">
+                <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="对私客户返点" />
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="status" label="账户状态">
+            <Select>
+              <Select.Option value="ACTIVE">启用</Select.Option>
+              <Select.Option value="DISABLED">封停</Select.Option>
+              <Select.Option value="CANCELLED">注销</Select.Option>
+            </Select>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 批量编辑弹窗 */}
+      <Modal title={`批量编辑（已选 ${selectedRowKeys.length} 个账户）`} open={batchModalOpen} onCancel={() => setBatchModalOpen(false)} onOk={() => batchForm.submit()} width={560} okText="批量保存" cancelText="取消">
+        <div style={{ marginBottom: 12, color: '#64748b', fontSize: 13 }}>未填写的字段保持原值不变</div>
+        <Form form={batchForm} layout="vertical" onFinish={handleBatch}>
+          <Form.Item name="accountName" label="账户名称（统一修改）">
+            <Input placeholder="留空则不修改" />
+          </Form.Item>
+          <Form.Item name="platformAccountId" label="平台账号ID（统一修改）">
+            <Input placeholder="留空则不修改" />
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="label" label="标签">
+                <Select placeholder="留空则不修改" allowClear>
+                  <Select.Option value="GROUP_BUY">团购</Select.Option>
+                  <Select.Option value="LEADS">线索</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="status" label="账户状态">
+                <Select placeholder="留空则不修改" allowClear>
+                  <Select.Option value="ACTIVE">启用</Select.Option>
+                  <Select.Option value="DISABLED">封停</Select.Option>
+                  <Select.Option value="CANCELLED">注销</Select.Option>
+                </Select>
+              </Form.Item>
+            </Col>
+          </Row>
+          <Form.Item name="channelId" label="端口归属（统一修改）">
+            <Select placeholder="留空则不修改" allowClear showSearch optionFilterProp="label" options={portOptions} />
+          </Form.Item>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Form.Item name="customerRebatePublic" label="客户返点(对公%)">
+                <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="留空则不修改" />
+              </Form.Item>
+            </Col>
+            <Col span={12}>
+              <Form.Item name="customerRebatePrivate" label="客户返点(对私%)">
+                <InputNumber style={{ width: '100%' }} min={0} precision={2} placeholder="留空则不修改" />
+              </Form.Item>
+            </Col>
+          </Row>
         </Form>
       </Modal>
 

@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import useAutoRefresh from '../utils/useAutoRefresh';
 import { apiRequest, getToken } from '../utils/api';
+import { exportCsv } from '../utils/export';
 
 const statusMap: any = {
   PENDING_APPROVAL: { label: '待审批', color: 'orange' },
@@ -93,9 +94,21 @@ export default function ReceiveRefundsPage() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold">收款单退款</h1>
-        <button className="bg-blue-500 text-white px-4 py-2 rounded-lg" onClick={() => { setSelectedRecord(null); setShowModal(true); }}>
-          + 发起退款
-        </button>
+        <div className="flex gap-3 items-center">
+          <button className="bg-gray-500 text-white px-4 py-2 rounded-lg" onClick={() => exportCsv(`收款单退款_${new Date().toISOString().slice(0, 10)}`, [
+            { key: 'refundNo', title: '退款单号' },
+            { key: 'customerName', title: '客户' },
+            { key: 'receiveNo', title: '关联收款单' },
+            { key: 'amount', title: '退款金额' },
+            { key: 'deductWallet', title: '扣减钱包' },
+            { key: 'statusLabel', title: '状态' },
+          ], refunds.map((r) => ({ ...r, customerName: r.customer?.name || '-', receiveNo: r.receiveRecord?.receiveNo || '-', deductWallet: r.deductWallet ? '是' : '否', statusLabel: statusMap[r.status]?.label || r.status })))}>
+            导出
+          </button>
+          <button className="bg-blue-500 text-white px-4 py-2 rounded-lg" onClick={() => { setSelectedRecord(null); setShowModal(true); }}>
+            + 发起退款
+          </button>
+        </div>
       </div>
 
       <div className="bg-white/60 backdrop-blur rounded-2xl p-6">

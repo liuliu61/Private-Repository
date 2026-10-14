@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { ArrayMinSize, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
+import { ArrayMinSize, ArrayNotEmpty, IsArray, IsBoolean, IsDateString, IsEnum, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, Max, MaxLength, Min, ValidateNested } from 'class-validator';
 import { AccountStatus, AccountType, AccountUnit, AdAssetStatus, BankTransactionDirection, BankTransactionStatus, CustomerWalletTransactionType, CustomerWalletType, FinancialAdjustmentStatus, FinancialAdjustmentType, InvoiceStatus, InvoiceTaskStatus, OrganizationType, PromotionTransactionBusinessType, PurchaseOrderStatus, PurchaseOrderTransactionType, ReceivePaymentNature, ReceiveRecordStatus, RebateCalculationMode, RebateRuleType, ReconciliationStatus, RefundStatus, SettlementStatus, SupplierAccountType, SupplierPlatform, SupplierSettlementType } from '@prisma/client';
 
 const money = /^-?(?:0|[1-9]\d*)(?:\.\d{1,2})?$/;
@@ -19,6 +19,7 @@ export class CreateAccountDto {
   @IsString() @IsNotEmpty() @MaxLength(100) name!: string;
   @IsString() @IsNotEmpty() @MaxLength(50) accountCode!: string;
   @IsEnum(AccountType) accountType!: AccountType;
+  @IsOptional() @IsIn(['PUBLIC', 'PRIVATE']) accountCategory?: string;
   @IsOptional() @IsUUID('4') organizationId?: string;
   @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(money) openingBalance?: string;
 }
@@ -60,8 +61,37 @@ export class CreatePromotionAccountDto {
   @IsOptional() @IsString() @MaxLength(100) platformAccountId?: string;
   @IsOptional() @IsString() @MaxLength(50) accountCategory?: string;
   @IsOptional() @IsString() @MaxLength(100) channelName?: string;
+  @IsOptional() @IsIn(['GROUP_BUY', 'LEADS']) label?: string;
+  @IsOptional() @IsUUID() channelId?: string;
   @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '对公客户返点格式不正确' }) customerRebatePublic?: string;
   @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '对私客户返点格式不正确' }) customerRebatePrivate?: string;
+}
+
+export class UpdatePromotionAccountDto {
+  @IsOptional() @IsString() @MaxLength(100) accountName?: string;
+  @IsOptional() @IsString() @MaxLength(100) platformAccountId?: string;
+  @IsOptional() @IsIn(['GROUP_BUY', 'LEADS']) label?: string;
+  @IsOptional() @IsUUID() channelId?: string;
+  @IsOptional() @IsIn(['ACTIVE', 'DISABLED', 'CANCELLED']) status?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '对公客户返点格式不正确' }) customerRebatePublic?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '对私客户返点格式不正确' }) customerRebatePrivate?: string;
+}
+
+export class BatchUpdatePromotionAccountsDto {
+  @IsArray() @ArrayNotEmpty() @IsUUID('4', { each: true }) ids!: string[];
+  @IsOptional() @IsString() @MaxLength(100) accountName?: string;
+  @IsOptional() @IsString() @MaxLength(100) platformAccountId?: string;
+  @IsOptional() @IsIn(['GROUP_BUY', 'LEADS']) label?: string;
+  @IsOptional() @IsUUID() channelId?: string;
+  @IsOptional() @IsIn(['ACTIVE', 'DISABLED', 'CANCELLED']) status?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '对公客户返点格式不正确' }) customerRebatePublic?: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @IsOptional() @Matches(/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/, { message: '对私客户返点格式不正确' }) customerRebatePrivate?: string;
+}
+
+export class UpdateAccountDto {
+  @IsOptional() @IsString() @MaxLength(100) name?: string;
+  @IsOptional() @IsIn(['PUBLIC', 'PRIVATE']) accountCategory?: string;
+  @IsOptional() @IsIn(['ACTIVE', 'DISABLED', 'CANCELLED']) status?: string;
 }
 
 export class PromotionAccountCreditDto {

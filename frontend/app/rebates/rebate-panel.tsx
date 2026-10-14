@@ -5,7 +5,8 @@ import {
   Card, Table, Button, Tag, Space, Modal, Form, Input, InputNumber,
   Select, DatePicker, message, Descriptions, Row, Col, Divider, Statistic
 } from 'antd';
-import { PlusOutlined, ReloadOutlined, CalculatorOutlined, CheckOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, CalculatorOutlined, CheckOutlined, DownloadOutlined } from '@ant-design/icons';
+import { exportCsv } from '../utils/export';
 
 
 import { apiRequest } from '../utils/api';
@@ -132,6 +133,30 @@ export default function RebatePanel({ token, customers, suppliers, onError }: Re
         extra={
           <Space>
             <Button icon={<ReloadOutlined />} onClick={() => { fetchRules(); fetchRecords(); }}>刷新</Button>
+            {activeTab === 'rules' && (
+              <Button icon={<DownloadOutlined />} onClick={() => exportCsv(`返点规则_${new Date().toISOString().slice(0, 10)}`, [
+                { key: 'name', title: '规则名称' },
+                { key: 'ruleTypeLabel', title: '类型' },
+                { key: 'ratePercent', title: '返点比例' },
+                { key: 'minAmount', title: '最低金额' },
+                { key: 'maxAmount', title: '最高金额' },
+                { key: 'statusLabel', title: '状态' },
+                { key: 'createdAt', title: '创建时间' },
+              ], rules.map((r: any) => ({ ...r, ruleTypeLabel: r.ruleType === 'CUSTOMER' ? '客户返点' : '供应商返点', ratePercent: `${(Number(r.rate || 0) * 100).toFixed(2)}%`, statusLabel: r.status === 'ACTIVE' ? '启用' : '停用' })))}>导出</Button>
+            )}
+            {activeTab === 'records' && (
+              <Button icon={<DownloadOutlined />} onClick={() => exportCsv(`返点记录_${new Date().toISOString().slice(0, 10)}`, [
+                { key: 'rebateNo', title: '返点单号' },
+                { key: 'customerName', title: '客户' },
+                { key: 'supplierName', title: '供应商' },
+                { key: 'amount', title: '返点金额' },
+                { key: 'baseAmount', title: '计算基数' },
+                { key: 'ratePercent', title: '返点比例' },
+                { key: 'statusLabel', title: '状态' },
+                { key: 'calculatedAt', title: '计算时间' },
+                { key: 'confirmedAt', title: '确认时间' },
+              ], records.map((r: any) => ({ ...r, customerName: r.customer?.name || '-', supplierName: r.supplier?.name || '-', ratePercent: r.rate ? `${(Number(r.rate) * 100).toFixed(2)}%` : '-', statusLabel: ({ PENDING: '待计算', CALCULATED: '已计算', CONFIRMED: '已确认', REJECTED: '已驳回' } as Record<string, string>)[r.status] || r.status })))}>导出</Button>
+            )}
             {activeTab === 'rules' && (
               <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setCreateModalOpen(true); }}>新建规则</Button>
             )}

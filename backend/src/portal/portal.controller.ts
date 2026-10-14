@@ -220,6 +220,12 @@ export class PortalController {
   }
 
   @UseGuards(JwtAuthGuard)
+  @Post('admin/recharge-requests/:id/update')
+  adminUpdateRechargeRequest(@Param('id') id: string, @Body() dto: { promotionAccountId?: string; portId?: string | null; amount?: string; fundType?: string; status?: string; remark?: string; customerRebate?: string | null; costRebate?: string | null; rejectReason?: string }) {
+    return this.service.adminUpdateRechargeRequest(id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
   @Get('admin/customer-users')
   adminListCustomerUsers(@Query() query: Record<string, any>) {
     return this.service.adminListCustomerUsers(query);

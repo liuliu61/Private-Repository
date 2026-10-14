@@ -31,7 +31,7 @@ export class ChannelService {
       { code: { contains: query.keyword } },
     ];
     const [items, total] = await Promise.all([
-      this.prisma.channel.findMany({ where, orderBy: { createdAt: 'desc' }, skip: (page - 1) * pageSize, take: pageSize }),
+      this.prisma.channel.findMany({ where, orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }], skip: (page - 1) * pageSize, take: pageSize }),
       this.prisma.channel.count({ where }),
     ]);
     return { items, total, page, pageSize };
@@ -47,6 +47,35 @@ export class ChannelService {
     const channel = await this.prisma.channel.findFirst({ where: { id, organizationId: orgId } });
     if (!channel) throw new NotFoundException('端口不存在');
     return channel;
+  }
+
+  async detail(id: string, context: AccessContext) {
+    const orgId = await this.getOrgId(context);
+    const channel = await this.prisma.channel.findFirst({ where: { id, organizationId: orgId } });
+    if (!channel) throw new NotFoundException('端口不存在');
+    const [promotionAccounts, rechargeAgg] = await Promise.all([
+      this.prisma.promotionAccount.findMany({ where: { channelId: id }, include: { customer: { select: { id: true, name: true } }, supplier: { select: { id: true, name: true } } }, orderBy: { createdAt: 'desc' } }),
+      this.prisma.rechargeRequest.aggregate({ where: { portId: id }, _count: true, _sum: { amount: true }, _max: { amount: true } }),
+    ]);
+    const confirmedAgg = await this.prisma.rechargeRequest.aggregate({ where: { portId: id, status: 'CONFIRMED' }, _count: true, _sum: { amount: true } });
+    return {
+      channel,
+      promotionAccounts: promotionAccounts.map((a: any) => ({
+        id: a.id, accountName: a.accountName, platform: a.platform, platformAccountId: a.platformAccountId,
+        label: a.label, status: a.status, ownerName: a.customer?.name || a.supplier?.name || null,
+        currentBalance: (a.currentBalance ?? 0).toString(),
+        customerRebatePublic: a.customerRebatePublic ? (a.customerRebatePublic as any).toString() : null,
+        customerRebatePrivate: a.customerRebatePrivate ? (a.customerRebatePrivate as any).toString() : null,
+      })),
+      recharge: { totalCount: rechargeAgg._count, totalAmount: (rechargeAgg._sum.amount ?? 0).toString(), confirmedCount: confirmedAgg._count, confirmedAmount: (confirmedAgg._sum.amount ?? 0).toString() },
+    };
+  }
+
+  async setPinned(id: string, pinned: boolean, context: AccessContext) {
+    const orgId = await this.getOrgId(context);
+    const channel = await this.prisma.channel.findFirst({ where: { id, organizationId: orgId } });
+    if (!channel) throw new NotFoundException('端口不存在');
+    return this.prisma.channel.update({ where: { id }, data: { isPinned: pinned } });
   }
 
   async create(dto: CreateChannelDto, context: AccessContext) {

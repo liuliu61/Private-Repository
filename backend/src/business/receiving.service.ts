@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { BankTransactionDirection, BankTransactionStatus, Prisma, PurchasePaymentType, ReceivePaymentNature, ReceiveRecordStatus, RefundStatus, TransactionBusinessType } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
-import { createReadStream, existsSync, readdirSync , readdirSync } from 'node:fs';
+import { createReadStream, existsSync, readdirSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { extname, join, resolve } from 'node:path';
 import { AccessContext, AccessScopeService } from '../common/access-scope.service';

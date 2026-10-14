@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AccessContext, AccessScopeService } from '../common/access-scope.service';
 import { toMoney } from '../cashflow/utils/money.util';
 import { moneyToString } from '../cashflow/utils/money.util';
-import { CreateAccountDto, CreateAdAccountDto, CreateAdSubjectDto, CreateCustomerDto, CreateCustomerPolicyDto, CreateOrganizationDto, CreateSettlementDto, CreateSupplierAccountDto, CreateSupplierDto, CreateSupplierPolicyDto, ListQueryDto, ReconciliationQueryDto } from './business.dto';
+import { CreateAccountDto, CreateAdAccountDto, CreateAdSubjectDto, CreateCustomerDto, CreateCustomerPolicyDto, CreateOrganizationDto, CreateSettlementDto, CreateSupplierAccountDto, CreateSupplierDto, CreateSupplierPolicyDto, ListQueryDto, ReconciliationQueryDto, UpdateAccountDto, UpdateCustomerSalesPersonDto } from './business.dto';
 
 const zero = () => new Prisma.Decimal(0);
 const money = (value?: string) => toMoney(value ?? '0', '金额');
@@ -43,7 +43,38 @@ export class BusinessService {
     if (!this.scope.isSuperAdmin(context) && !context.roles.includes('FINANCE')) throw new ForbiddenException('没有创建资金账户的权限');
     if (dto.organizationId) await this.scope.assertOrganizationAccess(dto.organizationId, context);
     const openingBalance = money(dto.openingBalance);
-    return this.prisma.account.create({ data: { name: dto.name, accountCode: dto.accountCode, accountType: dto.accountType, organizationId: dto.organizationId, openingBalance, currentBalance: openingBalance, legacyBalanceSide: null } }).then((row) => ({ ...row, openingBalance: moneyToString(row.openingBalance), currentBalance: moneyToString(row.currentBalance) }));
+    return this.prisma.account.create({ data: { name: dto.name, accountCode: dto.accountCode, accountType: dto.accountType, accountCategory: dto.accountCategory ?? 'PRIVATE', organizationId: dto.organizationId, openingBalance, currentBalance: openingBalance, legacyBalanceSide: null } }).then((row) => ({ ...row, openingBalance: moneyToString(row.openingBalance), currentBalance: moneyToString(row.currentBalance) }));
+  }
+
+  async updateAccount(id: string, dto: UpdateAccountDto, context: AccessContext) {
+    if (!this.scope.isSuperAdmin(context) && !context.roles.includes('FINANCE')) throw new ForbiddenException('没有编辑资金账户的权限');
+    const account = await this.prisma.account.findUnique({ where: { id } });
+    if (!account) throw new NotFoundException('资金账户不存在');
+    const data: any = {};
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.accountCategory !== undefined) data.accountCategory = dto.accountCategory;
+    if (dto.status !== undefined) data.status = dto.status as any;
+    if (Object.keys(data).length === 0) return { ...account, openingBalance: moneyToString(account.openingBalance), currentBalance: moneyToString(account.currentBalance) };
+    const row = await this.prisma.account.update({ where: { id }, data });
+    return { ...row, openingBalance: moneyToString(row.openingBalance), currentBalance: moneyToString(row.currentBalance) };
+  }
+
+  async deleteAccount(id: string, context: AccessContext) {
+    if (!this.scope.isSuperAdmin(context) && !context.roles.includes('FINANCE')) throw new ForbiddenException('没有删除资金账户的权限');
+    const account = await this.prisma.account.findUnique({ where: { id } });
+    if (!account) throw new NotFoundException('资金账户不存在');
+    const [txs, bankTxs, receives, postings] = await Promise.all([
+      this.prisma.transaction.count({ where: { accountId: id } }),
+      this.prisma.bankTransaction.count({ where: { accountId: id } }),
+      this.prisma.receiveRecord.count({ where: { accountId: id } }),
+      this.prisma.paymentPostingApply.count({ where: { OR: [{ payerAccountId: id }, { payeeAccountId: id }] } }),
+    ]);
+    if (txs > 0 || bankTxs > 0 || receives > 0 || postings > 0) {
+      const row = await this.prisma.account.update({ where: { id }, data: { status: 'CANCELLED' as any } });
+      return { ...row, deleted: false, reason: '账户存在历史关联记录，已注销而非物理删除', openingBalance: moneyToString(row.openingBalance), currentBalance: moneyToString(row.currentBalance) };
+    }
+    await this.prisma.account.delete({ where: { id } });
+    return { deleted: true };
   }
 
   async listCustomers(query: ListQueryDto, context: AccessContext) {

@@ -316,7 +316,55 @@ export class PortalService {
     return { total, page, pageSize, items: items.map((r) => this.rechargeRequestView(r)) };
   }
 
-  async adminListRechargeRequests(query: { status?: string; customerId?: string; page?: number; pageSize?: number }) {
+  async adminUpdateRechargeRequest(id: string, dto: any) {
+    const req = await this.prisma.rechargeRequest.findUnique({ where: { id } });
+    if (!req) throw new NotFoundException('充值申请不存在');
+    const data: any = {};
+    if (dto.promotionAccountId !== undefined) {
+      const acc = await this.prisma.promotionAccount.findUnique({ where: { id: dto.promotionAccountId } });
+      if (!acc) throw new BadRequestException('推广账户不存在');
+      data.promotionAccountId = dto.promotionAccountId;
+    }
+    if (dto.portId !== undefined) {
+      if (dto.portId) {
+        const ch = await this.prisma.channel.findUnique({ where: { id: dto.portId } });
+        if (!ch) throw new BadRequestException('端口不存在');
+        data.portId = dto.portId;
+      } else data.portId = null;
+    }
+    if (dto.amount !== undefined) {
+      const amount = toMoney(dto.amount, '金额');
+      if (amount.lt(0)) throw new BadRequestException('金额不能为负数');
+      data.amount = amount;
+    }
+    if (dto.fundType !== undefined) {
+      if (!['PUBLIC', 'PRIVATE'].includes(dto.fundType)) throw new BadRequestException('资金类型不正确');
+      data.fundType = dto.fundType;
+    }
+    if (dto.status !== undefined) {
+      if (!Object.values(RechargeRequestStatus).includes(dto.status)) throw new BadRequestException('状态不正确');
+      data.status = dto.status;
+      if (dto.status === 'CONFIRMED') data.confirmedAt = new Date();
+    }
+    if (dto.remark !== undefined) data.remark = dto.remark;
+    if (dto.rejectReason !== undefined) data.rejectReason = dto.rejectReason;
+    if (dto.customerRebate !== undefined) data.customerRebate = dto.customerRebate === null || dto.customerRebate === '' ? null : new Prisma.Decimal(Number(dto.customerRebate));
+    if (dto.costRebate !== undefined) data.costRebate = dto.costRebate === null || dto.costRebate === '' ? null : new Prisma.Decimal(Number(dto.costRebate));
+    const row = await this.prisma.rechargeRequest.update({
+      where: { id },
+      data,
+      include: {
+        customer: { select: { id: true, name: true } },
+        customerUser: { select: { displayName: true, username: true } },
+        promotionAccount: { select: { id: true, accountName: true, customerRebatePublic: true, customerRebatePrivate: true } },
+        port: { select: { name: true } },
+        agentUser: { select: { displayName: true } },
+      },
+    });
+    return this.rechargeRequestView(row);
+  }
+
+  async adminListRechargeRequests(query: any) {
     const page = Number(query.page) || 1;
     const pageSize = Number(query.pageSize) || 15;
     const where: Prisma.RechargeRequestWhereInput = {};
@@ -324,6 +372,25 @@ export class PortalService {
       where.status = query.status as RechargeRequestStatus;
     }
     if (query.customerId) where.customerId = query.customerId;
+    if (query.fundType && ['PUBLIC', 'PRIVATE'].includes(query.fundType)) where.fundType = query.fundType as any;
+    if (query.requestNo) where.requestNo = { contains: query.requestNo };
+    if (query.portId) where.portId = query.portId;
+    if (query.promotionAccountId) where.promotionAccountId = query.promotionAccountId;
+    if (query.customerName) where.customer = { name: { contains: query.customerName } };
+    if (query.accountName) where.promotionAccount = { accountName: { contains: query.accountName } };
+    if (query.startDate) {
+      const sd = new Date(String(query.startDate));
+      if (!isNaN(sd.getTime())) {
+        where.createdAt = { ...(where.createdAt as object), gte: sd };
+      }
+    }
+    if (query.endDate) {
+      const ed = new Date(String(query.endDate));
+      if (!isNaN(ed.getTime())) {
+        const end = new Date(ed.getTime() + 24 * 3600 * 1000 - 1);
+        where.createdAt = { ...(where.createdAt as object), lte: end };
+      }
+    }
     const [total, items] = await Promise.all([
       this.prisma.rechargeRequest.count({ where }),
       this.prisma.rechargeRequest.findMany({
@@ -1303,7 +1370,7 @@ export class PortalService {
     const rows = await this.prisma.$queryRaw<any[]>`
       SELECT pa.id as promotionAccountId, pa.account_name as accountName, pa.platform as platform,
              pa.platform_account_id as platformAccountId, pa.channel_name as channelName,
-             pa.current_balance as currentBalance, pa.status as status,
+             pa.channel_id as channelId, pa.current_balance as currentBalance, pa.status as status,
              c.name as customerName,
              COALESCE(rr.total_charge, 0) as totalCharge,
              COALESCE(rf.total_refund, 0) as totalRefund
@@ -1325,6 +1392,7 @@ export class PortalService {
       accountName: r.accountName,
       platform: r.platform || '—',
       platformAccountId: r.platformAccountId || '—',
+      channelId: r.channelId || null,
       channelName: r.channelName || '未分端口',
       customerName: r.customerName || '—',
       currentBalance: moneyToString(r.currentBalance),
@@ -1335,18 +1403,29 @@ export class PortalService {
     const byChannel: Record<string, any> = {};
     for (const it of items) {
       const k = it.channelName;
-      if (!byChannel[k]) byChannel[k] = { channelName: k, totalCharge: new Prisma.Decimal(0), totalRefund: new Prisma.Decimal(0), currentBalance: new Prisma.Decimal(0) };
+      if (!byChannel[k]) byChannel[k] = { channelName: k, channelId: it.channelId, totalCharge: new Prisma.Decimal(0), totalRefund: new Prisma.Decimal(0), currentBalance: new Prisma.Decimal(0) };
       byChannel[k].totalCharge = byChannel[k].totalCharge.plus(it.totalCharge);
       byChannel[k].totalRefund = byChannel[k].totalRefund.plus(it.totalRefund);
       byChannel[k].currentBalance = byChannel[k].currentBalance.plus(it.currentBalance);
     }
+    // 读取端口置顶状态
+    const channelIds = Object.values(byChannel).filter((c: any) => c.channelId).map((c: any) => c.channelId);
+    const pinnedMap: Record<string, boolean> = {};
+    if (channelIds.length) {
+      const chans = await this.prisma.channel.findMany({ where: { id: { in: channelIds } }, select: { id: true, isPinned: true } });
+      for (const ch of chans) pinnedMap[ch.id] = ch.isPinned;
+    }
     const channels = Object.values(byChannel).map((c: any) => ({
+      channelId: c.channelId,
       channelName: c.channelName,
+      isPinned: c.channelId ? Boolean(pinnedMap[c.channelId]) : false,
       totalCharge: moneyToString(c.totalCharge),
       totalRefund: moneyToString(c.totalRefund),
       currentBalance: moneyToString(c.currentBalance),
       accounts: items.filter((i: any) => i.channelName === c.channelName),
     }));
+    // 置顶优先，其余按钱包余额降序
+    channels.sort((a: any, b: any) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0) || Number(b.currentBalance) - Number(a.currentBalance));
     return { channels, items };
   }
 

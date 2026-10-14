@@ -26,6 +26,7 @@ enum AccountType {
 enum AccountStatus {
   ACTIVE
   DISABLED
+  CANCELLED
 }
 
 enum AccountNormalBalance {
@@ -222,6 +223,11 @@ enum PromotionAccountOwnerType {
 
 enum PromotionAccountUnit {
   ACCOUNT_CREDIT
+}
+
+enum PromotionAccountLabel {
+  GROUP_BUY
+  LEADS
 }
 
 enum PromotionTransactionBusinessType {
@@ -438,6 +444,7 @@ model Account {
   // 历史兼容字段，当前资金账户业务不使用该字段。
   legacyBalanceSide AccountNormalBalance? @map("normal_balance")
   currency        String               @default("CNY") @db.Char(3)
+  accountCategory String?              @map("account_category") @db.VarChar(20)
   openingBalance  Decimal              @default(0) @map("opening_balance") @db.Decimal(20, 2)
   currentBalance  Decimal              @default(0) @map("current_balance") @db.Decimal(20, 2)
   status          AccountStatus        @default(ACTIVE)
@@ -843,11 +850,13 @@ model Channel {
   defaultCostRebatePublic  Decimal  @default(0) @map("default_cost_rebate_public") @db.Decimal(5, 2)
   defaultCostRebatePrivate Decimal  @default(0) @map("default_cost_rebate_private") @db.Decimal(5, 2)
   status                   ChannelStatus @default(ACTIVE)
+  isPinned                 Boolean  @default(false) @map("is_pinned")
   remark                   String?  @db.VarChar(255)
   createdAt                DateTime @default(now()) @map("created_at")
   updatedAt                DateTime @updatedAt @map("updated_at")
   organization             Organization @relation(fields: [organizationId], references: [id])
   rechargeRequests          RechargeRequest[]
+  promotionAccounts         PromotionAccount[]
 
   @@index([organizationId, status])
   @@map("channels")
@@ -910,6 +919,8 @@ model PromotionAccount {
   platformAccountId String?                 @map("platform_account_id") @db.VarChar(100)
   accountCategory String?                   @map("account_category") @db.VarChar(50)
   channelName     String?                   @map("channel_name") @db.VarChar(100)
+  label           PromotionAccountLabel?     @default(GROUP_BUY)
+  channelId       String?                    @map("channel_id") @db.VarChar(36)
   customerRebatePublic  Decimal?          @map("customer_rebate_public") @db.Decimal(5, 2)
   customerRebatePrivate Decimal?          @map("customer_rebate_private") @db.Decimal(5, 2)
   unit            PromotionAccountUnit      @default(ACCOUNT_CREDIT)
@@ -918,6 +929,7 @@ model PromotionAccount {
   createdAt       DateTime                  @default(now()) @map("created_at")
   updatedAt       DateTime                  @updatedAt @map("updated_at")
   organization    Organization              @relation(fields: [organizationId], references: [id])
+  channel         Channel?                  @relation(fields: [channelId], references: [id])
   customer        Customer?                 @relation(fields: [customerId], references: [id])
   supplier        Supplier?                 @relation(fields: [supplierId], references: [id])
   transactions    PromotionTransaction[]

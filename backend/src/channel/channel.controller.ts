@@ -29,6 +29,16 @@ export class ChannelController {
     return this.service.getById(id, r.user);
   }
 
+  @Get(':id/detail')
+  detail(@Param('id') id: string, @Req() r: AuthenticatedRequest) {
+    return this.service.detail(id, r.user);
+  }
+
+  @Post(':id/pin')
+  pin(@Param('id') id: string, @Body() dto: { pinned: boolean }, @Req() r: AuthenticatedRequest) {
+    return this.service.setPinned(id, dto.pinned, r.user);
+  }
+
   @Post()
   create(@Body() dto: CreateChannelDto, @Req() r: AuthenticatedRequest) {
     return this.service.create(dto, r.user);
