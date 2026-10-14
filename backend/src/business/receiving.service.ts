@@ -1,12 +1,16 @@
 import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { BankTransactionDirection, BankTransactionStatus, Prisma, PurchasePaymentType, ReceivePaymentNature, ReceiveRecordStatus, RefundStatus, TransactionBusinessType } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { createReadStream, existsSync, readdirSync , readdirSync } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { extname, join, resolve } from 'node:path';
 import { AccessContext, AccessScopeService } from '../common/access-scope.service';
 import { CashflowService } from '../cashflow/cashflow.service';
 import { moneyToString, toMoney } from '../cashflow/utils/money.util';
 import { PrismaService } from '../prisma/prisma.service';
-import { BankTransactionImportItemDto, BankTransactionMatchDto, BankTransactionQueryDto, CreateReceiveRecordDto, CreateReceiveRefundDto, ImportBankTransactionsDto, ReceivePostingDto, ReceiveRecordQueryDto } from './business.dto';
+import { BankTransactionImportItemDto, BankTransactionMatchDto, BankTransactionQueryDto, CreateManualReceiveRecordDto, CreateReceiveRecordDto, CreateReceiveRefundDto, ImportBankTransactionsDto, ReceivePostingDto, ReceiveRecordQueryDto, UpdateReceiveRecordDto } from './business.dto';
 import { CustomerWalletService } from './customer-wallet.service';
+import { Response } from 'express';
 
 @Injectable()
 export class ReceivingService {
@@ -114,7 +118,7 @@ export class ReceivingService {
       (where as any).customer = { departmentId: context.departmentId };
     }
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.receiveRecord.findMany({ where, include: { customer: { select: { id: true, name: true, customerCode: true } }, bankTransaction: { select: { id: true, transactionNo: true, counterpartyName: true } }, purchaseOrder: { select: { id: true, orderNo: true } }, account: { select: { id: true, name: true, accountCode: true } }, creator: { select: { id: true, displayName: true } }, confirmer: { select: { id: true, displayName: true } }, details: { orderBy: { createdAt: 'asc' } }, serviceFeeDetails: { orderBy: { createdAt: 'asc' }, include: { operator: { select: { id: true, displayName: true } } } } }, orderBy: [{ receivedAt: 'desc' }, { receiveNo: 'desc' }], skip: (query.page - 1) * query.pageSize, take: query.pageSize }),
+      this.prisma.receiveRecord.findMany({ where, include: { customer: { select: { id: true, name: true, customerCode: true, salesPerson: true } }, bankTransaction: { select: { id: true, transactionNo: true, counterpartyName: true } }, purchaseOrder: { select: { id: true, orderNo: true } }, account: { select: { id: true, name: true, accountCode: true } }, creator: { select: { id: true, displayName: true } }, confirmer: { select: { id: true, displayName: true } }, details: { orderBy: { createdAt: 'asc' } }, serviceFeeDetails: { orderBy: { createdAt: 'asc' }, include: { operator: { select: { id: true, displayName: true } } } } }, orderBy: [{ receivedAt: 'desc' }, { receiveNo: 'desc' }], skip: (query.page - 1) * query.pageSize, take: query.pageSize }),
       this.prisma.receiveRecord.count({ where }),
     ]);
     return { items: items.map((item) => this.receiveView(item)), total, page: query.page, pageSize: query.pageSize };
@@ -163,9 +167,12 @@ export class ReceivingService {
       const row = await this.lockReceive(tx, id, context);
       if (row.status === ReceiveRecordStatus.CONFIRMED) return { idempotent: true, receiveRecord: this.receiveView(row), transaction: row.transaction ? this.transactionView(row.transaction) : null };
       if (row.status !== ReceiveRecordStatus.PENDING_CONFIRMATION || !row.customerId) throw new ConflictException('收款记录尚未匹配客户，不能确认');
-      const bank = await this.lockBank(tx, row.bankTransactionId, context);
-      if (bank.direction !== BankTransactionDirection.INCOME || bank.currency !== 'CNY') throw new BadRequestException('只有CNY银行收入交易才能确认收款');
-      if (bank.amount.toDecimalPlaces(2).eq(row.amount.toDecimalPlaces(2)) === false) throw new ConflictException('银行交易金额与收款金额不一致');
+      let bank: any = null;
+      if (row.bankTransactionId) {
+        bank = await this.lockBank(tx, row.bankTransactionId, context);
+        if (bank.direction !== BankTransactionDirection.INCOME || bank.currency !== 'CNY') throw new BadRequestException('只有CNY银行收入交易才能确认收款');
+        if (bank.amount.toDecimalPlaces(2).eq(row.amount.toDecimalPlaces(2)) === false) throw new ConflictException('银行交易金额与收款金额不一致');
+      }
       let order: any = null;
       if (row.purchaseOrderId) {
         order = await this.assertOrderMatch(tx, row.purchaseOrderId, row.customerId, row.organizationId);
@@ -201,18 +208,111 @@ export class ReceivingService {
         await tx.purchaseOrder.update({ where: { id: order.id }, data: { customerPaidAmount: paidAmount, customerPaymentStatus: paidAmount.eq(order.customerReceivable ?? order.customerCashAmount) ? 'PAID' : 'PARTIAL' } });
       }
       const posting = await tx.receivePosting.create({ data: { postingNo: this.generatePostingNo(), organizationId: row.organizationId, receiveRecordId: row.id, customerId: row.customerId, paymentAmount: row.amount, serviceFeeAmount, walletCreditAmount, invoiceEligibleAmount: new Prisma.Decimal(0), createdBy: context.sub, remark: dto.remark?.trim() || row.remark || null } });
+      await tx.receiveRecordDetail.deleteMany({ where: { receiveRecordId: row.id } });
       const createdDetails = await Promise.all(details.map((detail) => tx.receiveRecordDetail.create({ data: { receiveRecordId: row.id, customerId: row.customerId!, type: detail.type, amount: detail.amount } })));
       const publicDetails = createdDetails.filter((detail) => detail.type === ReceivePaymentNature.PUBLIC);
       const publicTotal = publicDetails.reduce((sum, detail) => sum.add(detail.amount), new Prisma.Decimal(0));
       const defaultProfile = row.customerId ? await tx.customerInvoiceProfile.findFirst({ where: { customerId: row.customerId, enabled: true }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }] }) : null;
-      await Promise.all(publicDetails.map((detail) => tx.invoiceTask.create({ data: { taskNo: this.generateInvoiceTaskNo(), organizationId: row.organizationId, customerId: row.customerId!, receiveRecordDetailId: detail.id, publicAmount: detail.amount, invoiceAmount: detail.amount, payerName: bank.counterpartyName, payerAccount: bank.counterpartyAccount, invoiceProfileId: defaultProfile?.id || null, titleName: defaultProfile?.titleName || null, taxpayerCode: defaultProfile?.taxpayerCode || null, address: defaultProfile?.address || null, phone: defaultProfile?.phone || null, bankName: defaultProfile?.bankName || null, bankAccount: defaultProfile?.bankAccount || null, invoiceContent: defaultProfile?.defaultInvoiceContent || null, createdBy: context.sub } })));
+      await Promise.all(publicDetails.map((detail) => tx.invoiceTask.create({ data: { taskNo: this.generateInvoiceTaskNo(), organizationId: row.organizationId, customerId: row.customerId!, receiveRecordDetailId: detail.id, publicAmount: detail.amount, invoiceAmount: detail.amount, payerName: bank?.counterpartyName || row.payerName, payerAccount: bank?.counterpartyAccount || null, invoiceProfileId: defaultProfile?.id || null, titleName: defaultProfile?.titleName || null, taxpayerCode: defaultProfile?.taxpayerCode || null, address: defaultProfile?.address || null, phone: defaultProfile?.phone || null, bankName: defaultProfile?.bankName || null, bankAccount: defaultProfile?.bankAccount || null, invoiceContent: defaultProfile?.defaultInvoiceContent || null, createdBy: context.sub } })));
       if (!serviceFeeAmount.isZero()) await tx.receiveServiceFee.create({ data: { receiveRecordId: row.id, businessType: 'SERVICE_FEE', amount: serviceFeeAmount, remark: dto.remark?.trim() || null, operatorId: context.sub } });
       const updated = await tx.receiveRecord.update({ where: { id }, data: { status: ReceiveRecordStatus.CONFIRMED, transactionId: transaction.id, postedAmount: walletCreditAmount, refundedAmount: new Prisma.Decimal(0), serviceFeeAmount, walletCreditAmount, invoiceEligibleAmount: new Prisma.Decimal(0), unBillingAmount: publicTotal, billingAmount: new Prisma.Decimal(0), billedAmount: new Prisma.Decimal(0), confirmedBy: context.sub, confirmedAt: new Date(), remark: dto.remark?.trim() || row.remark || null }, include: { details: { include: { invoiceTask: true } } } });
-      await tx.bankTransaction.update({ where: { id: bank.id }, data: { status: BankTransactionStatus.RECEIPT_CONFIRMED } });
+      if (bank) await tx.bankTransaction.update({ where: { id: bank.id }, data: { status: BankTransactionStatus.RECEIPT_CONFIRMED } });
       await this.audit(tx, context, row.organizationId, id, 'RECEIVE_RECORD_POST', { status: row.status, postedAmount: moneyToString(row.postedAmount) }, { status: updated.status, postingNo: posting.postingNo, transactionNo: transaction.transactionNo, walletCreditAmount: moneyToString(walletCreditAmount), paymentDetails: createdDetails.map((detail) => ({ type: detail.type, amount: moneyToString(detail.amount) })), publicInvoiceTasks: publicDetails.length });
       return { idempotent: false, receiveRecord: this.receiveView(updated), posting: this.postingView(posting), transaction: this.transactionView(transaction), walletTransaction: walletResult.transaction };
     });
   }
+
+
+  async createManualReceiveRecord(dto: CreateManualReceiveRecordDto, context: AccessContext) {
+    this.assertPermission(context, 'FINANCE_RECEIVE_CREATE');
+    return this.prisma.$transaction(async (tx) => {
+      const customer = await tx.customer.findUnique({ where: { id: dto.customerId }, select: { id: true, agentId: true, name: true } });
+      if (!customer) throw new NotFoundException('客户不存在');
+      const organizationId = customer.agentId;
+      if (!organizationId) throw new BadRequestException('客户未归属组织，无法创建回款单');
+      await this.scope.assertOrganizationAccess(organizationId, context);
+      const account = await tx.account.findUnique({ where: { id: dto.accountId }, select: { id: true, organizationId: true, status: true, name: true } });
+      if (!account) throw new NotFoundException('收款账户不存在');
+      if (account.organizationId && account.organizationId !== organizationId) throw new ConflictException('收款账户不属于客户所在组织');
+      if (account.status !== 'ACTIVE') throw new ConflictException('收款账户已停用');
+      const amount = toMoney(dto.amount, '回款金额');
+      if (amount.lte(0)) throw new BadRequestException('回款金额必须大于0');
+      const receivedAt = dto.receivedAt ? new Date(dto.receivedAt) : new Date();
+      const receiveRecord = await tx.receiveRecord.create({ data: { receiveNo: this.generateReceiveNo(), organizationId, customerId: dto.customerId, purchaseOrderId: null, accountId: dto.accountId, bankTransactionId: null, amount, unBillingAmount: amount, currency: 'CNY', receivedAt, status: ReceiveRecordStatus.PENDING_CONFIRMATION, payerName: dto.payerName?.trim() || null, screenshotUrl: dto.screenshotUrl?.trim() || null, createdBy: context.sub, remark: dto.remark?.trim() || null } });
+      if (dto.nature) {
+        await tx.receiveRecordDetail.create({ data: { receiveRecordId: receiveRecord.id, customerId: dto.customerId, type: dto.nature, amount } });
+      }
+      await this.audit(tx, context, organizationId, receiveRecord.id, 'RECEIVE_RECORD_MANUAL_CREATE', null, { receiveNo: receiveRecord.receiveNo, amount: moneyToString(amount), payerName: dto.payerName, nature: dto.nature });
+      const full = await tx.receiveRecord.findUnique({ where: { id: receiveRecord.id }, include: { customer: { select: { id: true, name: true, customerCode: true, salesPerson: true } }, account: { select: { id: true, name: true, accountCode: true } }, details: true } });
+      return { idempotent: false, receiveRecord: this.receiveView(full) };
+    });
+  }
+
+  async updateReceiveRecord(id: string, dto: UpdateReceiveRecordDto, context: AccessContext) {
+    this.assertPermission(context, 'FINANCE_RECEIVE_CREATE');
+    return this.prisma.$transaction(async (tx) => {
+      const row = await this.lockReceive(tx, id, context);
+      if (row.status !== ReceiveRecordStatus.PENDING_CONFIRMATION && row.status !== ReceiveRecordStatus.PENDING_MATCH) throw new ConflictException('只有待审核的回款单可以编辑');
+      const data: any = {};
+      if (dto.payerName !== undefined) data.payerName = dto.payerName.trim() || null;
+      if (dto.receivedAt !== undefined) data.receivedAt = new Date(dto.receivedAt);
+      if (dto.remark !== undefined) data.remark = dto.remark?.trim() || null;
+      if (dto.screenshotUrl !== undefined) data.screenshotUrl = dto.screenshotUrl?.trim() || null;
+      if (dto.amount !== undefined) {
+        const amount = toMoney(dto.amount, '回款金额');
+        if (amount.lte(0)) throw new BadRequestException('回款金额必须大于0');
+        if (row.status === ReceiveRecordStatus.PENDING_CONFIRMATION && row.postedAmount.gt(0)) throw new ConflictException('已部分入账的回款单不能修改金额');
+        data.amount = amount;
+        data.unBillingAmount = amount;
+      }
+      if (Object.keys(data).length === 0) throw new BadRequestException('没有需要修改的内容');
+      const updated = await tx.receiveRecord.update({ where: { id }, data, include: { customer: { select: { id: true, name: true, customerCode: true, salesPerson: true } }, account: { select: { id: true, name: true, accountCode: true } }, details: true } });
+      if (dto.nature || dto.amount !== undefined) {
+        const first = updated.details?.[0];
+        const type = dto.nature || first?.type || ReceivePaymentNature.PUBLIC;
+        const amount = dto.amount !== undefined ? data.amount : (first?.amount ?? data.amount);
+        if (first) await tx.receiveRecordDetail.update({ where: { id: first.id }, data: { type, amount } });
+        else await tx.receiveRecordDetail.create({ data: { receiveRecordId: id, customerId: row.customerId!, type, amount } });
+      }
+      await this.audit(tx, context, row.organizationId, id, 'RECEIVE_RECORD_UPDATE', null, { payerName: dto.payerName, amount: dto.amount, nature: dto.nature });
+      const final = await tx.receiveRecord.findUnique({ where: { id }, include: { customer: { select: { id: true, name: true, customerCode: true, salesPerson: true } }, account: { select: { id: true, name: true, accountCode: true } }, details: true } });
+      return { receiveRecord: this.receiveView(final) };
+    });
+  }
+
+  async cancelReceiveRecord(id: string, context: AccessContext) {
+    this.assertPermission(context, 'FINANCE_RECEIVE_CREATE');
+    return this.prisma.$transaction(async (tx) => {
+      const row = await this.lockReceive(tx, id, context);
+      if (row.status !== ReceiveRecordStatus.PENDING_CONFIRMATION && row.status !== ReceiveRecordStatus.PENDING_MATCH) throw new ConflictException('只有待审核的回款单可以撤回');
+      const updated = await tx.receiveRecord.update({ where: { id }, data: { status: ReceiveRecordStatus.CANCELLED, remark: row.remark ? `${row.remark}（已撤回）` : '已撤回' } });
+      await this.audit(tx, context, row.organizationId, id, 'RECEIVE_RECORD_CANCEL', { status: row.status }, { status: updated.status });
+      return { receiveRecord: this.receiveView(updated) };
+    });
+  }
+
+  async uploadReceiveScreenshot(file: any, context: AccessContext) {
+    this.assertPermission(context, 'FINANCE_RECEIVE_CREATE');
+    if (!file) throw new BadRequestException('请选择要上传的截图文件');
+    const extension = extname(file.originalname).toLowerCase();
+    if (!['.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp'].includes(extension)) throw new BadRequestException('仅支持图片格式（png/jpg/jpeg/webp/gif/bmp）');
+    const fileId = randomUUID();
+    const storageRoot = resolve(process.env.RECEIVE_SCREENSHOT_DIR || join(process.cwd(), 'storage', 'receipts'));
+    await mkdir(storageRoot, { recursive: true });
+    await writeFile(join(storageRoot, `${fileId}${extension}`), file.buffer);
+    return { url: `/api/receive-screenshots/file/${fileId}` };
+  }
+
+  async getReceiveScreenshotFile(fileId: string, res: Response) {
+    const storageRoot = resolve(process.env.RECEIVE_SCREENSHOT_DIR || join(process.cwd(), 'storage', 'receipts'));
+    const files = readdirSync(storageRoot).filter((name) => name.startsWith(fileId));
+    if (!files.length) throw new NotFoundException('回款截图不存在');
+    const filePath = join(storageRoot, files[0]);
+    const mimeMap: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.gif': 'image/gif', '.bmp': 'image/bmp' };
+    res.setHeader('Content-Type', mimeMap[extname(filePath).toLowerCase()] || 'application/octet-stream');
+    createReadStream(filePath).pipe(res);
+  }
+
 
   async refundReceiveRecord(id: string, dto: CreateReceiveRefundDto, context: AccessContext) {
     this.assertPermission(context, 'FINANCE_REFUND_CREATE');

@@ -7,7 +7,7 @@ import {
   Card, Table, Button, Tag, Space, Modal, Form, Input,
   message, Descriptions, Row, Col
 } from 'antd';
-import { PlusOutlined, ReloadOutlined, EyeOutlined, DownloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, ReloadOutlined, EyeOutlined, DownloadOutlined, UserOutlined } from '@ant-design/icons';
 import { downloadExcel } from '../utils/export';
 import type { PermissionActions } from '../utils/permissions';
 
@@ -27,7 +27,10 @@ export default function CustomerPanel({ token, perm, onError }: CustomerPanelPro
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [currentCustomer, setCurrentCustomer] = useState<any>(null);
+  const [salesEditOpen, setSalesEditOpen] = useState(false);
+  const [salesEditTarget, setSalesEditTarget] = useState<any>(null);
   const [form] = Form.useForm();
+  const [salesForm] = Form.useForm();
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -51,6 +54,18 @@ export default function CustomerPanel({ token, perm, onError }: CustomerPanelPro
     } catch (e: any) { onError(e.message); }
   };
 
+  const saveSalesPerson = async (values: any) => {
+    if (!salesEditTarget) return;
+    try {
+      await apiRequest(`/customers/${salesEditTarget.id}/sales-person`, token, { method: 'POST', body: JSON.stringify({ salesPerson: values.salesPerson }) });
+      message.success('销售姓名已更新');
+      setSalesEditOpen(false);
+      salesForm.resetFields();
+      setSalesEditTarget(null);
+      fetchData();
+    } catch (e: any) { onError(e.message); }
+  };
+
   const openDetail = async (record: any) => {
     try {
       const detail = await apiRequest(`/customers/${record.id}`, token, {});
@@ -68,12 +83,16 @@ export default function CustomerPanel({ token, perm, onError }: CustomerPanelPro
     { title: '全称', dataIndex: 'fullName', key: 'fullName', width: 200, render: (v: string) => v || '-' },
     { title: '联系人', dataIndex: 'contact', key: 'contact', width: 120, render: (v: string) => v || '-' },
     { title: '联系电话', dataIndex: 'phone', key: 'phone', width: 140, render: (v: string) => v || '-' },
+    { title: '销售姓名', dataIndex: 'salesPerson', key: 'salesPerson', width: 120, render: (v?: string) => v || '-' },
     { title: '状态', dataIndex: 'status', key: 'status', width: 100, render: (v: string) => <Tag color={v === 'ACTIVE' ? 'green' : 'default'}>{v === 'ACTIVE' ? '正常' : '停用'}</Tag> },
     { title: '备注', dataIndex: 'remark', key: 'remark', render: (v: string) => v || '-' },
     {
       title: '操作', key: 'action', width: 120, fixed: 'right' as const,
       render: (_: any, record: any) => (
-        <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => openDetail(record)}>详情</Button>
+        <Space>
+          <Button type="link" size="small" icon={<EyeOutlined />} onClick={() => openDetail(record)}>详情</Button>
+          <Button type="link" size="small" icon={<UserOutlined />} onClick={() => { salesForm.setFieldsValue({ salesPerson: record.salesPerson || '' }); setSalesEditTarget(record); setSalesEditOpen(true); }}>销售</Button>
+        </Space>
       ),
     },
   ];
@@ -122,6 +141,9 @@ export default function CustomerPanel({ token, perm, onError }: CustomerPanelPro
           <Form.Item name="fullName" label="客户全称" rules={[{ max: 100, message: '最多100个字符' }]}>
             <Input placeholder="例如：XX科技有限公司（选填）" />
           </Form.Item>
+          <Form.Item name="salesPerson" label="销售姓名" rules={[{ max: 50, message: '最多50个字符' }]}>
+            <Input placeholder="负责销售姓名（选填）" />
+          </Form.Item>
           <Row gutter={16}>
             <Col span={12}>
               <Form.Item name="contact" label="联系人" rules={[{ max: 100, message: '最多100个字符' }]}>
@@ -150,6 +172,7 @@ export default function CustomerPanel({ token, perm, onError }: CustomerPanelPro
             <Descriptions.Item label="客户编码">{currentCustomer.customerCode}</Descriptions.Item>
             <Descriptions.Item label="客户名称">{currentCustomer.name}</Descriptions.Item>
             <Descriptions.Item label="全称" span={2}>{currentCustomer.fullName || '-'}</Descriptions.Item>
+            <Descriptions.Item label="销售姓名">{currentCustomer.salesPerson || '-'}</Descriptions.Item>
             <Descriptions.Item label="联系人">{currentCustomer.contact || '-'}</Descriptions.Item>
             <Descriptions.Item label="联系电话">{currentCustomer.phone || '-'}</Descriptions.Item>
             <Descriptions.Item label="状态">
@@ -161,6 +184,19 @@ export default function CustomerPanel({ token, perm, onError }: CustomerPanelPro
             <Descriptions.Item label="备注" span={2}>{currentCustomer.remark || '-'}</Descriptions.Item>
           </Descriptions>
         )}
+      </Modal>
+
+      {/* 销售姓名编辑弹窗 */}
+      <Modal
+        title={salesEditTarget ? `设置销售姓名：${salesEditTarget.name}` : '设置销售姓名'}
+        open={salesEditOpen} onCancel={() => setSalesEditOpen(false)}
+        onOk={() => salesForm.submit()} okText="保存" cancelText="取消" width={420}
+      >
+        <Form form={salesForm} layout="vertical" onFinish={saveSalesPerson}>
+          <Form.Item name="salesPerson" label="销售姓名" rules={[{ max: 50, message: '最多50个字符' }]}>
+            <Input placeholder="请输入负责销售姓名" />
+          </Form.Item>
+        </Form>
       </Modal>
     </div>
   );

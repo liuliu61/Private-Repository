@@ -64,7 +64,7 @@ export class BusinessService {
     if (!agentId && this.scope.isSuperAdmin(context)) { const defOrg = await this.prisma.organization.findFirst({ where: { code: 'DEFAULT' } }); agentId = defOrg?.id; }
     if (!agentId) throw new BadRequestException('请先配置客户所属组织');
     if (agentId) await this.scope.assertOrganizationAccess(agentId, context);
-    const customer = await this.prisma.customer.create({ data: { customerCode: dto.customerCode, name: dto.name, fullName: dto.fullName, contact: dto.contact, phone: dto.phone, departmentId: dto.departmentId, agentId, remark: dto.remark } });
+    const customer = await this.prisma.customer.create({ data: { customerCode: dto.customerCode, name: dto.name, fullName: dto.fullName, salesPerson: dto.salesPerson?.trim() || null, contact: dto.contact, phone: dto.phone, departmentId: dto.departmentId, agentId, remark: dto.remark } });
     // 创建客户后自动创建默认财务V钱包（如果不存在）
     if (agentId) {
       try {
@@ -75,6 +75,14 @@ export class BusinessService {
       } catch { /* 自动创建钱包失败不影响客户创建 */ }
     }
     return customer;
+  }
+
+
+  async updateCustomerSalesPerson(customerId: string, dto: UpdateCustomerSalesPersonDto, context: AccessContext) {
+    const customer = await this.prisma.customer.findUnique({ where: { id: customerId }, select: { id: true, agentId: true } });
+    if (!customer) throw new NotFoundException('客户不存在');
+    if (customer.agentId) await this.scope.assertOrganizationAccess(customer.agentId, context);
+    return this.prisma.customer.update({ where: { id: customerId }, data: { salesPerson: dto.salesPerson?.trim() || null } });
   }
 
   async listSuppliers(query: ListQueryDto, context: AccessContext) {

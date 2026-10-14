@@ -31,7 +31,12 @@ export class CreateCustomerDto {
   @IsOptional() @IsString() @MaxLength(50) phone?: string;
   @IsOptional() @IsString() @MaxLength(100) departmentId?: string;
   @IsOptional() @IsUUID('4') agentId?: string;
+  @IsOptional() @IsString() @MaxLength(50) salesPerson?: string;
   @IsOptional() @IsString() @MaxLength(255) remark?: string;
+}
+
+export class UpdateCustomerSalesPersonDto {
+  @IsOptional() @IsString() @MaxLength(50) salesPerson?: string;
 }
 
 export class CreateSupplierDto {
@@ -243,6 +248,8 @@ export class CreateSupplierPolicyDto {
   @IsDateString() effectiveFrom!: string;
   @IsOptional() @IsDateString() effectiveTo?: string;
 }
+
+export class BusinessFileIdParamDto { @IsString() @IsNotEmpty() fileId!: string; }
 
 export class BusinessIdParamDto {
   @IsUUID('4', { message: '业务单据ID格式不正确' })
@@ -621,6 +628,27 @@ export class CreateReceiveRefundDto {
   @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(positiveMoney, { message: '退款金额格式不正确' }) refundAmount!: string;
   @IsString() @IsNotEmpty() @MaxLength(255) refundReason!: string;
   @IsString() @IsNotEmpty() @MaxLength(100) idempotencyKey!: string;
+}
+
+
+export class CreateManualReceiveRecordDto {
+  @IsUUID('4', { message: '客户ID格式不正确' }) customerId!: string;
+  @IsUUID('4', { message: '收款账户格式不正确' }) accountId!: string;
+  @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(positiveMoney, { message: '回款金额格式不正确' }) amount!: string;
+  @IsOptional() @IsString() @MaxLength(120) payerName?: string;
+  @IsOptional() @IsIn(['PUBLIC', 'PRIVATE'], { message: '账户分类不正确' }) nature?: 'PUBLIC' | 'PRIVATE';
+  @IsOptional() @IsDateString({}, { message: '回款时间格式不正确' }) receivedAt?: string;
+  @IsOptional() @IsString() @MaxLength(255) remark?: string;
+  @IsOptional() @IsString() @MaxLength(255) screenshotUrl?: string;
+}
+
+export class UpdateReceiveRecordDto {
+  @IsOptional() @IsString() @MaxLength(120) payerName?: string;
+  @IsOptional() @Transform(({ value }) => (value === undefined || value === null ? value : String(value))) @Matches(positiveMoney, { message: '回款金额格式不正确' }) amount?: string;
+  @IsOptional() @IsIn(['PUBLIC', 'PRIVATE'], { message: '账户分类不正确' }) nature?: 'PUBLIC' | 'PRIVATE';
+  @IsOptional() @IsDateString({}, { message: '回款时间格式不正确' }) receivedAt?: string;
+  @IsOptional() @IsString() @MaxLength(255) remark?: string;
+  @IsOptional() @IsString() @MaxLength(255) screenshotUrl?: string;
 }
 
 export class ReceiveRecordQueryDto {

@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, Res, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { Request, Response } from 'express';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { BankTransactionMatchDto, BankTransactionQueryDto, BusinessIdParamDto, CreateReceiveRecordDto, CreateReceiveRefundDto, ImportBankTransactionsDto, ReceivePostingDto, ReceiveRecordQueryDto } from './business.dto';
+import { BankTransactionMatchDto, BankTransactionQueryDto, BusinessFileIdParamDto, BusinessIdParamDto, CreateManualReceiveRecordDto, CreateReceiveRecordDto, CreateReceiveRefundDto, UpdateReceiveRecordDto, ImportBankTransactionsDto, ReceivePostingDto, ReceiveRecordQueryDto } from './business.dto';
 import { ReceivingService } from './receiving.service';
 import { ExportService } from '../common/export.service';
 
@@ -33,4 +34,9 @@ export class ReceivingController {
   @Post('receive-records') createReceiveRecord(@Body() dto: CreateReceiveRecordDto, @Req() request: AuthenticatedRequest) { return this.service.createReceiveRecord(dto, request.user); }
   @Post('receive-records/:id/confirm') confirmReceiveRecord(@Param() params: BusinessIdParamDto, @Body() dto: ReceivePostingDto, @Req() request: AuthenticatedRequest) { return this.service.confirmReceiveRecord(params.id, dto, request.user); }
   @Post('receive-records/:id/refund') refundReceiveRecord(@Param() params: BusinessIdParamDto, @Body() dto: CreateReceiveRefundDto, @Req() request: AuthenticatedRequest) { return this.service.refundReceiveRecord(params.id, dto, request.user); }
+  @Post('receive-records/manual') createManualReceiveRecord(@Body() dto: CreateManualReceiveRecordDto, @Req() request: AuthenticatedRequest) { return this.service.createManualReceiveRecord(dto, request.user); }
+  @Post('receive-records/:id/update') updateReceiveRecord(@Param() params: BusinessIdParamDto, @Body() dto: UpdateReceiveRecordDto, @Req() request: AuthenticatedRequest) { return this.service.updateReceiveRecord(params.id, dto, request.user); }
+  @Post('receive-records/:id/cancel') cancelReceiveRecord(@Param() params: BusinessIdParamDto, @Req() request: AuthenticatedRequest) { return this.service.cancelReceiveRecord(params.id, request.user); }
+  @Post('receive-screenshots/upload') @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 20 * 1024 * 1024 } })) uploadReceiveScreenshot(@UploadedFile() file: any, @Req() request: AuthenticatedRequest) { return this.service.uploadReceiveScreenshot(file, request.user); }
+  @Get('receive-screenshots/file/:fileId') getReceiveScreenshotFile(@Param() params: BusinessFileIdParamDto, @Res() res: any) { return this.service.getReceiveScreenshotFile(params.fileId, res); }
 }

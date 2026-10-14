@@ -30,3 +30,8 @@ services/ocr-service/.pytest_cache/
 .DS_Store
 Thumbs.db
 backend/pgdata/
+backend/storage/
+*.bak
+*.bak2
+backend/fund_type_schema*.py
+fix_*.py
