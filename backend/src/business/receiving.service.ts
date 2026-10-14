@@ -114,7 +114,7 @@ export class ReceivingService {
       (where as any).customer = { departmentId: context.departmentId };
     }
     const [items, total] = await this.prisma.$transaction([
-      this.prisma.receiveRecord.findMany({ where, include: { customer: { select: { id: true, name: true, customerCode: true } }, bankTransaction: { select: { id: true, transactionNo: true, counterpartyName: true } }, purchaseOrder: { select: { id: true, orderNo: true } }, account: { select: { id: true, name: true, accountCode: true } }, details: { orderBy: { createdAt: 'asc' } }, serviceFeeDetails: { orderBy: { createdAt: 'asc' }, include: { operator: { select: { id: true, displayName: true } } } } }, orderBy: [{ receivedAt: 'desc' }, { receiveNo: 'desc' }], skip: (query.page - 1) * query.pageSize, take: query.pageSize }),
+      this.prisma.receiveRecord.findMany({ where, include: { customer: { select: { id: true, name: true, customerCode: true } }, bankTransaction: { select: { id: true, transactionNo: true, counterpartyName: true } }, purchaseOrder: { select: { id: true, orderNo: true } }, account: { select: { id: true, name: true, accountCode: true } }, creator: { select: { id: true, displayName: true } }, confirmer: { select: { id: true, displayName: true } }, details: { orderBy: { createdAt: 'asc' } }, serviceFeeDetails: { orderBy: { createdAt: 'asc' }, include: { operator: { select: { id: true, displayName: true } } } } }, orderBy: [{ receivedAt: 'desc' }, { receiveNo: 'desc' }], skip: (query.page - 1) * query.pageSize, take: query.pageSize }),
       this.prisma.receiveRecord.count({ where }),
     ]);
     return { items: items.map((item) => this.receiveView(item)), total, page: query.page, pageSize: query.pageSize };

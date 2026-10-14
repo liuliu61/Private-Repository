@@ -1190,7 +1190,7 @@ export class PortalService {
     if (account.status !== AccountStatus.ACTIVE) throw new BadRequestException('推广账户已停用，不能退款');
     const accountBalance = new Prisma.Decimal(account.currentBalance ?? 0);
     if (!dto.amount && (!req.amount || Number(req.amount) <= 0)) throw new BadRequestException('请填写实际退款账户币');
-    const amount = dto.amount ? toMoney(dto.amount, '实际退款金额') : new Prisma.Decimal(req.amount);
+    const amount = dto.amount ? toMoney(String(dto.amount), '实际退款金额') : new Prisma.Decimal(String(req.amount));
     if (amount.lte(0)) throw new BadRequestException('退款金额必须大于 0');
     if (amount.gt(accountBalance)) throw new BadRequestException(`退款金额不能超过账户余额（当前余额：${moneyToString(accountBalance)}）`);
     const fundType = req.fundType || 'PRIVATE';
