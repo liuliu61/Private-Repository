@@ -58,12 +58,20 @@ export class ChannelService {
       this.prisma.rechargeRequest.aggregate({ where: { portId: id }, _count: true, _sum: { amount: true }, _max: { amount: true } }),
     ]);
     const confirmedAgg = await this.prisma.rechargeRequest.aggregate({ where: { portId: id, status: 'CONFIRMED' }, _count: true, _sum: { amount: true } });
+    const paIds = promotionAccounts.map((a: any) => a.id);
+    const paRechargeAgg = paIds.length > 0 ? await this.prisma.rechargeRequest.groupBy({
+      by: ['promotionAccountId'],
+      where: { promotionAccountId: { in: paIds }, status: 'CONFIRMED' },
+      _sum: { amount: true },
+    }) : [];
+    const paRechargeMap = new Map<string, number>(paRechargeAgg.map((g: any) => [g.promotionAccountId, g._sum.amount ?? 0]));
     return {
       channel,
       promotionAccounts: promotionAccounts.map((a: any) => ({
         id: a.id, accountName: a.accountName, platform: a.platform, platformAccountId: a.platformAccountId,
         label: a.label, status: a.status, ownerName: a.customer?.name || a.supplier?.name || null,
         currentBalance: (a.currentBalance ?? 0).toString(),
+        cumulativeRecharge: (paRechargeMap.get(a.id) ?? 0).toString(),
         customerRebatePublic: a.customerRebatePublic ? (a.customerRebatePublic as any).toString() : null,
         customerRebatePrivate: a.customerRebatePrivate ? (a.customerRebatePrivate as any).toString() : null,
       })),

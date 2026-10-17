@@ -22,7 +22,7 @@ interface Channel {
 }
 interface ChannelDetail {
   channel: Channel;
-  promotionAccounts: Array<{ id: string; accountName: string; platform: string | null; platformAccountId: string | null; label: string | null; status: string; ownerName: string | null; currentBalance: string; customerRebatePublic: string | null; customerRebatePrivate: string | null; }>;
+  promotionAccounts: Array<{ id: string; accountName: string; platform: string | null; platformAccountId: string | null; label: string | null; status: string; ownerName: string | null; currentBalance: string; cumulativeRecharge: string; customerRebatePublic: string | null; customerRebatePrivate: string | null; }>;
   recharge: { totalCount: number; totalAmount: string; confirmedCount: number; confirmedAmount: string; };
 }
 
@@ -114,11 +114,11 @@ export default function ChannelPanel({ token, onError }: { token: string; onErro
 
   const exportAccounts = () => {
     if (!detail) return;
-    const head = ['账户名称', '客户/供应商', '平台', '平台账号ID', '标签', '状态', '当前余额', '客户返点(对公%)', '客户返点(对私%)'];
+    const head = ['账户名称', '客户/供应商', '平台', '平台账号ID', '标签', '状态', '累计充值余额', '客户返点(对公%)', '客户返点(对私%)'];
     const rows = detail.promotionAccounts.map((a) => [
       a.accountName, a.ownerName || '', a.platform || '', a.platformAccountId || '',
       a.label === 'LEADS' ? '线索' : '团购', a.status === 'ACTIVE' ? '启用' : a.status === 'DISABLED' ? '封停' : '注销',
-      a.currentBalance, a.customerRebatePublic ?? '', a.customerRebatePrivate ?? '',
+      a.cumulativeRecharge ?? '0', a.customerRebatePublic ?? '', a.customerRebatePrivate ?? '',
     ]);
     const csv = '\ufeff' + [head, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -203,7 +203,7 @@ export default function ChannelPanel({ token, onError }: { token: string; onErro
               { title: '平台账号ID', dataIndex: 'platformAccountId', render: (v: string) => v || '-' },
               { title: '标签', dataIndex: 'label', width: 80, render: (v: string) => <Tag color={v === 'LEADS' ? 'purple' : 'blue'}>{v === 'LEADS' ? '线索' : '团购'}</Tag> },
               { title: '状态', dataIndex: 'status', width: 80, render: (v: string) => { const m: Record<string, any> = { ACTIVE: { c: 'green', l: '启用' }, DISABLED: { c: 'orange', l: '封停' }, CANCELLED: { c: 'default', l: '注销' } }; return <Tag color={m[v]?.c || 'default'}>{m[v]?.l || v}</Tag>; } },
-              { title: '当前余额', dataIndex: 'currentBalance', render: (v: string) => <b>¥{v}</b> },
+              { title: '累计充值余额', dataIndex: 'cumulativeRecharge', render: (v: string) => <b>¥{v}</b> },
               { title: '客户返点(对公%)', dataIndex: 'customerRebatePublic', render: (v: string) => v != null ? `${v}%` : '-' },
               { title: '客户返点(对私%)', dataIndex: 'customerRebatePrivate', render: (v: string) => v != null ? `${v}%` : '-' },
             ]} />
